@@ -94,7 +94,7 @@ The `logs/` directory itself does not need to be created — ralph creates it at
 ---
 
 ### Task 3: Create `install.sh`
-**Status:** planned
+**Status:** complete
 **Spec:** specs/installer.md, specs/project-structure.md
 **Dependencies:** None
 **Estimated Complexity:** medium
