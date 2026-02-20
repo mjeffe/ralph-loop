@@ -120,13 +120,15 @@ Any relevant context, gotchas, or learnings.
 
 During plan mode, the agent should:
 
-1. **Read all specs** in `specs/` directory
-2. **Analyze source code** to understand current state
-3. **Identify gaps** between specs and code
-4. **Create ordered tasks** that will close the gaps
-5. **Document dependencies** between tasks
-6. **Update plan status** to track progress through phases
-7. **Output completion signal** when planning is done
+1. **Read `specs/README.md`** for an overview of all specs
+2. **Read all specs** in `specs/` directory
+3. **Analyze the project** to understand current state
+4. **Identify gaps** between specs and code
+5. **Create ordered tasks** that will close the gaps
+6. **Document dependencies** between tasks
+7. **Update plan status** to track progress through phases
+8. **Keep `specs/README.md` current** — update it if specs are added or removed
+9. **Output completion signal** when planning is done
 
 ## Iterative Planning
 

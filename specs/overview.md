@@ -31,8 +31,8 @@ Each iteration:
 
 ### Key Components
 
-- **Specs** (`specs/`) - Source of truth for desired behavior
-- **Implementation Plan** (`ralph/implementation_plan.md`) - Ordered task list with status tracking
+- **Specs** (`specs/`) - Source of truth for desired behavior; `specs/README.md` is the index
+- **Implementation Plan** (`implementation_plan.md`) - Ordered task list with status tracking
 - **Session Log** - Complete record of all iterations in a run
 - **Git Commits** - Audit trail of all changes
 
@@ -52,15 +52,25 @@ Each iteration:
 vim specs/feature.md
 
 # Run plan mode to analyze and create implementation plan
-ralph plan
+./ralph plan
 
 # Run build iterations to implement tasks
-ralph build 10
+./ralph build 10
 
 # Review progress
 git log
-cat ralph/logs/session-*.log
+cat logs/session-*.log   # (or .ralph/logs/ in a parent project)
 ```
+
+## Two Deployment Scenarios
+
+### Ralph Project (ralph-loop repo)
+Ralph lives at the project root and operates on itself. The `ralph` script, `prompts/`, `logs/`, and `config` all live at the root alongside `specs/`.
+
+### Parent Project (after installation)
+Ralph is installed into `.ralph/` at the project root. The `specs/` directory and `AGENTS.md` live outside `.ralph/` and are project-specific — they are never overwritten by the installer.
+
+See `specs/project-structure.md` for full details.
 
 ## Non-Goals (This Phase)
 

@@ -206,6 +206,33 @@ curl http://localhost:3000/api/profile \
 ```
 ```
 
+## Specs Index (specs/README.md)
+
+Every specs directory should contain a `README.md` that serves as an index — a table with one-line descriptions of each spec file. This helps both humans and agents quickly understand what specs exist and what they cover.
+
+### Format
+
+```markdown
+# Specs Index
+
+This directory contains the specifications that define this project's desired behavior.
+Specs are the source of truth. When adding or removing a spec, update this index.
+
+| Spec | Description |
+|------|-------------|
+| [feature-1.md](feature-1.md) | Brief one-line description |
+| [feature-2.md](feature-2.md) | Brief one-line description |
+```
+
+### Keeping It Current
+
+- **When adding a spec:** Add a row to the index
+- **When removing a spec:** Remove the corresponding row
+- **Agents** (plan mode and build mode) are responsible for keeping the index current when they add or remove specs
+- **Humans** should update the index when manually adding or removing spec files
+
+The installer creates a starter `specs/README.md` template if one doesn't already exist.
+
 ## Spec Maintenance
 
 ### Regular Review

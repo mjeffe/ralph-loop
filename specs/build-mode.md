@@ -123,15 +123,17 @@ This signals the loop to exit successfully.
 
 During build mode, the agent should:
 
-1. **Read the implementation plan**
-2. **Select one task** to implement
-3. **Update task status** to `in-progress`
-4. **Implement the task** following its steps
-5. **Run all tests** and ensure they pass
-6. **Fix any broken tests** (even unrelated ones)
-7. **Update task status** to `complete`
-8. **Update the plan** with any new tasks discovered
-9. **Output completion signal** if no tasks remain
+1. **Read `specs/README.md`** for an overview of all specs
+2. **Read the implementation plan**
+3. **Select one task** to implement
+4. **Update task status** to `in-progress`
+5. **Implement the task** following its steps
+6. **Run all tests** and ensure they pass
+7. **Fix any broken tests** (even unrelated ones)
+8. **Update task status** to `complete`
+9. **Update the plan** with any new tasks discovered
+10. **Keep `specs/README.md` current** — update it if specs are added or removed
+11. **Output completion signal** if no tasks remain
 
 ## Example Iteration
 

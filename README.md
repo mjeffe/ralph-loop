@@ -38,8 +38,8 @@ Each iteration:
 
 ### Key Components
 
-- **Specs** (`specs/`) - Source of truth for desired behavior
-- **Implementation Plan** (`ralph/implementation_plan.md`) - Ordered task list with status tracking
+- **Specs** (`specs/`) - Source of truth for desired behavior; `specs/README.md` is the index
+- **Implementation Plan** (`.ralph/implementation_plan.md`) - Ordered task list with status tracking
 - **Session Log** - Complete record of all iterations in a run
 - **Git Commits** - Audit trail of all changes
 
@@ -56,7 +56,7 @@ curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | 
 
 1. **Review configuration:**
    ```bash
-   vim ralph/config
+   vim .ralph/config
    ```
 
 2. **Create specifications:**
@@ -69,9 +69,14 @@ curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | 
    vim AGENTS.md
    ```
 
-4. **Commit Ralph to your project:**
+4. **Optionally create a convenience symlink:**
    ```bash
-   git add ralph/ specs/ AGENTS.md
+   ln -s .ralph/ralph ralph
+   ```
+
+5. **Commit Ralph to your project:**
+   ```bash
+   git add .ralph/ specs/ AGENTS.md
    git commit -m "Add Ralph iterative development system"
    ```
 
@@ -79,17 +84,22 @@ curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | 
 
 ```bash
 # Generate implementation plan
-ralph/bin/ralph plan
+.ralph/ralph plan
 
 # Run build iterations (default: 10)
-ralph/bin/ralph build
+.ralph/ralph build
 
 # Run specific number of iterations
-ralph/bin/ralph build 20
+.ralph/ralph build 20
 
 # Run custom prompt
-ralph/bin/ralph prompt path/to/custom-prompt.md
+.ralph/ralph prompt path/to/custom-prompt.md
 ```
+
+> **Tip:** Create a convenience symlink so you can run `./ralph` from the project root:
+> ```bash
+> ln -s .ralph/ralph ralph
+> ```
 
 ### Workflow Example
 
@@ -98,15 +108,15 @@ ralph/bin/ralph prompt path/to/custom-prompt.md
 vim specs/authentication.md
 
 # 2. Run plan mode to analyze and create implementation plan
-ralph/bin/ralph plan
+.ralph/ralph plan
 
 # 3. Run build iterations to implement tasks
-ralph/bin/ralph build 10
+.ralph/ralph build 10
 
 # 4. Review progress
 git log
-cat ralph/logs/session-*.log
-cat ralph/implementation_plan.md
+cat .ralph/logs/session-*.log
+cat .ralph/implementation_plan.md
 ```
 
 ## Design Principles
@@ -122,26 +132,25 @@ cat ralph/implementation_plan.md
 
 ```
 project-root/
-├── specs/                          # Specification documents
-│   └── feature.md
-├── ralph/                          # Ralph system directory
-│   ├── README.md                   # This file (copied during install)
-│   ├── config                      # Project configuration
+├── .ralph/                         # Ralph installation (hidden directory)
+│   ├── ralph                       # Main executable
+│   ├── config                      # Ralph configuration
 │   ├── implementation_plan.md      # Current implementation plan
 │   ├── prompts/                    # Agent prompt templates
 │   │   ├── plan.md
 │   │   └── build.md
 │   ├── logs/                       # Session logs
-│   └── bin/
-│       └── ralph                   # Main CLI script
-├── src/                            # Your project source code
-├── AGENTS.md                       # Agent configuration
+│   └── .gitignore                  # Excludes logs/ from git
+├── specs/                          # Your project specifications
+│   ├── README.md                   # Specs index
+│   └── feature.md
+├── AGENTS.md                       # Agent configuration (project-specific)
 └── .git/                           # Git repository
 ```
 
 ## Documentation
 
-Comprehensive specifications are available in the `specs/` directory:
+Comprehensive specifications are available in the **[specs/](specs/README.md)** directory:
 
 - **[overview.md](specs/overview.md)** - System overview and design principles
 - **[project-structure.md](specs/project-structure.md)** - Directory layout and configuration
@@ -150,7 +159,7 @@ Comprehensive specifications are available in the `specs/` directory:
 - **[build-mode.md](specs/build-mode.md)** - Build mode behavior and responsibilities
 - **[spec-lifecycle.md](specs/spec-lifecycle.md)** - How to write and maintain specs
 - **[installer.md](specs/installer.md)** - Installation process and templates
-- **[AGENTS.md](AGENTS.md)** - Agent configuration and test setup
+- **[AGENTS.md](AGENTS.md)** - Agent configuration for this project
 
 ## Prerequisites
 

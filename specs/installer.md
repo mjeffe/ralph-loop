@@ -2,7 +2,8 @@
 
 ## Overview
 
-The Ralph installer is a bash script that copies Ralph files into a host project, making it easy to add Ralph to any project.
+The Ralph installer is a bash script (`install.sh`) that copies Ralph files into a host project,
+making it easy to add Ralph to any project.
 
 ## Installation Method
 
@@ -10,13 +11,15 @@ The Ralph installer is a bash script that copies Ralph files into a host project
 curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | bash
 ```
 
+The installer script lives at the root of the ralph-loop repository so the curl URL is minimal.
+
 ## Installer Behavior
 
 ### Pre-installation Checks
 
 1. **Check for existing installation**
-   - If `ralph/` directory exists, refuse to install
-   - Exit with code 1 and message: "Ralph is already installed. Remove ralph/ directory to reinstall."
+   - If `.ralph/` directory exists, refuse to install
+   - Exit with code 1 and message: "Ralph is already installed. Remove .ralph/ directory to reinstall."
 
 2. **Verify prerequisites**
    - Git repository exists (`.git/` directory)
@@ -25,49 +28,48 @@ curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | 
 
 ### Installation Steps
 
-1. **Create directory structure**
+1. **Create `.ralph/` directory structure**
    ```
-   ralph/
-   ├── README.md
+   .ralph/
+   ├── ralph               (executable)
    ├── config
    ├── implementation_plan.md (empty template)
    ├── prompts/
    │   ├── plan.md
    │   └── build.md
    ├── logs/
-   └── bin/
-       └── ralph
+   └── .gitignore
    ```
 
-2. **Copy files**
-   - Copy README.md from this project to `ralph/README.md`
-   - Copy default config template
+2. **Copy files into `.ralph/`**
+   - Copy `ralph` script (make executable)
+   - Copy default `config` template
    - Copy prompt templates
-   - Copy ralph CLI script
-   - Create empty implementation_plan.md template
+   - Create empty `implementation_plan.md` template
+   - Create `.ralph/.gitignore`
 
-3. **Set permissions**
-   - Make `ralph/bin/ralph` executable
-
-4. **Create specs directory** (if it doesn't exist)
+3. **Create `specs/` directory** (if it doesn't exist)
    - Create `specs/` directory
-   - Add `.gitkeep` file
+   - Create `specs/README.md` template (if it doesn't exist)
 
-5. **Display success message**
-   ```
-   Ralph installed successfully!
-   
-   Next steps:
-   1. Review and customize ralph/config
-   2. Review and customize ralph/prompts/*.md
-   3. Create specs in specs/ directory
-   4. Commit Ralph files: git add ralph/ specs/ && git commit -m "Add Ralph"
-   5. Run: ralph/bin/ralph plan
-   ```
+4. **Create `AGENTS.md`** (if it doesn't exist)
+
+5. **Display success message** with next steps
+
+### No-Overwrite Policy
+
+The installer is **additive only** for everything outside `.ralph/`:
+
+- `.ralph/` directory — all-or-nothing: if it exists, abort entirely
+- `specs/` directory — create if missing, leave alone if present
+- `specs/README.md` — create if missing, leave alone if present
+- `AGENTS.md` — create if missing, leave alone if present
+
+This ensures the installer never destroys existing project files.
 
 ## File Templates
 
-### ralph/config
+### .ralph/config
 
 ```bash
 #!/bin/bash
@@ -75,28 +77,28 @@ curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | 
 
 # Project directories
 PROJECT_ROOT="."
-SRC_DIR="src"
 SPECS_DIR="specs"
-RALPH_DIR="ralph"
-
-# Ralph paths
-PLAN_PATH="${RALPH_DIR}/implementation_plan.md"
-LOG_DIR="${RALPH_DIR}/logs"
-PROMPT_DIR="${RALPH_DIR}/prompts"
-
-# Agent configuration
-AGENT_CLI="cline"  # or path to agent CLI
-AGENT_ARGS=""      # additional args for agent
 
 # Loop configuration
 DEFAULT_MAX_ITERATIONS=10
 MAX_RETRIES=3
 
+# Agent configuration
+AGENT_CLI="cline"  # or path to agent CLI
+AGENT_ARGS=""      # additional args for agent
+
 # Test configuration (see AGENTS.md for details)
 TEST_COMMAND=""    # e.g., "npm test" or "pytest"
 ```
 
-### ralph/implementation_plan.md (template)
+### .ralph/.gitignore
+
+```
+# Ralph session logs (generated, not committed)
+logs/
+```
+
+### .ralph/implementation_plan.md (template)
 
 ```markdown
 # Implementation Plan
@@ -124,7 +126,42 @@ Phases Completed: None
 (Plan mode will add notes here)
 ```
 
-### ralph/prompts/plan.md
+### specs/README.md (template)
+
+```markdown
+# Specs Index
+
+This directory contains the specifications that define this project's desired behavior.
+Specs are the source of truth. When adding or removing a spec, update this index.
+
+| Spec | Description |
+|------|-------------|
+| [example.md](example.md) | Brief description of this spec |
+```
+
+### AGENTS.md (template)
+
+```markdown
+# Agent Configuration
+
+## Project Overview
+
+Brief description of this project and its structure.
+
+## Build & Test
+
+```bash
+TEST_COMMAND=""    # e.g., "npm test", "pytest", "./vendor/bin/phpunit"
+```
+
+## Project-Specific Guidelines
+
+- Any project-specific rules agents should follow
+- e.g., "Always run migrations after modifying schema files"
+- e.g., "Keep docs/ in sync with API changes"
+```
+
+### .ralph/prompts/plan.md
 
 ```markdown
 You are an expert software architect and planner working in Ralph plan mode.
@@ -136,13 +173,13 @@ Analyze the project specifications and source code to create a comprehensive imp
 ## Context
 
 - **Project Root:** ${PROJECT_ROOT}
-- **Source Code:** ${SRC_DIR}
 - **Specifications:** ${SPECS_DIR}
+- **Specs Index:** ${SPECS_DIR}/README.md
 - **Implementation Plan:** ${PLAN_PATH}
 
 ## Planning Phases
 
-You should work through these phases systematically:
+Work through these phases systematically:
 
 1. **Inventory** - Survey the codebase and identify key modules/components
 2. **Spec Alignment** - For each spec, identify gaps between desired and current behavior
@@ -154,13 +191,15 @@ For large projects, complete what you can and update the plan status to indicate
 
 ## Your Responsibilities
 
-1. Read all specifications in ${SPECS_DIR}
-2. Analyze source code in ${SRC_DIR}
-3. Identify gaps between specs and code
-4. Create ordered tasks in ${PLAN_PATH}
-5. Document dependencies between tasks
-6. Update plan status to track your progress
-7. When planning is complete, output: <promise>COMPLETE</promise>
+1. Read ${SPECS_DIR}/README.md for an overview of all specs
+2. Read all specifications in ${SPECS_DIR}
+3. Analyze the project codebase to understand current state
+4. Identify gaps between specs and code
+5. Create ordered tasks in ${PLAN_PATH}
+6. Document dependencies between tasks
+7. Update plan status to track your progress
+8. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
+9. When planning is complete, output: <promise>COMPLETE</promise>
 
 ## Implementation Plan Format
 
@@ -177,7 +216,7 @@ See specs/plan-mode.md for the required format.
 Begin planning now.
 ```
 
-### ralph/prompts/build.md
+### .ralph/prompts/build.md
 
 ```markdown
 You are an expert software developer working in Ralph build mode.
@@ -189,22 +228,24 @@ Implement ONE task from the implementation plan, ensure all tests pass, and comm
 ## Context
 
 - **Project Root:** ${PROJECT_ROOT}
-- **Source Code:** ${SRC_DIR}
 - **Specifications:** ${SPECS_DIR}
+- **Specs Index:** ${SPECS_DIR}/README.md
 - **Implementation Plan:** ${PLAN_PATH}
 - **Iteration:** ${ITERATION}
 
 ## Your Responsibilities
 
-1. Read ${PLAN_PATH}
-2. Select ONE task to implement (prefer tasks with status "planned" and no blockers)
-3. Update task status to "in-progress"
-4. Implement the task following its steps
-5. Run all tests (see AGENTS.md for test command)
-6. Fix any broken tests (even unrelated ones)
-7. Update task status to "complete"
-8. Add any new tasks discovered during implementation
-9. If no tasks remain, output: <promise>COMPLETE</promise>
+1. Read ${SPECS_DIR}/README.md for an overview of all specs
+2. Read ${PLAN_PATH}
+3. Select ONE task to implement (prefer tasks with status "planned" and no blockers)
+4. Update task status to "in-progress"
+5. Implement the task following its steps
+6. Run all tests (see AGENTS.md for test command)
+7. Fix any broken tests (even unrelated ones)
+8. Update task status to "complete"
+9. Add any new tasks discovered during implementation
+10. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
+11. If no tasks remain, output: <promise>COMPLETE</promise>
 
 ## Critical Rules
 
@@ -213,13 +254,6 @@ Implement ONE task from the implementation plan, ensure all tests pass, and comm
 - **DO NOT COMMIT BROKEN CODE**
 - If you discover new work, add it to the plan but don't do it now
 - If a task is blocked, mark it "blocked" and end iteration
-
-## Discovering New Work
-
-If you find bugs or missing features:
-- Add them as new tasks in the plan
-- Create specs if needed for complex features
-- Continue with your current task
 
 ## Task Status Values
 
@@ -241,45 +275,53 @@ Begin implementation now.
 
 ## Post-Installation
 
-After installation, the user should:
+After installation, the success message should read:
 
-1. **Review configuration**
-   ```bash
-   vim ralph/config
-   ```
+```
+Ralph installed successfully!
 
-2. **Customize prompts** (optional)
-   ```bash
-   vim ralph/prompts/plan.md
-   vim ralph/prompts/build.md
-   ```
+Ralph is installed in .ralph/ (a hidden directory).
 
-3. **Create AGENTS.md** (see AGENTS.md spec)
-   ```bash
-   vim AGENTS.md
-   ```
+Next steps:
+1. Review and customize .ralph/config
+2. Review and customize .ralph/prompts/*.md  (optional)
+3. Create your specs in specs/
+4. Fill in AGENTS.md with project-specific configuration
+5. Optionally create a convenience symlink:
+   ln -s .ralph/ralph ralph
+6. Commit Ralph files:
+   git add .ralph/ specs/ AGENTS.md && git commit -m "Add Ralph"
+7. Run Ralph:
+   .ralph/ralph plan   (or: ./ralph plan  if you created the symlink)
+```
 
-4. **Create initial specs**
-   ```bash
-   vim specs/feature-1.md
-   ```
+## Installer Script Location
 
-5. **Commit Ralph to project**
-   ```bash
-   git add ralph/ specs/ AGENTS.md
-   git commit -m "Add Ralph iterative development system"
-   ```
+The installer script lives at the root of the ralph-loop repository:
+```
+install.sh
+```
 
-6. **Run plan mode**
-   ```bash
-   ralph/bin/ralph plan
-   ```
+Accessible via GitHub raw URL:
+```
+https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh
+```
+
+## Error Handling
+
+The installer should handle:
+- Missing git repository (exit with helpful message)
+- Existing `.ralph/` directory (refuse to overwrite, exit code 1)
+- Permission errors (exit with helpful message)
+- Missing dependencies (check and report)
+
+All errors should exit with non-zero code and clear error message.
 
 ## Upgrade Path (Future)
 
 Currently, upgrading Ralph requires:
 1. Manual backup of customizations (config, prompts)
-2. Remove `ralph/` directory
+2. Remove `.ralph/` directory
 3. Re-run installer
 4. Restore customizations
 
@@ -289,31 +331,10 @@ A future version may support in-place upgrades.
 
 To remove Ralph:
 ```bash
-rm -rf ralph/
-git add ralph/
+rm -rf .ralph/
+git add .ralph/
 git commit -m "Remove Ralph"
 ```
 
 Specs remain in `specs/` and can be kept or removed separately.
-
-## Installer Script Location
-
-The installer script should live at:
-```
-scripts/install.sh
-```
-
-And be accessible via GitHub raw URL:
-```
-https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh
-```
-
-## Error Handling
-
-The installer should handle:
-- Missing git repository (exit with helpful message)
-- Existing ralph/ directory (refuse to overwrite)
-- Permission errors (exit with helpful message)
-- Missing dependencies (check and report)
-
-All errors should exit with non-zero code and clear error message.
+`AGENTS.md` can also be kept or removed.

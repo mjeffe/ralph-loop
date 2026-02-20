@@ -7,6 +7,13 @@ The Ralph loop orchestrates iterative agent execution with fresh context per ite
 ## CLI Interface
 
 ```bash
+# In the ralph-loop project (ralph at root)
+ralph <mode> [max_iterations] [options]
+
+# In a parent project (ralph installed in .ralph/)
+.ralph/ralph <mode> [max_iterations] [options]
+
+# In a parent project with symlink (ln -s .ralph/ralph ralph)
 ralph <mode> [max_iterations] [options]
 ```
 
@@ -19,31 +26,31 @@ ralph <mode> [max_iterations] [options]
 ### Options
 
 - `--max-iterations N` - Maximum iterations (default: 10)
-- `--config PATH` - Path to config file (default: ralph/config)
+- `--config PATH` - Path to config file (default: config, relative to ralph script directory)
 
 ### Examples
 
 ```bash
 # Run plan mode (single or multiple iterations until complete)
-ralph plan
+./ralph plan
 
 # Run up to 20 build iterations
-ralph build 20
+./ralph build 20
 
 # Run a custom one-off prompt
-ralph prompt ralph/prompts/refactor-analysis.md
+./ralph prompt prompts/refactor-analysis.md
 ```
 
 ## Loop Execution
 
 ### Initialization
 
-1. Load configuration from `ralph/config`
+1. Load configuration from `config` (relative to ralph script directory)
 2. Validate prerequisites:
    - Git repository exists
    - Agent CLI is available
    - Required directories exist
-3. Create session log file: `ralph/logs/session-YYYYMMDD-HHMMSS.log`
+3. Create session log file: `logs/session-YYYYMMDD-HHMMSS.log` (relative to ralph script directory)
 4. Initialize iteration counter
 
 ### Iteration Flow
