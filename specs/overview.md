@@ -59,7 +59,8 @@ vim specs/feature.md
 
 # Review progress
 git log
-cat logs/session-*.log   # (or .ralph/logs/ in a parent project)
+cat logs/session-*.log          # ralph-loop repo
+cat .ralph/logs/session-*.log   # parent project
 ```
 
 ## Two Deployment Scenarios

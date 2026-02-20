@@ -191,7 +191,6 @@ Ralph uses specific exit codes to indicate different outcomes:
 - `0` - Success (task complete or max iterations reached)
 - `1` - General error
 - `2` - Implementation plan not found (build mode)
-- `3` - Test failures exceeded retries
 - `4` - Agent failures exceeded retries
 - `5` - Git operation failure
 

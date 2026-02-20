@@ -10,10 +10,6 @@ There is no separate `src/` directory.
 
 This project has no automated test suite yet.
 
-```bash
-TEST_COMMAND=""
-```
-
 Manual verification: run `./ralph plan` or `./ralph build` and confirm expected behavior.
 
 ## Project-Specific Guidelines
@@ -23,5 +19,5 @@ Manual verification: run `./ralph plan` or `./ralph build` and confirm expected 
 - **Keep the root `README.md` in sync** with any significant structural or behavioral changes.
 - **The ralph script lives at the project root** (`./ralph`), not in a subdirectory.
 - **No `ralph/` or `.ralph/` directory exists in this project** — ralph runs from its own root.
-- When modifying prompt templates in `prompts/`, also update `specs/installer.md` which
-  contains the canonical template definitions.
+- When modifying prompt templates in `prompts/`, also update the canonical template
+  definitions: `specs/plan-mode.md` (plan prompt) and `specs/build-mode.md` (build prompt).

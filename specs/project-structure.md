@@ -90,17 +90,32 @@ Ralph uses a configuration file (`config`) located in the same directory as the 
 ```bash
 # Project-specific configuration
 SPECS_DIR="specs"                   # Specifications directory (relative to project root)
-PROJECT_ROOT="."                    # Project root (usually current directory)
 
 # Loop configuration
 DEFAULT_MAX_ITERATIONS=10
 MAX_RETRIES=3
 
-# Test configuration (see AGENTS.md for details)
-TEST_COMMAND=""                     # e.g., "npm test" or "pytest"
+# Agent configuration
+AGENT_CLI="cline"                   # Agent CLI command
+AGENT_ARGS="--yolo"                 # Additional args for agent
 ```
 
 Note: There is no `SRC_DIR` — agents explore the project root directly. If a project has unusual structure, document it in `AGENTS.md`.
+
+### Template Variable Substitution
+
+Before invoking the agent, the ralph loop substitutes variables into prompt templates using `envsubst`. All variables defined in `config` are automatically available in prompts, along with runtime variables set by the loop.
+
+Default variables available in all prompts:
+
+| Variable | Source | Description |
+|----------|--------|-------------|
+| `${SPECS_DIR}` | config | Path to specs directory (e.g., `specs`) |
+| `${MODE}` | runtime | Current mode: `plan`, `build`, or `prompt` |
+
+Custom variables can be added to `config` and will be available in prompts automatically. This is the mechanism for orienting the agent to project-specific paths or settings.
+
+Test instructions are **not** a config variable — they are described in prose in `AGENTS.md`, which the agent reads and interprets directly.
 
 ## Key Directories
 

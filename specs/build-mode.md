@@ -39,26 +39,33 @@ If during implementation the agent discovers:
 1. **Select task** from plan
 2. **Update task status** to `in-progress` in plan
 3. **Implement the task** following the steps
-4. **Run tests** - All tests must pass
+4. **Run tests** - All tests must pass (see `AGENTS.md` for project test instructions)
 5. **Fix any broken tests** - Even unrelated ones
 6. **Update task status** to `complete` in plan
-7. **Output completion** if no tasks remain
+7. **Commit all changes** with a descriptive commit message
+8. **Output completion signal** if no tasks remain
 
 ### Test Requirements
 
 **All tests must pass before the iteration completes.**
+
+The agent is responsible for running tests and fixing failures. The test process is described in `AGENTS.md` for the project.
 
 If implementation breaks existing tests:
 - Fix the broken tests
 - Ensure all tests pass
 - Do not commit broken code
 
-If tests fail after fixes:
-- Iteration is marked as failed
-- Retry up to 3 times
-- If still failing after retries, exit with code 3
+### Git Commit
 
-Test command is defined in `AGENTS.md`.
+The agent is responsible for committing its own work at the end of each successful iteration:
+
+```bash
+git add -A
+git commit -m "build: <short description of what was implemented>"
+```
+
+The commit message should describe what was implemented, not just the task number. The agent should not commit until all tests pass.
 
 ### Plan Updates
 
@@ -128,12 +135,71 @@ During build mode, the agent should:
 3. **Select one task** to implement
 4. **Update task status** to `in-progress`
 5. **Implement the task** following its steps
-6. **Run all tests** and ensure they pass
+6. **Run all tests** and ensure they pass (per `AGENTS.md`)
 7. **Fix any broken tests** (even unrelated ones)
 8. **Update task status** to `complete`
 9. **Update the plan** with any new tasks discovered
 10. **Keep `specs/README.md` current** — update it if specs are added or removed
-11. **Output completion signal** if no tasks remain
+11. **Commit all changes** with a descriptive message
+12. **Output completion signal** if no tasks remain
+
+## Prompt Template
+
+The following is the canonical prompt template for build mode. It lives at `prompts/build.md` and is used by the ralph loop to invoke the agent.
+
+```markdown
+You are an expert software developer working in Ralph build mode.
+
+## Your Mission
+
+Implement ONE task from the implementation plan, ensure all tests pass, and commit your work.
+
+## Context
+
+- **Specifications:** ${SPECS_DIR}
+- **Specs Index:** ${SPECS_DIR}/README.md
+- **Implementation Plan:** implementation_plan.md
+
+## Your Responsibilities
+
+1. Read ${SPECS_DIR}/README.md for an overview of all specs
+2. Read implementation_plan.md
+3. Select ONE task to implement (prefer tasks with status "planned" and no blockers)
+4. Update task status to "in-progress"
+5. Implement the task following its steps
+6. Run all tests (see AGENTS.md for test instructions)
+7. Fix any broken tests (even unrelated ones)
+8. Update task status to "complete"
+9. Add any new tasks discovered during implementation
+10. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
+11. Commit all changes with a descriptive commit message
+12. If no tasks remain, output: <promise>COMPLETE</promise>
+
+## Critical Rules
+
+- **ONE TASK ONLY** per iteration
+- **ALL TESTS MUST PASS** before you commit
+- **DO NOT COMMIT BROKEN CODE**
+- If you discover new work, add it to the plan but don't do it now
+- If a task is blocked, mark it "blocked" and end iteration
+
+## Task Status Values
+
+- `planned` - Ready to work on
+- `in-progress` - Currently implementing
+- `blocked` - Cannot proceed
+- `complete` - Finished and committed
+
+## Important
+
+- Focus on one task
+- Keep tests passing
+- Update the plan as you work
+- Document your progress
+- When all tasks are done, output the completion signal
+
+Begin implementation now.
+```
 
 ## Example Iteration
 
@@ -200,7 +266,7 @@ originally broken out as separate task.
 - Task completed
 - Tests passing
 - Plan updated
-- Changes committed
+- Changes committed by agent
 - Continue to next iteration
 
 ### Blocked
@@ -216,8 +282,8 @@ originally broken out as separate task.
 - Loop exits with code 0
 
 ### Failure
-- Tests fail after retries
-- Loop exits with code 3
+- Agent crashes or times out after retries
+- Loop exits with code 4
 - Human intervention needed
 
 ## Best Practices
@@ -252,13 +318,11 @@ If a task is too large, break it into subtasks in the plan.
 ## Exit Criteria
 
 Build mode iteration exits when:
-1. Task completed and tests pass (success)
+1. Task completed, tests pass, and changes committed (success)
 2. Task blocked (success, but no progress)
-3. Tests fail after retries (failure)
-4. Agent failure after retries (failure)
-5. No changes detected (failure)
+3. Agent failure after retries (failure)
 
 Build mode session exits when:
 1. `<promise>COMPLETE</promise>` detected (success)
 2. Max iterations reached (success, incomplete)
-3. Failure exit from iteration (failure)
+3. Agent failure exit from iteration (failure)

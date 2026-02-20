@@ -20,13 +20,13 @@ ralph <mode> [max_iterations] [options]
 ### Modes
 
 - `plan [max_iterations]` - Run plan mode iterations
-- `build [max_iterations]` - Run build mode iterations  
+- `build [max_iterations]` - Run build mode iterations
 - `prompt <file>` - Run a single ad-hoc prompt from file
 
 ### Options
 
 - `--max-iterations N` - Maximum iterations (default: 10)
-- `--config PATH` - Path to config file (default: config, relative to ralph script directory)
+- `--config PATH` - Path to config file (default: `config` relative to ralph script directory)
 
 ### Examples
 
@@ -45,7 +45,7 @@ ralph <mode> [max_iterations] [options]
 
 ### Initialization
 
-1. Load configuration from `config` (relative to ralph script directory)
+1. Load configuration from `config` (relative to ralph script directory), or from `--config PATH` if provided
 2. Validate prerequisites:
    - Git repository exists
    - Agent CLI is available
@@ -60,36 +60,53 @@ Each iteration follows this sequence:
 ```
 1. Pre-iteration checks
 2. Write iteration header to log
-3. Invoke agent with appropriate prompt
-4. Stream agent output (tee to stderr and log)
-5. Check for completion signal
-6. Run tests (build mode only)
-7. Git commit
-8. Write iteration footer to log
-9. Check exit conditions
+3. Substitute template variables into prompt
+4. Invoke agent with prompt
+5. Stream agent output to terminal and log simultaneously
+6. Check for completion signal
+7. Write iteration footer to log
+8. Check exit conditions
 ```
 
 ### Pre-iteration Checks
 
 **Build mode only:**
-- Verify `implementation_plan.md` exists
+- Verify `implementation_plan.md` exists (relative to ralph script directory)
 - If missing: exit with code 2 and message "Implementation plan not found. Run 'ralph plan' first."
+
+### Template Variable Substitution
+
+Before invoking the agent, the loop substitutes variables into the prompt template using `envsubst`. All variables defined in `config` are available, plus any runtime variables set by the loop.
+
+Default variables available in prompts:
+
+| Variable | Source | Value |
+|----------|--------|-------|
+| `${SPECS_DIR}` | config | e.g., `specs` |
+| `${MODE}` | runtime | `plan`, `build`, or `prompt` |
+
+Custom variables can be added to `config` and will be available automatically via `envsubst`.
 
 ### Agent Invocation
 
-The loop invokes the agent CLI with:
-- The appropriate prompt (with template variables substituted)
-- Fresh context (no conversation history)
-- Project directory as working directory
+The loop invokes the agent CLI by piping the substituted prompt to stdin:
 
-Agent output is captured and:
-- Streamed to stderr (human sees real-time progress)
-- Written to session log
-- Scanned for completion signal
+```bash
+output=$(cat "$PROMPT_FILE" | $AGENT_CLI $AGENT_ARGS 2>&1 | tee /dev/stderr | tee -a "$SESSION_LOG")
+```
+
+This pattern:
+- Pipes the prompt to the agent via stdin
+- Merges agent stderr into stdout (`2>&1`)
+- Streams output to the terminal in real-time (`tee /dev/stderr`)
+- Appends output to the session log (`tee -a "$SESSION_LOG"`)
+- Captures full output in `$output` for completion signal scanning
+
+The agent is invoked with the **project root as its working directory**. This is always `.` from the perspective of the agent, regardless of where the `ralph` script physically lives.
 
 ### Completion Detection
 
-The loop scans agent stdout for the exact string:
+The loop scans agent output for the exact string:
 ```
 <promise>COMPLETE</promise>
 ```
@@ -99,36 +116,11 @@ When detected:
 - Loop exits with success code 0
 - Final summary is written to log
 
-### Test Execution (Build Mode)
+### Git Operations
 
-After agent completes but before git commit:
+The **agent** is responsible for all git operations (add, commit, push) as part of completing its task. The loop does not commit on behalf of the agent.
 
-1. Run test command from `AGENTS.md`
-2. If tests fail:
-   - Mark iteration as failed
-   - Increment retry counter
-   - If retries < max retries (3): retry iteration
-   - If retries >= max retries: exit with code 3
-3. If tests pass: proceed to commit
-
-### Git Commit
-
-Last step of each successful iteration:
-
-```bash
-git add -A
-git commit -m "<mode>: iteration ${ITERATION} - ${TASK_DESCRIPTION}"
-```
-
-Commit message includes:
-- Mode (plan/build/prompt)
-- Iteration number
-- Short task description (from plan or prompt)
-
-If commit fails:
-- Log error
-- Mark iteration as failed
-- Retry iteration (up to max retries)
+The loop may check git status after an iteration to detect whether the agent made any changes, but does not perform commits itself.
 
 ### Exit Conditions
 
@@ -137,9 +129,8 @@ Loop exits when any of these occur:
 1. **Completion signal detected** - Exit code 0
 2. **Max iterations reached** - Exit code 0 (success, but incomplete)
 3. **Plan missing (build mode)** - Exit code 2
-4. **Test failures exceed retries** - Exit code 3
-5. **Agent failure exceeds retries** - Exit code 4
-6. **Git operation failure** - Exit code 5
+4. **Agent failure exceeds retries** - Exit code 4
+5. **Git operation failure** - Exit code 5
 
 ## Iteration Logging
 
@@ -152,8 +143,6 @@ Written at start of each iteration:
 ITERATION ${ITERATION}
 ================================================================================
 Mode: ${MODE}
-Task: ${TASK_DESCRIPTION}
-Spec: ${ASSOCIATED_SPEC}
 Start Time: ${TIMESTAMP}
 --------------------------------------------------------------------------------
 ```
@@ -203,16 +192,9 @@ If agent crashes, times out, or returns malformed output:
 3. If retries < 3: retry the same iteration
 4. If retries >= 3: exit with code 4
 
-### No Changes Detected
-
-If agent completes but `git status` shows no changes:
-1. Treat as failure
-2. Log "No changes detected"
-3. Retry iteration (up to max retries)
-
 ### Retry Strategy
 
-- Each iteration can be retried up to 3 times
+- Each iteration can be retried up to 3 times (configurable via `MAX_RETRIES` in config)
 - Retry counter resets on successful iteration
 - Retries use the same prompt/task
 - Retry count is logged in iteration footer
@@ -232,7 +214,6 @@ If agent completes but `git status` shows no changes:
 - Iteration counter
 - Retry counters
 - Session start time
-- Current task description
 - Agent statistics (if available)
 
 ## Ad-hoc Prompt Mode
@@ -244,12 +225,13 @@ ralph prompt path/to/custom-prompt.md
 ```
 
 Behavior:
-- Runs agent once with the specified prompt
-- Uses same logging and environment as loop modes
+- Reads the specified file as the prompt
+- Applies `envsubst` template variable substitution (same as plan/build modes)
+- Invokes the agent once using the same invocation pattern as other modes
+- Uses the same logging format as other modes
 - Does NOT iterate
 - Does NOT check for completion signal
-- Does NOT enforce test requirements
-- DOES commit changes if any
+- The agent decides whether to commit based on the prompt's instructions
 - Useful for exploration, analysis, or custom tasks
 
 Exit codes:
