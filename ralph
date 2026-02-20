@@ -143,7 +143,7 @@ init_session_log() {
     mkdir -p "$log_dir"
     local timestamp
     timestamp="$(date +%Y%m%d-%H%M%S)"
-    SESSION_LOG="$log_dir/session-${timestamp}.log"
+    SESSION_LOG="$log_dir/session-${timestamp}-${MODE}.log"
     touch "$SESSION_LOG"
 }
 

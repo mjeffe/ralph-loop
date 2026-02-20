@@ -1,4 +1,3 @@
-#!/bin/bash
 # Ralph configuration
 
 # Project directories
@@ -10,4 +9,4 @@ MAX_RETRIES=3
 
 # Agent configuration
 AGENT_CLI="cline"   # or path to agent CLI
-AGENT_ARGS="--yolo" # additional args for agent
+AGENT_ARGS="--yolo --verbose" # additional args for agent
