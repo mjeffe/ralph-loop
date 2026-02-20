@@ -3,242 +3,140 @@
 ## Plan Status
 
 Status: Complete
-Last Updated: 2026-02-20 16:27:00
-Phases Completed: Inventory, Spec Alignment, Task Decomposition, Dependency Ordering
+Last Updated: 2026-02-20 17:02:00
+Phases Completed: Inventory, Spec Alignment, Task Decomposition, Ordering
 
 ## Project Overview
 
-The Ralph Wiggum Loop is a bash-based iterative development system that enables LLM coding agents
+The Ralph Wiggum Loop is an iterative development system for LLM coding agents. It enables agents
 to work on large projects by breaking work into discrete, manageable chunks with fresh context per
-iteration. Ralph operates in two primary modes: **plan mode** (analyze specs → create task list)
-and **build mode** (pick one task → implement → commit). A third **prompt mode** supports one-off
-ad-hoc agent invocations.
+iteration. Ralph operates in two modes: plan mode (creates/updates an implementation plan) and
+build mode (implements one task per iteration).
 
-The project is self-hosting: Ralph lives at the root of the `ralph-loop` repo and operates on
-itself. The same files are installed into parent projects via `install.sh`, which copies Ralph into
-a hidden `.ralph/` directory.
+This is a self-hosting project — Ralph is being used to build itself. The "source code" is the
+specs (`specs/`) and the ralph scripts. There is no separate `src/` directory. The project is
+written in Bash and targets standard POSIX environments.
 
-Key technologies: Bash, `envsubst`, `tee`, `git`, and a pluggable agent CLI (default: `cline`).
+Key technologies: Bash, Git, envsubst, Cline (agent CLI).
 
 ## Spec Coverage
 
-- [x] specs/overview.md — Analyzed
-- [x] specs/project-structure.md — Analyzed
-- [x] specs/loop-behavior.md — Analyzed
-- [x] specs/plan-mode.md — Analyzed
-- [x] specs/build-mode.md — Analyzed
-- [x] specs/installer.md — Analyzed
-- [x] specs/spec-lifecycle.md — Analyzed
+- [x] specs/overview.md - Analyzed
+- [x] specs/project-structure.md - Analyzed
+- [x] specs/loop-behavior.md - Analyzed
+- [x] specs/plan-mode.md - Analyzed
+- [x] specs/build-mode.md - Analyzed
+- [x] specs/installer.md - Analyzed
+- [x] specs/spec-lifecycle.md - Analyzed (guidance only, no implementation gaps)
 
 ## Tasks
 
-### Task 1: Create `config` file
-**Status:** complete
-**Spec:** specs/project-structure.md, specs/installer.md
+### Task 1: Create prompt templates and supporting files
+**Status:** planned
+**Spec:** specs/plan-mode.md, specs/build-mode.md, specs/project-structure.md
 **Dependencies:** None
 **Estimated Complexity:** low
 
 **Steps:**
-1. Create `config` at the project root (this is the ralph-loop repo, so ralph lives at root)
-2. Include all variables defined in the spec:
-   - `SPECS_DIR="specs"`
-   - `DEFAULT_MAX_ITERATIONS=10`
-   - `MAX_RETRIES=3`
-   - `AGENT_CLI="cline"`
-   - `AGENT_ARGS="--yolo"`
-3. Add a shebang (`#!/bin/bash`) and descriptive comments
-4. Commit the file
+1. Create `prompts/` directory
+2. Create `prompts/plan.md` using the canonical template from `specs/plan-mode.md`
+3. Create `prompts/build.md` using the canonical template from `specs/build-mode.md`
+4. Verify `.gitignore` excludes `logs/` (add entry if missing)
+5. Commit with message: `feat: add prompt templates and gitignore for logs`
+
+**Notes:**
+The canonical prompt content is defined verbatim in the specs under "Prompt Template" sections.
+The `logs/` directory itself does not need to be created — ralph creates it at runtime.
 
 ---
 
-### Task 2: Create `prompts/plan.md`
+### Task 2: Implement the `ralph` main executable
 **Status:** planned
-**Spec:** specs/plan-mode.md
-**Dependencies:** None
-**Estimated Complexity:** low
-
-**Steps:**
-1. Create `prompts/` directory at the project root
-2. Copy the canonical plan prompt template from `specs/plan-mode.md` (under "Prompt Template")
-   into `prompts/plan.md`
-3. The template uses `${SPECS_DIR}` and `${MODE}` variables — preserve them as-is (envsubst
-   will substitute at runtime)
-4. Commit the file
-
----
-
-### Task 3: Create `prompts/build.md`
-**Status:** planned
-**Spec:** specs/build-mode.md
-**Dependencies:** None
-**Estimated Complexity:** low
-
-**Steps:**
-1. Copy the canonical build prompt template from `specs/build-mode.md` (under "Prompt Template")
-   into `prompts/build.md`
-2. The template uses `${SPECS_DIR}` and `${MODE}` variables — preserve them as-is
-3. Commit the file
-
----
-
-### Task 4: Create `logs/` directory and supporting gitignore entries
-**Status:** planned
-**Spec:** specs/project-structure.md, specs/installer.md
-**Dependencies:** None
-**Estimated Complexity:** low
-
-**Steps:**
-1. Create `logs/` directory at the project root
-2. Add a `.gitkeep` file inside `logs/` so git tracks the directory
-3. Verify the root `.gitignore` excludes `logs/` session log files (e.g., `logs/*.log`)
-   — add the entry if missing
-4. Commit the changes
-
----
-
-### Task 5: Implement the `ralph` main executable script
-**Status:** planned
-**Spec:** specs/loop-behavior.md, specs/project-structure.md, specs/plan-mode.md, specs/build-mode.md
-**Dependencies:** Task 1, Task 2, Task 3, Task 4
+**Spec:** specs/loop-behavior.md, specs/project-structure.md
+**Dependencies:** Task 1
 **Estimated Complexity:** high
 
 **Steps:**
-1. Create `ralph` at the project root; make it executable (`chmod +x ralph`)
-2. Add shebang `#!/bin/bash` and `set -euo pipefail`
-3. Implement self-relative path resolution:
-   ```bash
-   RALPH_DIR="$(dirname "$(readlink -f "$0")")"
-   ```
-4. Implement CLI argument parsing:
+1. Create `ralph` script at the project root (make executable with `chmod +x`)
+2. Implement self-relative path resolution: `RALPH_DIR="$(dirname "$(readlink -f "$0")")"`
+3. Implement CLI argument parsing:
    - Positional arg 1: mode (`plan`, `build`, `prompt`)
-   - Positional arg 2 (optional): max iterations (integer)
-   - `--max-iterations N` flag
-   - `--config PATH` flag (default: `$RALPH_DIR/config`)
-   - `prompt` mode requires a file path argument
-   - Print usage and exit 1 on invalid args
-5. Load configuration by sourcing the config file:
-   ```bash
-   source "$CONFIG_FILE"
-   ```
-6. Implement prerequisite validation:
-   - Git repository exists (`.git/` directory present in working dir)
+   - Positional arg 2: optional max_iterations (default from config)
+   - `--config PATH` option
+4. Implement config loading (source the config file)
+5. Implement prerequisite validation:
+   - Git repository exists (`.git/` directory)
    - Agent CLI is available in PATH
-   - Required directories exist (`$SPECS_DIR`, `$RALPH_DIR/prompts/`)
-7. Implement session log initialization:
-   - Create `$RALPH_DIR/logs/` if it doesn't exist
-   - Create log file: `$RALPH_DIR/logs/session-YYYYMMDD-HHMMSS.log`
-   - Record session start metadata
-8. Implement template variable substitution using `envsubst`:
-   - Export all config variables + runtime variables (`MODE`, etc.)
-   - Substitute into the prompt file before passing to agent
-9. Implement agent invocation pattern (pipe substituted prompt to agent via stdin):
-   ```bash
-   output=$(envsubst < "$PROMPT_FILE" | $AGENT_CLI $AGENT_ARGS 2>&1 | tee /dev/stderr | tee -a "$SESSION_LOG")
-   ```
-10. Implement completion signal detection — scan `$output` for `<promise>COMPLETE</promise>`
-11. Implement the iteration loop:
-    - Pre-iteration check for build mode: verify `$RALPH_DIR/implementation_plan.md` exists;
-      exit code 2 if missing
-    - Write iteration header to log (format per spec)
-    - Invoke agent
-    - Check for completion signal
-    - Write iteration footer to log (format per spec)
-    - Check exit conditions (completion, max iterations, failures)
-12. Implement retry logic:
-    - Per-iteration retry counter (up to `$MAX_RETRIES`)
-    - Reset retry counter on successful iteration
-    - Exit code 4 if retries exhausted
-13. Implement `prompt` mode (single invocation, no loop, no completion signal check)
-14. Write session summary to log on exit (format per spec)
-15. Implement all exit codes: 0 (success), 1 (general error), 2 (plan missing), 4 (agent
-    failure), 5 (git failure)
-16. Commit the script
-
----
-
-### Task 6: Create `implementation_plan.md` empty template
-**Status:** planned
-**Spec:** specs/installer.md, specs/plan-mode.md
-**Dependencies:** None
-**Estimated Complexity:** low
-
-**Steps:**
-1. Create `implementation_plan.md` at the project root using the template defined in
-   `specs/installer.md` (under "File Templates → .ralph/implementation_plan.md")
-2. Note: this file will be overwritten by plan mode when ralph runs — the template is just
-   a placeholder so the file exists in the repo as a starting point for installed projects
-3. Commit the file
+   - Required directories exist
+6. Implement session log initialization: `logs/session-YYYYMMDD-HHMMSS.log`
+7. Implement build mode pre-check: verify `implementation_plan.md` exists (exit code 2 if not)
+8. Implement template variable substitution via `envsubst` before agent invocation
+9. Implement agent invocation pattern (pipe prompt to agent stdin, tee to terminal and log)
+10. Implement completion signal detection (`<promise>COMPLETE</promise>`)
+11. Implement iteration loop with header/footer logging
+12. Implement session summary logging on exit
+13. Implement all exit codes (0, 1, 2, 4, 5)
+14. Implement `prompt` mode (single invocation, no loop, no completion signal check)
+15. Implement retry logic (up to MAX_RETRIES per iteration, exit code 4 on exhaustion)
+16. Manual verification: run `./ralph` with no args and confirm usage message; run `./ralph plan`
+    and confirm it invokes the agent
+17. Commit with message: `feat: implement ralph main executable`
 
 **Notes:**
-This task can be done at any time — it has no code dependencies. The current
-`implementation_plan.md` (this file) will be replaced by the next plan-mode run once `ralph`
-is implemented.
+- The agent is invoked with the **project root as working directory** — this is always `.` from
+  the agent's perspective, regardless of where the ralph script lives.
+- The loop does NOT commit on behalf of the agent; the agent commits its own work.
+- For the `prompt` mode, the agent decides whether to commit based on the prompt's instructions.
+- `envsubst` substitutes all variables from `config` plus runtime variables (`${MODE}`).
+- Agent invocation pattern from spec:
+  `output=$(cat "$PROMPT_FILE" | $AGENT_CLI $AGENT_ARGS 2>&1 | tee /dev/stderr | tee -a "$SESSION_LOG")`
 
 ---
 
-### Task 7: Implement `install.sh`
+### Task 3: Create `install.sh`
 **Status:** planned
 **Spec:** specs/installer.md, specs/project-structure.md
-**Dependencies:** Task 1, Task 2, Task 3, Task 5, Task 6
+**Dependencies:** None
 **Estimated Complexity:** medium
 
 **Steps:**
-1. Create `install.sh` at the project root; make it executable (`chmod +x install.sh`)
-2. Add shebang `#!/bin/bash` and `set -euo pipefail`
-3. Implement pre-installation checks:
-   - If `.ralph/` directory exists: print error and exit 1
-   - If `.git/` directory does not exist: print error and exit 1
-   - Check for required tools: `bash`, `mkdir`, `cp`, `envsubst`, `git`
-4. Implement directory structure creation:
-   ```
-   .ralph/
-   ├── ralph               (executable)
-   ├── config
-   ├── implementation_plan.md
-   ├── prompts/
-   │   ├── plan.md
-   │   └── build.md
-   ├── logs/
-   └── .gitignore
-   ```
-5. Copy files from the ralph-loop repo into `.ralph/`:
-   - `ralph` → `.ralph/ralph` (set executable bit)
-   - `config` → `.ralph/config`
-   - `prompts/plan.md` → `.ralph/prompts/plan.md`
-   - `prompts/build.md` → `.ralph/prompts/build.md`
-   - `implementation_plan.md` → `.ralph/implementation_plan.md`
-6. Create `.ralph/.gitignore` with content:
-   ```
-   # Ralph session logs (generated, not committed)
-   logs/
-   ```
-7. Create `specs/` directory if it doesn't exist
-8. Create `specs/README.md` if it doesn't exist (use template from spec)
-9. Create `AGENTS.md` if it doesn't exist (use template from spec)
-10. Print success message with next steps (exact text per spec)
-11. Handle errors gracefully: permission errors, missing dependencies — exit with non-zero
-    code and clear message
-12. Commit the script
+1. Create `install.sh` at the project root (make executable with `chmod +x`)
+2. Implement pre-installation checks:
+   - Refuse if `.ralph/` already exists (exit code 1 with message)
+   - Verify `.git/` directory exists
+   - Verify required tools: bash, mkdir, cp, envsubst
+3. Implement directory structure creation under `.ralph/`:
+   - `.ralph/ralph` (copy from project root `ralph`, make executable)
+   - `.ralph/config` (copy from template)
+   - `.ralph/implementation_plan.md` (empty template)
+   - `.ralph/prompts/plan.md` (copy from `prompts/plan.md`)
+   - `.ralph/prompts/build.md` (copy from `prompts/build.md`)
+   - `.ralph/logs/` (create directory)
+   - `.ralph/.gitignore` (create with `logs/` entry)
+4. Implement additive-only policy for files outside `.ralph/`:
+   - Create `specs/` if missing
+   - Create `specs/README.md` from template if missing
+   - Create `AGENTS.md` from template if missing
+5. Display post-install success message (per spec)
+6. Manual verification: run installer in a temp directory and confirm structure
+7. Commit with message: `feat: add install.sh installer script`
 
----
+**Notes:**
+- The installer is additive only outside `.ralph/` — never overwrites existing files.
+- `.ralph/` is all-or-nothing: if it exists, abort entirely.
+- File templates (config, implementation_plan.md, specs/README.md, AGENTS.md) are defined
+  verbatim in `specs/installer.md`.
+- The installer copies `ralph` from the project root into `.ralph/ralph`, so Task 2 (ralph
+  script) must exist before the installer can be fully tested end-to-end. However, the installer
+  itself can be written and structurally verified independently.
 
 ## Notes & Learnings
 
-- The `ralph` script is the most complex piece. It is pure bash and should be ~200–400 lines.
-  If implementation proves unwieldy in one iteration, split into: (a) CLI/config/validation
-  skeleton, and (b) loop logic, logging, and agent invocation.
-- `envsubst` substitutes only variables that are exported. The ralph script must `export` all
-  config variables after sourcing the config file.
-- The agent invocation pattern uses `tee /dev/stderr` to stream output to the terminal in
-  real-time while also capturing it in `$output` for completion signal scanning. This is a
-  subtle but important detail — test it carefully.
-- `install.sh` is designed to be piped from `curl`. It must be self-contained and must not
-  assume it is run from the ralph-loop repo directory. It downloads/copies from wherever it
-  is invoked. **Clarification needed:** the spec says the installer "copies Ralph files into
-  a host project" but the curl invocation pipes the script directly — the installer will need
-  to either (a) download individual files from GitHub raw URLs, or (b) assume it is run from
-  within a cloned ralph-loop repo. This ambiguity should be resolved before implementing Task 7.
-- Task 6 (`implementation_plan.md` template) will be superseded by the first real plan-mode
-  run. It exists only as a placeholder for installed projects.
-- No automated test suite exists yet. Manual verification: run `./ralph plan` and `./ralph build`
-  and confirm expected behavior per AGENTS.md.
+- This project is self-hosting: ralph runs from the project root (not `.ralph/`). The `ralph`
+  script, `prompts/`, `logs/`, `config`, and `implementation_plan.md` all live at the root.
+- The `AGENTS.md` notes that manual verification is `./ralph plan` or `./ralph build` — there is
+  no automated test suite yet.
+- Task 3 (install.sh) has no dependency on Task 2 (ralph) for writing the code, but does depend
+  on it for full end-to-end testing. Tasks can be done in any order (1, 2, 3 or 1, 3, 2).
+- The `prompts/` directory in this repo is the **canonical source** for prompt templates. When
+  installed into a parent project, they are copied to `.ralph/prompts/` and can be customized.

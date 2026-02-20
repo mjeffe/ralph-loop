@@ -212,6 +212,24 @@ For large projects, the agent may need multiple iterations:
 - Update plan status: "Complete"
 - Output `<promise>COMPLETE</promise>`
 
+## Task Sizing Heuristic
+
+When decomposing work into tasks, group by **logical cohesion** rather than maximizing granularity:
+
+- **Group related file creation/edits** that serve a single purpose into one task (e.g., creating
+  a directory, its files, and verifying a `.gitignore` entry are all "set up supporting files")
+- **Reserve separate tasks** for things that are independently testable or have distinct complexity
+- **Ask: "Would I commit these together?"** — if yes, they belong in one task
+
+A task that is "create file X" where X is a simple template copy is too small on its own — combine
+it with related setup work. A task that is "implement the full ralph script" is appropriately sized
+because it's a single coherent deliverable even if it's complex.
+
+Each task should be:
+- Completable in one build iteration
+- Independently verifiable (clear "done" state)
+- Committable as a single logical unit
+
 ## Human Interaction
 
 Humans can:
