@@ -33,7 +33,7 @@ Key technologies: Bash, `envsubst`, `tee`, `git`, and a pluggable agent CLI (def
 ## Tasks
 
 ### Task 1: Create `config` file
-**Status:** planned
+**Status:** complete
 **Spec:** specs/project-structure.md, specs/installer.md
 **Dependencies:** None
 **Estimated Complexity:** low

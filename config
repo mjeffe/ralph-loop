@@ -1,0 +1,13 @@
+#!/bin/bash
+# Ralph configuration
+
+# Project directories
+SPECS_DIR="specs"
+
+# Loop configuration
+DEFAULT_MAX_ITERATIONS=10
+MAX_RETRIES=3
+
+# Agent configuration
+AGENT_CLI="cline"   # or path to agent CLI
+AGENT_ARGS="--yolo" # additional args for agent
