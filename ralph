@@ -1,0 +1,430 @@
+#!/bin/bash
+# Ralph Wiggum Loop - main executable
+#
+# Usage:
+#   ralph plan [max_iterations]
+#   ralph build [max_iterations]
+#   ralph prompt <file>
+#   ralph --config PATH <mode> [max_iterations]
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Self-relative path resolution
+# ---------------------------------------------------------------------------
+RALPH_DIR="$(dirname "$(readlink -f "$0")")"
+
+# ---------------------------------------------------------------------------
+# Defaults (may be overridden by config)
+# ---------------------------------------------------------------------------
+DEFAULT_MAX_ITERATIONS=10
+MAX_RETRIES=3
+SPECS_DIR="specs"
+AGENT_CLI="cline"
+AGENT_ARGS="--yolo"
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+CONFIG_FILE=""
+MODE=""
+MAX_ITERATIONS=""
+PROMPT_FILE=""
+
+usage() {
+    cat <<EOF
+Usage: ralph <mode> [max_iterations] [options]
+
+Modes:
+  plan   [max_iterations]   Run plan mode iterations
+  build  [max_iterations]   Run build mode iterations
+  prompt <file>             Run a single ad-hoc prompt from file
+
+Options:
+  --config PATH   Path to config file (default: config in ralph script directory)
+
+Examples:
+  ralph plan
+  ralph build 20
+  ralph prompt prompts/my-prompt.md
+  ralph --config /path/to/config build 10
+EOF
+}
+
+# Parse --config before positional args
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --config)
+            CONFIG_FILE="$2"
+            shift 2
+            ;;
+        --config=*)
+            CONFIG_FILE="${1#--config=}"
+            shift
+            ;;
+        plan|build|prompt)
+            MODE="$1"
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            # Could be max_iterations or prompt file
+            if [[ -z "$MODE" ]]; then
+                echo "Error: unknown option or mode: $1" >&2
+                usage >&2
+                exit 1
+            fi
+            if [[ "$MODE" == "prompt" ]]; then
+                PROMPT_FILE="$1"
+            else
+                MAX_ITERATIONS="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$MODE" ]]; then
+    usage
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Load configuration
+# ---------------------------------------------------------------------------
+if [[ -z "$CONFIG_FILE" ]]; then
+    CONFIG_FILE="$RALPH_DIR/config"
+fi
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "Error: config file not found: $CONFIG_FILE" >&2
+    exit 1
+fi
+
+# shellcheck source=/dev/null
+source "$CONFIG_FILE"
+
+# Apply max iterations: CLI arg > config default > built-in default
+if [[ -z "$MAX_ITERATIONS" ]]; then
+    MAX_ITERATIONS="${DEFAULT_MAX_ITERATIONS:-10}"
+fi
+
+# ---------------------------------------------------------------------------
+# Prerequisite validation
+# ---------------------------------------------------------------------------
+validate_prerequisites() {
+    # Git repository must exist (check from working directory)
+    if [[ ! -d ".git" ]]; then
+        echo "Error: not a git repository (no .git directory found)" >&2
+        exit 1
+    fi
+
+    # Agent CLI must be available
+    if ! command -v "$AGENT_CLI" &>/dev/null; then
+        echo "Error: agent CLI not found in PATH: $AGENT_CLI" >&2
+        exit 1
+    fi
+
+    # Specs directory must exist
+    if [[ ! -d "$SPECS_DIR" ]]; then
+        echo "Error: specs directory not found: $SPECS_DIR" >&2
+        exit 1
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Session log initialization
+# ---------------------------------------------------------------------------
+init_session_log() {
+    local log_dir="$RALPH_DIR/logs"
+    mkdir -p "$log_dir"
+    local timestamp
+    timestamp="$(date +%Y%m%d-%H%M%S)"
+    SESSION_LOG="$log_dir/session-${timestamp}.log"
+    touch "$SESSION_LOG"
+}
+
+# ---------------------------------------------------------------------------
+# Logging helpers
+# ---------------------------------------------------------------------------
+log() {
+    echo "$*" | tee -a "$SESSION_LOG"
+}
+
+log_iteration_header() {
+    local iteration="$1"
+    local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+    log "================================================================================"
+    log "ITERATION ${iteration}"
+    log "================================================================================"
+    log "Mode: ${MODE}"
+    log "Start Time: ${timestamp}"
+    log "--------------------------------------------------------------------------------"
+}
+
+log_iteration_footer() {
+    local iteration="$1"
+    local status="$2"
+    local start_time="$3"
+    local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+    local duration=$(( $(date +%s) - start_time ))
+    log "--------------------------------------------------------------------------------"
+    log "ITERATION ${iteration} COMPLETE"
+    log "End Time: ${timestamp}"
+    log "Duration: ${duration}s"
+    log "Status: ${status}"
+    log "================================================================================"
+    log ""
+}
+
+log_session_summary() {
+    local total="$1"
+    local success_count="$2"
+    local fail_count="$3"
+    local total_duration="$4"
+    local exit_reason="$5"
+    local exit_code="$6"
+    log "================================================================================"
+    log "SESSION SUMMARY"
+    log "================================================================================"
+    log "Total Iterations: ${total}"
+    log "Successful: ${success_count}"
+    log "Failed: ${fail_count}"
+    log "Total Duration: ${total_duration}s"
+    log "Exit Reason: ${exit_reason}"
+    log "Exit Code: ${exit_code}"
+    log "================================================================================"
+}
+
+# ---------------------------------------------------------------------------
+# Template variable substitution
+# ---------------------------------------------------------------------------
+prepare_prompt() {
+    local template_file="$1"
+    local output_file="$2"
+    export MODE
+    export SPECS_DIR
+    envsubst < "$template_file" > "$output_file"
+}
+
+# ---------------------------------------------------------------------------
+# Agent invocation
+# ---------------------------------------------------------------------------
+invoke_agent() {
+    local prompt_file="$1"
+    # Pipe prompt to agent stdin; merge stderr into stdout; tee to terminal and log
+    # Capture full output for completion signal scanning
+    output=$(cat "$prompt_file" | $AGENT_CLI $AGENT_ARGS 2>&1 | tee /dev/stderr | tee -a "$SESSION_LOG")
+}
+
+# ---------------------------------------------------------------------------
+# Completion signal detection
+# ---------------------------------------------------------------------------
+check_completion() {
+    local output="$1"
+    if echo "$output" | grep -qF '<promise>COMPLETE</promise>'; then
+        return 0
+    fi
+    return 1
+}
+
+# ---------------------------------------------------------------------------
+# Run a single iteration
+# Returns:
+#   0 - success
+#   1 - agent failure (will be retried)
+#   2 - completion signal detected
+# ---------------------------------------------------------------------------
+run_iteration() {
+    local iteration="$1"
+    local prompt_template="$2"
+    local iter_start
+    iter_start="$(date +%s)"
+
+    log_iteration_header "$iteration"
+
+    # Prepare substituted prompt in a temp file
+    local tmp_prompt
+    tmp_prompt="$(mktemp)"
+    prepare_prompt "$prompt_template" "$tmp_prompt"
+
+    local iter_status="success"
+    local ret=0
+    output=""
+
+    if ! invoke_agent "$tmp_prompt"; then
+        iter_status="agent-failure"
+        ret=1
+    fi
+
+    rm -f "$tmp_prompt"
+
+    log_iteration_footer "$iteration" "$iter_status" "$iter_start"
+
+    if [[ $ret -ne 0 ]]; then
+        return 1
+    fi
+
+    # Check for completion signal
+    if check_completion "$output"; then
+        return 2
+    fi
+
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# Main loop (plan and build modes)
+# ---------------------------------------------------------------------------
+run_loop() {
+    local prompt_template="$1"
+    local session_start
+    session_start="$(date +%s)"
+    local iteration=0
+    local success_count=0
+    local fail_count=0
+    local exit_reason="max iterations reached"
+    local exit_code=0
+
+    while [[ $iteration -lt $MAX_ITERATIONS ]]; do
+        iteration=$(( iteration + 1 ))
+        local retry=0
+        local iter_done=false
+
+        while [[ $retry -le $MAX_RETRIES ]]; do
+            run_iteration "$iteration" "$prompt_template"
+            local result=$?
+
+            if [[ $result -eq 2 ]]; then
+                # Completion signal
+                success_count=$(( success_count + 1 ))
+                exit_reason="completion signal detected"
+                exit_code=0
+                local total_duration=$(( $(date +%s) - session_start ))
+                log_session_summary "$iteration" "$success_count" "$fail_count" \
+                    "$total_duration" "$exit_reason" "$exit_code"
+                exit 0
+            elif [[ $result -eq 0 ]]; then
+                success_count=$(( success_count + 1 ))
+                iter_done=true
+                break
+            else
+                # Agent failure
+                retry=$(( retry + 1 ))
+                fail_count=$(( fail_count + 1 ))
+                if [[ $retry -le $MAX_RETRIES ]]; then
+                    log "Agent failure on iteration ${iteration}, retry ${retry}/${MAX_RETRIES}..."
+                else
+                    log "Agent failure exceeded max retries (${MAX_RETRIES}) on iteration ${iteration}"
+                    exit_reason="agent failure exceeded retries"
+                    exit_code=4
+                    local total_duration=$(( $(date +%s) - session_start ))
+                    log_session_summary "$iteration" "$success_count" "$fail_count" \
+                        "$total_duration" "$exit_reason" "$exit_code"
+                    exit 4
+                fi
+            fi
+        done
+    done
+
+    local total_duration=$(( $(date +%s) - session_start ))
+    log_session_summary "$iteration" "$success_count" "$fail_count" \
+        "$total_duration" "$exit_reason" "$exit_code"
+    exit "$exit_code"
+}
+
+# ---------------------------------------------------------------------------
+# Prompt mode (single invocation, no loop)
+# ---------------------------------------------------------------------------
+run_prompt_mode() {
+    local prompt_file="$1"
+
+    if [[ -z "$prompt_file" ]]; then
+        echo "Error: prompt mode requires a file argument" >&2
+        usage >&2
+        exit 1
+    fi
+
+    if [[ ! -f "$prompt_file" ]]; then
+        echo "Error: prompt file not found: $prompt_file" >&2
+        exit 1
+    fi
+
+    local session_start
+    session_start="$(date +%s)"
+
+    log "================================================================================"
+    log "PROMPT MODE"
+    log "================================================================================"
+    log "File: ${prompt_file}"
+    log "Start Time: $(date '+%Y-%m-%d %H:%M:%S')"
+    log "--------------------------------------------------------------------------------"
+
+    local tmp_prompt
+    tmp_prompt="$(mktemp)"
+    prepare_prompt "$prompt_file" "$tmp_prompt"
+
+    local exit_code=0
+    if ! invoke_agent "$tmp_prompt"; then
+        exit_code=4
+    fi
+
+    rm -f "$tmp_prompt"
+
+    local total_duration=$(( $(date +%s) - session_start ))
+    log "--------------------------------------------------------------------------------"
+    log "PROMPT MODE COMPLETE"
+    log "End Time: $(date '+%Y-%m-%d %H:%M:%S')"
+    log "Duration: ${total_duration}s"
+    log "Exit Code: ${exit_code}"
+    log "================================================================================"
+
+    exit "$exit_code"
+}
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+validate_prerequisites
+init_session_log
+
+case "$MODE" in
+    plan)
+        PROMPT_TEMPLATE="$RALPH_DIR/prompts/plan.md"
+        if [[ ! -f "$PROMPT_TEMPLATE" ]]; then
+            echo "Error: plan prompt template not found: $PROMPT_TEMPLATE" >&2
+            exit 1
+        fi
+        run_loop "$PROMPT_TEMPLATE"
+        ;;
+
+    build)
+        # Build mode pre-check: implementation plan must exist
+        PLAN_FILE="$RALPH_DIR/implementation_plan.md"
+        if [[ ! -f "$PLAN_FILE" ]]; then
+            echo "Implementation plan not found. Run 'ralph plan' first." >&2
+            exit 2
+        fi
+        PROMPT_TEMPLATE="$RALPH_DIR/prompts/build.md"
+        if [[ ! -f "$PROMPT_TEMPLATE" ]]; then
+            echo "Error: build prompt template not found: $PROMPT_TEMPLATE" >&2
+            exit 1
+        fi
+        run_loop "$PROMPT_TEMPLATE"
+        ;;
+
+    prompt)
+        run_prompt_mode "$PROMPT_FILE"
+        ;;
+
+    *)
+        echo "Error: unknown mode: $MODE" >&2
+        usage >&2
+        exit 1
+        ;;
+esac

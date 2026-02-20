@@ -51,7 +51,7 @@ The `logs/` directory itself does not need to be created — ralph creates it at
 ---
 
 ### Task 2: Implement the `ralph` main executable
-**Status:** planned
+**Status:** complete
 **Spec:** specs/loop-behavior.md, specs/project-structure.md
 **Dependencies:** Task 1
 **Estimated Complexity:** high
