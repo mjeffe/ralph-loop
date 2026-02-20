@@ -182,6 +182,7 @@ Implement ONE task from the implementation plan, ensure all tests pass, and comm
 - **DO NOT COMMIT BROKEN CODE**
 - If you discover new work, add it to the plan but don't do it now
 - If a task is blocked, mark it "blocked" and end iteration
+- **OUTPUT THE COMPLETION SIGNAL** when all tasks are done — this is mandatory, not optional
 
 ## Task Status Values
 
@@ -196,7 +197,8 @@ Implement ONE task from the implementation plan, ensure all tests pass, and comm
 - Keep tests passing
 - Update the plan as you work
 - Document your progress
-- When all tasks are done, output the completion signal
+- **When all tasks are done, you MUST output `<promise>COMPLETE</promise>` — the loop cannot
+  exit without it. Do not skip this step.**
 
 Begin implementation now.
 ```
