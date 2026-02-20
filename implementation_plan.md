@@ -32,7 +32,7 @@ Key technologies: Bash, Git, envsubst, Cline (agent CLI).
 ## Tasks
 
 ### Task 1: Create prompt templates and supporting files
-**Status:** planned
+**Status:** complete
 **Spec:** specs/plan-mode.md, specs/build-mode.md, specs/project-structure.md
 **Dependencies:** None
 **Estimated Complexity:** low

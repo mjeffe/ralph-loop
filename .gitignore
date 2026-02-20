@@ -1,3 +1,6 @@
+# Ralph session logs (generated, not committed)
+logs/
+
 /vendor/
 node_modules/
 npm-debug.log
