@@ -32,7 +32,8 @@ For large projects, complete what you can and update the plan status to indicate
 6. Document dependencies between tasks
 7. Update plan status to track your progress
 8. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
-9. When planning is complete, output: <promise>COMPLETE</promise>
+9. Commit all changes with a descriptive commit message
+10. When planning is complete, output: <promise>COMPLETE</promise>
 
 ## Implementation Plan
 
