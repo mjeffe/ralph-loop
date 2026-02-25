@@ -337,7 +337,7 @@ run_loop() {
 }
 
 # ---------------------------------------------------------------------------
-# Prompt mode (single invocation, no loop)
+# Prompt mode (loop driven by user-supplied prompt file)
 # ---------------------------------------------------------------------------
 run_prompt_mode() {
     local prompt_file="$1"
@@ -353,36 +353,12 @@ run_prompt_mode() {
         exit 1
     fi
 
-    local session_start
-    session_start="$(date +%s)"
-
-    log "================================================================================"
-    log "PROMPT MODE"
-    log "================================================================================"
-    log "File: ${prompt_file}"
-    log "Start Time: $(date '+%Y-%m-%d %H:%M:%S')"
-    log "--------------------------------------------------------------------------------"
-
-    local tmp_prompt
-    tmp_prompt="$(mktemp)"
-    prepare_prompt "$prompt_file" "$tmp_prompt"
-
-    local exit_code=0
-    if ! invoke_agent "$tmp_prompt"; then
-        exit_code=4
+    if ! grep -qF '<promise>COMPLETE</promise>' "$prompt_file"; then
+        echo "Error: prompt file must contain <promise>COMPLETE</promise>" >&2
+        exit 1
     fi
 
-    rm -f "$tmp_prompt"
-
-    local total_duration=$(( $(date +%s) - session_start ))
-    log "--------------------------------------------------------------------------------"
-    log "PROMPT MODE COMPLETE"
-    log "End Time: $(date '+%Y-%m-%d %H:%M:%S')"
-    log "Duration: ${total_duration}s"
-    log "Exit Code: ${exit_code}"
-    log "================================================================================"
-
-    exit "$exit_code"
+    run_loop "$prompt_file"
 }
 
 # ---------------------------------------------------------------------------

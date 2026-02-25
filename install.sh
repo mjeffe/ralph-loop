@@ -98,28 +98,6 @@ install_ralph_dir() {
     # Create implementation_plan.md template
     cat > "$RALPH_DIR/implementation_plan.md" <<'EOF'
 # Implementation Plan
-
-## Plan Status
-
-Status: Not started
-Last Updated: 
-Phases Completed: None
-
-## Project Overview
-
-(Plan mode will fill this in)
-
-## Spec Coverage
-
-(Plan mode will fill this in)
-
-## Tasks
-
-(Plan mode will fill this in)
-
-## Notes & Learnings
-
-(Plan mode will add notes here)
 EOF
 
     # Create .gitignore

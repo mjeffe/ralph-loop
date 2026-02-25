@@ -3,7 +3,7 @@
 ## Status: Complete
 
 Last Updated: 2026-02-25
-All phases complete. Two gaps identified between specs and current implementation.
+All tasks complete.
 
 ## Project Overview
 
@@ -17,11 +17,11 @@ separate `src/` directory.
 |------|--------|
 | specs/overview.md | ✅ Implemented |
 | specs/project-structure.md | ✅ Implemented |
-| specs/loop-behavior.md | ⚠️ Gap: prompt mode is single-shot, not a loop |
+| specs/loop-behavior.md | ✅ Implemented |
 | specs/plan-mode.md | ✅ Implemented |
 | specs/build-mode.md | ✅ Implemented |
 | specs/spec-lifecycle.md | ✅ No code required (process doc) |
-| specs/installer.md | ⚠️ Gap: implementation_plan.md template is too verbose |
+| specs/installer.md | ✅ Implemented |
 
 ## Tasks
 
@@ -29,7 +29,7 @@ separate `src/` directory.
 
 ### Task 1: Fix prompt mode to run as a loop
 
-**Status:** planned
+**Status:** complete
 **Spec:** specs/loop-behavior.md
 
 The spec defines prompt mode as a full loop with `max_iterations`, retries, and completion
@@ -61,7 +61,7 @@ and no completion signal check.
 
 ### Task 2: Fix implementation_plan.md template in install.sh
 
-**Status:** planned
+**Status:** complete
 **Spec:** specs/installer.md
 
 The spec says the `implementation_plan.md` template should be intentionally minimal:
