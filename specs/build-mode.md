@@ -85,22 +85,10 @@ The agent must update `implementation_plan.md` during the iteration:
 
 If the agent discovers additional work needed:
 
-**For bugs or small issues:**
-```markdown
-### Task N+1: Fix bug in X module
-**Status:** planned
-**Spec:** specs/existing-spec.md
-**Dependencies:** Task N
-**Estimated Complexity:** low
-
-**Steps:**
-1. Reproduce the bug
-2. Fix the issue
-3. Add test coverage
-
-**Notes:**
-Discovered during Task N implementation.
-```
+**For small bugs or issues:**
+1. Create a task in @implementation_plan.md
+2. Add a note that it was discovered during Task N implementation
+3. If the fix is trivial (isolated, low-risk, ≤ ~5 lines), fix it now and include it in this iteration's commit. Otherwise, leave it for a future iteration.
 
 **For complex features:**
 1. Create a new spec in `specs/`

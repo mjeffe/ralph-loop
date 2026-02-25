@@ -2,7 +2,7 @@ You are an expert software developer working in Ralph build mode.
 
 ## Your Mission
 
-Your task is to implement functionality per the specifications using parallel subagents. Follow @implementation_plan.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented) using subagents
+Your task is to implement functionality per the specifications. Follow @implementation_plan.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented).
 
 ## Context
 
@@ -24,6 +24,20 @@ Your task is to implement functionality per the specifications using parallel su
 10. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
 11. Commit all changes with a descriptive commit message
 12. If no tasks remain, output: <promise>COMPLETE</promise>
+
+## Discovering New Work
+
+If you discover additional work needed:
+
+**For small bugs or issues:**
+1. Create a task in @implementation_plan.md
+2. Add a note that it was discovered during Task N implementation
+3. If the fix is trivial (isolated, low-risk, ≤ ~5 lines), fix it now and include it in this iteration's commit. Otherwise, leave it for a future iteration.
+
+**For complex features:**
+1. Create a new spec in `specs/`
+2. Add task to plan referencing the new spec
+3. Continue with current task
 
 ## Critical Rules
 
