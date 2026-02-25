@@ -97,7 +97,7 @@ MAX_RETRIES=3
 
 # Agent configuration
 AGENT_CLI="cline"                   # Agent CLI command
-AGENT_ARGS="--yolo"                 # Additional args for agent
+AGENT_ARGS="--yolo --verbose"       # Additional args for agent
 ```
 
 Note: There is no `SRC_DIR` — agents explore the project root directly. If a project has unusual structure, document it in `AGENTS.md`.

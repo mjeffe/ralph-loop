@@ -98,29 +98,10 @@ logs/
 
 ```markdown
 # Implementation Plan
-
-## Plan Status
-
-Status: Not started
-Last Updated: 
-Phases Completed: None
-
-## Project Overview
-
-(Plan mode will fill this in)
-
-## Spec Coverage
-
-(Plan mode will fill this in)
-
-## Tasks
-
-(Plan mode will fill this in)
-
-## Notes & Learnings
-
-(Plan mode will add notes here)
 ```
+
+This is intentionally minimal. Plan mode regenerates the plan from scratch, so there is no
+value in pre-populating it with skeleton sections.
 
 ### specs/README.md (template)
 

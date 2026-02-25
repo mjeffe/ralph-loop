@@ -152,7 +152,7 @@ You are an expert software developer working in Ralph build mode.
 
 ## Your Mission
 
-Implement ONE task from the implementation plan, ensure all tests pass, and commit your work.
+Your task is to implement functionality per the specifications using parallel subagents. Follow @implementation_plan.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented) using subagents
 
 ## Context
 
@@ -162,13 +162,13 @@ Implement ONE task from the implementation plan, ensure all tests pass, and comm
 
 ## Your Responsibilities
 
-1. Read ${SPECS_DIR}/README.md for an overview of all specs
-2. Read implementation_plan.md
+1. Study ${SPECS_DIR}/README.md for an overview of all specs
+2. Study @implementation_plan.md
 3. Select ONE task to implement (prefer tasks with status "planned" and no blockers)
 4. Update task status to "in-progress"
 5. Implement the task following its steps
 6. Run all tests (see AGENTS.md for test instructions)
-7. Fix any broken tests (even unrelated ones)
+7. Fix any broken tests (even unrelated ones).
 8. Update task status to "complete"
 9. Add any new tasks discovered during implementation
 10. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
@@ -197,6 +197,10 @@ Implement ONE task from the implementation plan, ensure all tests pass, and comm
 - Keep tests passing
 - Update the plan as you work
 - Document your progress
+- For any bugs you notice, resolve them or document them in @implementation_plan.md using a subagent even if it is unrelated to the current piece of work.
+- Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
+- When you learn something new about how to run the application, update @AGENTS.md using a subagent but keep it brief. For example if you run commands multiple times before learning the correct command then that file should be updated.
+- Keep @AGENTS.md operational only — status updates and progress notes belong in implementation_plan.md. A bloated AGENTS.md pollutes every future loop's context.
 - **When all tasks are done, you MUST output `<promise>COMPLETE</promise>` — the loop cannot
   exit without it. Do not skip this step.**
 

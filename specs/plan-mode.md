@@ -43,71 +43,18 @@ This signals that the plan is comprehensive and ready for build mode.
 
 ## Implementation Plan Format
 
-The `implementation_plan.md` file lives at the root of the ralph script directory (e.g., `.ralph/implementation_plan.md` in a parent project, or `implementation_plan.md` in the ralph-loop repo itself).
+The `implementation_plan.md` file lives at the root of the ralph script directory (e.g.,
+`.ralph/implementation_plan.md` in a parent project, or `implementation_plan.md` in the
+ralph-loop repo itself).
 
-### Required Sections
+The plan is a prioritized list of work to be done. At minimum, each task needs:
+- A short title
+- A brief description of what needs to be done
+- The **spec** that drives it (e.g., `specs/feature.md`)
+- A **status**: `planned` | `in-progress` | `blocked` | `complete`
+- Enough detail for build mode to implement it without re-analyzing the project
 
-#### 1. Plan Status
-Current state of the planning process:
-```markdown
-## Plan Status
-
-Status: Complete
-Last Updated: 2026-02-20 12:00:00
-Phases Completed: Inventory, Spec Alignment, Task Decomposition, Ordering
-```
-
-#### 2. Project Overview
-High-level understanding of the project:
-```markdown
-## Project Overview
-
-Brief description of what this project does, key technologies, architecture notes.
-```
-
-#### 3. Spec Coverage
-Which specs have been analyzed:
-```markdown
-## Spec Coverage
-
-- [x] specs/feature-1.md - Analyzed
-- [x] specs/feature-2.md - Analyzed
-- [ ] specs/feature-3.md - Not yet analyzed
-```
-
-#### 4. Tasks
-Ordered list of implementation tasks:
-```markdown
-## Tasks
-
-### Task 1: [Short Description]
-**Status:** planned | in-progress | blocked | complete
-**Spec:** specs/feature-1.md
-**Dependencies:** None
-**Estimated Complexity:** low | medium | high
-
-**Steps:**
-1. Step one
-2. Step two
-3. Step three
-
-**Notes:**
-Any relevant context, gotchas, or learnings.
-
----
-
-### Task 2: [Short Description]
-...
-```
-
-#### 5. Notes & Learnings (Optional)
-```markdown
-## Notes & Learnings
-
-- Important constraint discovered during analysis
-- Gotcha about X module
-- Dependency on external service Y
-```
+Tasks should be ordered by priority. Structure and format beyond that are up to the agent.
 
 ### Task Status Values
 
@@ -171,9 +118,17 @@ For large projects, complete what you can and update the plan status to indicate
 8. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
 9. When planning is complete, output: <promise>COMPLETE</promise>
 
-## Implementation Plan Format
+## Implementation Plan
 
-See specs/plan-mode.md for the required format.
+Create or update `implementation_plan.md` — a prioritized list of work to be done. Keep it
+concise and actionable. At minimum, each task needs:
+- A short title
+- A brief description of what needs to be done
+- The **spec** that drives it (e.g., `specs/feature.md`)
+- A **status**: `planned` | `in-progress` | `blocked` | `complete`
+- Enough detail for build mode to implement it without re-analyzing the project
+
+Order tasks by priority. Structure and format beyond that are up to you.
 
 ## Important
 
@@ -181,7 +136,7 @@ See specs/plan-mode.md for the required format.
 - Break large work into manageable tasks
 - Order tasks logically by dependencies
 - Document your learnings and gotchas
-- When done, output the completion signal
+- **OUTPUT THE COMPLETION SIGNAL** when finished planning — this is mandatory, not optional
 
 Begin planning now.
 ```
@@ -244,78 +199,21 @@ The plan is always regenerated from scratch, ensuring it reflects current specs 
 ```markdown
 # Implementation Plan
 
-## Plan Status
-
-Status: Complete
-Last Updated: 2026-02-20 12:00:00
-Phases Completed: All
-
-## Project Overview
-
-This is a web application built with Node.js and Express. It provides a REST API
-for managing user accounts and authentication.
-
-## Spec Coverage
-
-- [x] specs/authentication.md
-- [x] specs/user-management.md
-- [x] specs/api-design.md
-
-## Tasks
-
 ### Task 1: Set up Express server
 **Status:** complete
 **Spec:** specs/api-design.md
-**Dependencies:** None
-**Estimated Complexity:** low
-
-**Steps:**
-1. Install Express
-2. Create server.js
-3. Configure middleware
-4. Add health check endpoint
-
-**Notes:**
-Using Express 4.x as specified.
-
----
+Create an Express server with middleware and a health check endpoint.
 
 ### Task 2: Implement user model
 **Status:** complete
 **Spec:** specs/user-management.md
-**Dependencies:** Task 1
-**Estimated Complexity:** medium
-
-**Steps:**
-1. Define user schema
-2. Create User model
-3. Add validation
-4. Write unit tests
-
----
+Define the user schema, create the User model with validation, and write unit tests.
 
 ### Task 3: Add authentication endpoints
 **Status:** planned
 **Spec:** specs/authentication.md
-**Dependencies:** Task 2
-**Estimated Complexity:** high
-
-**Steps:**
-1. Install passport.js
-2. Configure JWT strategy
-3. Create /login endpoint
-4. Create /register endpoint
-5. Add authentication middleware
-6. Write integration tests
-
-**Notes:**
-Must use JWT tokens as specified. Token expiry set to 24 hours.
-
-## Notes & Learnings
-
-- Using bcrypt for password hashing (cost factor 10)
-- JWT secret should be in environment variable
-- Database connection string in .env file
+Implement /login and /register endpoints using JWT strategy via passport.js.
+Token expiry 24 hours per spec. Requires Task 2.
 ```
 
 ## Exit Criteria

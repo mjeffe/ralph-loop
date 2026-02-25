@@ -21,11 +21,10 @@ ralph <mode> [max_iterations] [options]
 
 - `plan [max_iterations]` - Run plan mode iterations
 - `build [max_iterations]` - Run build mode iterations
-- `prompt <file>` - Run a single ad-hoc prompt from file
+- `prompt <file> [max_iterations]` - Run an ad-hoc prompt in the loop
 
 ### Options
 
-- `--max-iterations N` - Maximum iterations (default: 10)
 - `--config PATH` - Path to config file (default: `config` relative to ralph script directory)
 
 ### Examples
@@ -119,8 +118,6 @@ When detected:
 ### Git Operations
 
 The **agent** is responsible for all git operations (add, commit, push) as part of completing its task. The loop does not commit on behalf of the agent.
-
-The loop may check git status after an iteration to detect whether the agent made any changes, but does not perform commits itself.
 
 ### Exit Conditions
 
@@ -218,23 +215,24 @@ If agent crashes, times out, or returns malformed output:
 
 ## Ad-hoc Prompt Mode
 
-Special mode for one-off agent invocations:
+Special mode for running a custom prompt in the loop:
 
 ```bash
-ralph prompt path/to/custom-prompt.md
+ralph prompt path/to/custom-prompt.md [max_iterations]
 ```
 
 Behavior:
-- Reads the specified file as the prompt
+- Reads the specified file as the prompt template
 - Applies `envsubst` template variable substitution (same as plan/build modes)
-- Invokes the agent once using the same invocation pattern as other modes
+- **Validates** that the prompt file contains `<promise>COMPLETE</promise>` before starting;
+  exits with an error if the signal is absent (the loop cannot exit cleanly without it)
+- Runs the same loop as plan/build modes: iterates up to `max_iterations`, retries on agent
+  failure, and exits when the completion signal is detected
 - Uses the same logging format as other modes
-- Does NOT iterate
-- Does NOT check for completion signal
 - The agent decides whether to commit based on the prompt's instructions
-- Useful for exploration, analysis, or custom tasks
+- Useful for exploration, analysis, refactoring, or any ad-hoc task
 
 Exit codes:
-- 0: Success
-- 4: Agent failure
-- 5: Git failure
+- 0: Completion signal detected or max iterations reached
+- 1: Prompt file missing completion signal (pre-flight check failure)
+- 4: Agent failure exceeded retries
