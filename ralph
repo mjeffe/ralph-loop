@@ -21,7 +21,7 @@ DEFAULT_MAX_ITERATIONS=10
 MAX_RETRIES=3
 SPECS_DIR="specs"
 AGENT_CLI="cline"
-AGENT_ARGS="--yolo"
+AGENT_ARGS="--yolo --verbose"
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -294,7 +294,6 @@ run_loop() {
     while [[ $iteration -lt $MAX_ITERATIONS ]]; do
         iteration=$(( iteration + 1 ))
         local retry=0
-        local iter_done=false
 
         while [[ $retry -le $MAX_RETRIES ]]; do
             run_iteration "$iteration" "$prompt_template"
@@ -311,7 +310,6 @@ run_loop() {
                 exit 0
             elif [[ $result -eq 0 ]]; then
                 success_count=$(( success_count + 1 ))
-                iter_done=true
                 break
             else
                 # Agent failure

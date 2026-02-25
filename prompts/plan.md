@@ -34,9 +34,17 @@ For large projects, complete what you can and update the plan status to indicate
 8. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
 9. When planning is complete, output: <promise>COMPLETE</promise>
 
-## Implementation Plan Format
+## Implementation Plan
 
-See specs/plan-mode.md for the required format.
+Create or update `implementation_plan.md` — a prioritized list of work to be done. Keep it
+concise and actionable. At minimum, each task needs:
+- A short title
+- A brief description of what needs to be done
+- The **spec** that drives it (e.g., `specs/feature.md`)
+- A **status**: `planned` | `in-progress` | `blocked` | `complete`
+- Enough detail for build mode to implement it without re-analyzing the project
+
+Order tasks by priority. Structure and format beyond that are up to you.
 
 ## Important
 
@@ -44,6 +52,6 @@ See specs/plan-mode.md for the required format.
 - Break large work into manageable tasks
 - Order tasks logically by dependencies
 - Document your learnings and gotchas
-- When done, output the completion signal
+- **OUTPUT THE COMPLETION SIGNAL** when finished planning — this is mandatory, not optional
 
 Begin planning now.
