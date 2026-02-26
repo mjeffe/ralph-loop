@@ -43,7 +43,7 @@ Each iteration:
 3. **Incremental Progress** - One task per build iteration
 4. **Durable Memory** - All state persists in files between iterations
 5. **Cost Consciousness** - Minimize token usage through focused iterations
-6. **Extensibility** - Support multiple agent types (Cline, future agents)
+6. **Extensibility** - Support multiple agent types via `AGENT_TYPE` presets (amp, claude, cline, codex, text)
 
 ## Workflow Example
 

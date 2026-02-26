@@ -72,7 +72,6 @@ This ensures the installer never destroys existing project files.
 ### .ralph/config
 
 ```bash
-#!/bin/bash
 # Ralph configuration
 
 # Project directories
@@ -83,8 +82,8 @@ DEFAULT_MAX_ITERATIONS=10
 MAX_RETRIES=3
 
 # Agent configuration
-AGENT_CLI="cline"  # or path to agent CLI
-AGENT_ARGS="--yolo"  # additional args for agent
+# Supported types: amp, claude, cline, codex, text
+AGENT_TYPE="amp"
 ```
 
 ### .ralph/.gitignore

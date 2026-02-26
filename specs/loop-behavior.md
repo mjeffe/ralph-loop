@@ -101,11 +101,25 @@ This pattern:
 - Appends output to the session log (`tee -a "$SESSION_LOG"`)
 - Captures full output in `$output` for completion signal scanning
 
+#### Agent Types and JSON Output
+
+Ralph uses `AGENT_TYPE` to select built-in presets for the agent CLI, output format, response parsing, and terminal display. Supported types:
+
+| Type | CLI | Output Format | Description |
+|------|-----|---------------|-------------|
+| `amp` | `amp` | JSON (NDJSON) | Amp CLI with `--stream-json` |
+| `claude` | `claude` | JSON (NDJSON) | Claude Code CLI with `--output-format stream-json` |
+| `cline` | `cline` | JSON (NDJSON) | Cline CLI with `--json` |
+| `codex` | `codex` | JSON (NDJSON) | OpenAI Codex CLI with `--json` |
+| `text` | `cline` | Plain text | Any agent producing human-readable text output |
+
+Each type provides defaults for five variables: `AGENT_CLI`, `AGENT_ARGS`, `AGENT_OUTPUT_FORMAT`, `AGENT_RESPONSE_FILTER`, and `AGENT_DISPLAY_FILTER`. Any of these can be overridden individually in the config file — explicit config values take precedence over built-in defaults.
+
+The defaults are defined in the ralph script via a `load_agent_defaults` function, called after config is sourced. It uses the `${VAR:=default}` pattern so that config-supplied values are never overwritten.
+
 #### Display Filter
 
-Some agents (e.g., `amp` with `--stream-json-thinking`) produce structured output that is not human-readable by default. The optional `AGENT_DISPLAY_FILTER` config variable specifies a command to pipe agent output through for terminal display.
-
-When `AGENT_DISPLAY_FILTER` is set, the invocation becomes:
+When `AGENT_DISPLAY_FILTER` is set (automatically by JSON agent types, or manually in config), the invocation becomes:
 
 ```bash
 output=$(cat "$PROMPT_FILE" | $AGENT_CLI $AGENT_ARGS 2>&1 \
@@ -113,9 +127,9 @@ output=$(cat "$PROMPT_FILE" | $AGENT_CLI $AGENT_ARGS 2>&1 \
     | tee -a "$SESSION_LOG")
 ```
 
-This uses process substitution to fork the filtered output to stderr for real-time display, while the raw output still flows into `$output` and the session log for completion signal scanning.
+This uses process substitution to fork the filtered output to stderr for real-time display, while the raw output still flows into `$output` and the session log.
 
-When `AGENT_DISPLAY_FILTER` is empty or unset, the original `tee /dev/stderr` behavior is used, which is appropriate for agents that already produce readable output (e.g., `cline --verbose`).
+When `AGENT_DISPLAY_FILTER` is empty or unset (the `text` type), the original `tee /dev/stderr` behavior is used, which is appropriate for agents that already produce readable output.
 
 The agent is invoked with the **project root as its working directory**. This is always `.` from the perspective of the agent, regardless of where the `ralph` script physically lives.
 
@@ -125,6 +139,14 @@ The loop scans agent output for the exact string:
 ```
 <promise>COMPLETE</promise>
 ```
+
+#### JSON Mode
+
+When `AGENT_OUTPUT_FORMAT` is `json`, the loop extracts only the agent's response text from the NDJSON stream using `AGENT_RESPONSE_FILTER` (a jq expression), then checks the extracted text for the completion signal. This avoids false positives from agents that echo the prompt back in their output (e.g., `amp` includes the prompt as a `user` type message in its JSON stream — the prompt itself contains the completion signal as an instruction to the agent). The response filter only selects `assistant` type messages, so echoed prompts are excluded.
+
+#### Text Mode
+
+When `AGENT_OUTPUT_FORMAT` is `text`, the loop checks the full captured output for the completion signal. This works correctly for agents that do not echo the prompt.
 
 When detected:
 - Current iteration completes normally

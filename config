@@ -8,9 +8,16 @@ DEFAULT_MAX_ITERATIONS=10
 MAX_RETRIES=3
 
 # Agent configuration
-#AGENT_CLI="cline"   # or path to agent CLI
-#AGENT_ARGS="--yolo --verbose" # additional args for agent
-#AGENT_DISPLAY_FILTER=""
-AGENT_CLI="amp"
-AGENT_ARGS="-x --dangerously-allow-all --stream-json-thinking"
-AGENT_DISPLAY_FILTER="jq -r 'select(.type==\"assistant\") | .message.content[] | if .type == \"thinking\" then \"[thinking] \" + .thinking elif .type == \"text\" then \"[text] \" + .text elif .type == \"tool_use\" then \"[tool] \" + .name + \": \" + (.input | ((.path // .cmd // .filePattern // .pattern // .query // .url // .objective // .task // .description // .prompt // (tostring)) | tostring | .[0:160])) else empty end'"
+# AGENT_TYPE selects built-in presets for the agent CLI. Supported types:
+#   amp, claude, cline, codex, text
+# Each type sets sensible defaults for AGENT_CLI, AGENT_ARGS,
+# AGENT_OUTPUT_FORMAT, AGENT_RESPONSE_FILTER, and AGENT_DISPLAY_FILTER.
+# You can override any individual value below the AGENT_TYPE line.
+AGENT_TYPE="amp"
+
+# Override individual agent settings if needed:
+#AGENT_CLI="amp"
+#AGENT_ARGS="-x --dangerously-allow-all --stream-json-thinking"
+#AGENT_OUTPUT_FORMAT="json"
+#AGENT_RESPONSE_FILTER='select(.type=="assistant") | .message.content[] | select(.type=="text") | .text'
+#AGENT_DISPLAY_FILTER="jq -r '...'"
