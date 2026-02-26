@@ -20,6 +20,7 @@ MANAGED_FILES=(
     prompts/plan.md
     prompts/build.md
     README.md
+    .gitignore
 )
 
 # Source paths in the ralph-loop repo for each managed file
@@ -29,6 +30,7 @@ declare -A SOURCE_PATHS=(
     [prompts/plan.md]="prompts/plan.md"
     [prompts/build.md]="prompts/build.md"
     [README.md]="specs/overview.md"
+    [.gitignore]=".gitignore"
 )
 
 # ---------------------------------------------------------------------------
@@ -230,12 +232,11 @@ main() {
                 print_status "$file" "SKIPPED (locally modified)"
             fi
             info "  → New version saved as $RALPH_DIR/${file}.upstream"
-            # Keep existing manifest entry for this file
-            if [[ -n "$manifest_checksum" ]]; then
-                new_manifest_entries+=("$manifest_checksum  $file")
-            else
-                new_manifest_entries+=("$current_checksum  $file")
-            fi
+            # Record the new upstream checksum so that if the user accepts
+            # the .upstream file, the next update will see it as unmodified.
+            local upstream_checksum
+            upstream_checksum="$(compute_checksum "$upstream_tmp")"
+            new_manifest_entries+=("$upstream_checksum  $file")
         else
             # Checksums match — safe to overwrite
             cp "$upstream_tmp" "$local_file"

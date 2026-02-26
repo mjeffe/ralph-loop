@@ -62,9 +62,9 @@ Files in `.ralph/` fall into three categories that determine update behavior:
 
 | Category | Files | Update Behavior |
 |----------|-------|-----------------|
-| **Core** | `ralph`, `README.md` | Update unless user modified |
+| **Core** | `ralph`, `README.md`, `.gitignore` | Update unless user modified |
 | **Customizable** | `config`, `prompts/plan.md`, `prompts/build.md` | Update unless user modified |
-| **Project state** | `implementation_plan.md`, `logs/`, `.gitignore` | Never touched |
+| **Project state** | `implementation_plan.md`, `logs/` | Never touched |
 
 All core and customizable files are tracked in the manifest and follow the same checksum-based
 update logic. The distinction is conceptual — core files are unlikely to be modified, while

@@ -102,6 +102,7 @@ generate_manifest() {
         prompts/plan.md
         prompts/build.md
         README.md
+        .gitignore
     )
 
     for file in "${managed_files[@]}"; do
