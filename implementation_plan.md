@@ -17,7 +17,7 @@
      for `check_completion`
 
 #### Task 2: Fix `set -e` bypassing retry logic in `run_loop`
-- **Status:** planned
+- **Status:** complete
 - **Spec:** `specs/loop-behavior.md` (Error Handling / Retry Strategy)
 - **Problem:** In `run_loop`, `run_iteration` is called as a bare command (not in a
   conditional context). With `set -euo pipefail`, when `run_iteration` returns non-zero,

@@ -369,8 +369,8 @@ run_loop() {
         local retry=0
 
         while [[ $retry -le $MAX_RETRIES ]]; do
-            run_iteration "$iteration" "$prompt_template"
-            local result=$?
+            local result=0
+            run_iteration "$iteration" "$prompt_template" || result=$?
 
             if [[ $result -eq 2 ]]; then
                 # Completion signal
