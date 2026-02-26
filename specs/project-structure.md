@@ -113,11 +113,6 @@ AGENT_TYPE="amp"
 # Override specific settings while keeping other defaults
 AGENT_TYPE="amp"
 AGENT_ARGS="-x --dangerously-allow-all --stream-json-thinking"
-
-# Legacy text-based agent
-AGENT_TYPE="text"
-AGENT_CLI="cline"
-AGENT_ARGS="--yolo --verbose"
 ```
 
 Note: There is no `SRC_DIR` — agents explore the project root directly. If a project has unusual structure, document it in `AGENTS.md`.

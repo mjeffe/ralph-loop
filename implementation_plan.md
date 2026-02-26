@@ -30,7 +30,7 @@ fi
 ---
 
 ### Task 3: Resolve `text` agent type spec inconsistency
-**Status:** planned
+**Status:** complete
 **Spec:** specs/overview.md, specs/project-structure.md, specs/loop-behavior.md
 
 `overview.md` lists `text` as a supported AGENT_TYPE. `project-structure.md` shows a `text` config example. But `loop-behavior.md` (the detailed agent type spec with the definitive table) does not include `text`.
