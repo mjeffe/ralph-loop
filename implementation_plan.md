@@ -72,7 +72,7 @@ The updater spec requires the installer to:
 ---
 
 ### Task 6: Add `update` mode to ralph script
-**Status:** planned
+**Status:** complete
 **Spec:** specs/updater.md (section "Changes to Existing Files → ralph")
 **Depends on:** Task 5
 

@@ -38,6 +38,7 @@ Modes:
   plan   [max_iterations]              Run plan mode iterations
   build  [max_iterations]              Run build mode iterations
   prompt <file> [max_iterations]       Run an ad-hoc prompt from file in the loop
+  update                               Update ralph to the latest upstream version
 
 Options:
   --config PATH   Path to config file (default: config in ralph script directory)
@@ -61,7 +62,7 @@ while [[ $# -gt 0 ]]; do
             CONFIG_FILE="${1#--config=}"
             shift
             ;;
-        plan|build|prompt)
+        plan|build|prompt|update)
             MODE="$1"
             shift
             ;;
@@ -154,7 +155,9 @@ load_agent_defaults() {
     esac
 }
 
-load_agent_defaults
+if [[ "$MODE" != "update" ]]; then
+    load_agent_defaults
+fi
 
 # ---------------------------------------------------------------------------
 # Agent usage / balance tracking
@@ -174,6 +177,11 @@ validate_prerequisites() {
     if [[ ! -d ".git" ]]; then
         echo "Error: not a git repository (no .git directory found)" >&2
         exit 1
+    fi
+
+    # Update mode only needs a git repo — skip agent and specs checks
+    if [[ "$MODE" == "update" ]]; then
+        return
     fi
 
     # Agent CLI must be available
@@ -467,6 +475,11 @@ case "$MODE" in
 
     prompt)
         run_prompt_mode "$PROMPT_FILE"
+        ;;
+
+    update)
+        echo "Fetching update script from GitHub..."
+        curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/update.sh | bash
         ;;
 
     *)
