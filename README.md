@@ -94,6 +94,9 @@ curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | 
 
 # Run custom prompt
 .ralph/ralph prompt path/to/custom-prompt.md
+
+# Update ralph to the latest upstream version
+.ralph/ralph update
 ```
 
 > **Tip:** Create a convenience symlink so you can run `./ralph` from the project root:
@@ -126,7 +129,7 @@ cat .ralph/implementation_plan.md
 3. **Incremental Progress** - One task per build iteration
 4. **Durable Memory** - All state persists in files between iterations
 5. **Cost Consciousness** - Minimize token usage through focused iterations
-6. **Extensibility** - Support multiple agent types (Cline, future agents)
+6. **Extensibility** - Support multiple agent types (amp, claude, cline, codex)
 
 ## Project Structure
 
@@ -136,6 +139,8 @@ project-root/
 │   ├── ralph                       # Main executable
 │   ├── config                      # Ralph configuration
 │   ├── implementation_plan.md      # Current implementation plan
+│   ├── .version                    # Installed upstream commit hash
+│   ├── .manifest                   # SHA256 checksums of installed files
 │   ├── prompts/                    # Agent prompt templates
 │   │   ├── plan.md
 │   │   └── build.md
@@ -159,6 +164,7 @@ Comprehensive specifications are available in the **[specs/](specs/README.md)** 
 - **[build-mode.md](specs/build-mode.md)** - Build mode behavior and responsibilities
 - **[spec-lifecycle.md](specs/spec-lifecycle.md)** - How to write and maintain specs
 - **[installer.md](specs/installer.md)** - Installation process and templates
+- **[updater.md](specs/updater.md)** - Update mechanism and manifest tracking
 - **[AGENTS.md](AGENTS.md)** - Agent configuration for this project
 
 ## Prerequisites
@@ -199,7 +205,6 @@ Ralph uses specific exit codes to indicate different outcomes:
 - **Containerization** - Sandbox environment for safe agent execution
 - **Multi-agent support** - Additional agent integrations beyond Cline
 - **Enhanced statistics** - Better cost and performance tracking
-- **Upgrade mechanism** - In-place upgrades without losing customizations
 
 ## References
 

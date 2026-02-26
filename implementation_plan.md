@@ -117,7 +117,7 @@ Also update `.ralph/.gitignore` template in install.sh to include `*.upstream`.
 ---
 
 ### Task 8: Sync README.md with current project state
-**Status:** planned
+**Status:** complete
 **Spec:** specs/overview.md, specs/project-structure.md
 **Depends on:** Tasks 1-7 (do this last)
 
