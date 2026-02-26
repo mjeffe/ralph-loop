@@ -126,6 +126,8 @@ load_agent_defaults() {
             : "${AGENT_OUTPUT_FORMAT:=json}"
             : "${AGENT_RESPONSE_FILTER:=select(.type==\"assistant\") | .message.content[] | select(.type==\"text\") | .text}"
             : "${AGENT_DISPLAY_FILTER:=jq -r 'select(.type==\"assistant\") | .message.content[] | if .type == \"thinking\" then \"[thinking] \" + .thinking elif .type == \"text\" then .text elif .type == \"tool_use\" then \"[tool] \" + .name + \": \" + (.input | ((.path // .cmd // .filePattern // .pattern // .query // .url // .objective // .task // .description // .prompt // (tostring)) | tostring | .[0:160])) else empty end'}"
+            : "${AGENT_USAGE_CMD:=amp usage}"
+            : "${AGENT_USAGE_PARSER:=grep -o '\$[0-9.]*' | head -1 | tr -d '\$'}"
             ;;
         claude)
             : "${AGENT_CLI:=claude}"
@@ -164,6 +166,16 @@ load_agent_defaults() {
 }
 
 load_agent_defaults
+
+# ---------------------------------------------------------------------------
+# Agent usage / balance tracking
+# ---------------------------------------------------------------------------
+get_agent_balance() {
+    if [[ -z "${AGENT_USAGE_CMD:-}" || -z "${AGENT_USAGE_PARSER:-}" ]]; then
+        return
+    fi
+    $AGENT_USAGE_CMD 2>/dev/null | eval "$AGENT_USAGE_PARSER" 2>/dev/null || true
+}
 
 # ---------------------------------------------------------------------------
 # Prerequisite validation
@@ -223,6 +235,8 @@ log_iteration_footer() {
     local iteration="$1"
     local status="$2"
     local start_time="$3"
+    local iter_cost="${4:-}"
+    local balance="${5:-}"
     local timestamp
     timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
     local duration=$(( $(date +%s) - start_time ))
@@ -230,6 +244,12 @@ log_iteration_footer() {
     log "ITERATION ${iteration} COMPLETE"
     log "End Time: ${timestamp}"
     log "Duration: ${duration}s"
+    if [[ -n "$iter_cost" ]]; then
+        log "Iteration Cost: \$${iter_cost}"
+    fi
+    if [[ -n "$balance" ]]; then
+        log "Balance: \$${balance}"
+    fi
     log "Status: ${status}"
     log "================================================================================"
     log ""
@@ -334,14 +354,22 @@ run_iteration() {
     local ret=0
     output=""
 
+    local balance_before balance_after iter_cost=""
+    balance_before="$(get_agent_balance)"
+
     if ! invoke_agent "$tmp_prompt"; then
         iter_status="agent-failure"
         ret=1
     fi
 
+    balance_after="$(get_agent_balance)"
+    if [[ -n "$balance_before" && -n "$balance_after" ]]; then
+        iter_cost="$(awk "BEGIN {printf \"%.2f\", $balance_before - $balance_after}" 2>/dev/null || true)"
+    fi
+
     rm -f "$tmp_prompt"
 
-    log_iteration_footer "$iteration" "$iter_status" "$iter_start"
+    log_iteration_footer "$iteration" "$iter_status" "$iter_start" "$iter_cost" "$balance_after"
 
     if [[ $ret -ne 0 ]]; then
         return 1

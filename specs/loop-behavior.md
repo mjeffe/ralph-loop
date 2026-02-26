@@ -113,7 +113,7 @@ Ralph uses `AGENT_TYPE` to select built-in presets for the agent CLI, output for
 | `codex` | `codex` | JSON (NDJSON) | OpenAI Codex CLI with `--json` |
 | `text` | `cline` | Plain text | Any agent producing human-readable text output |
 
-Each type provides defaults for five variables: `AGENT_CLI`, `AGENT_ARGS`, `AGENT_OUTPUT_FORMAT`, `AGENT_RESPONSE_FILTER`, and `AGENT_DISPLAY_FILTER`. Any of these can be overridden individually in the config file — explicit config values take precedence over built-in defaults.
+Each type provides defaults for five variables: `AGENT_CLI`, `AGENT_ARGS`, `AGENT_OUTPUT_FORMAT`, `AGENT_RESPONSE_FILTER`, and `AGENT_DISPLAY_FILTER`. Additionally, agent types may define `AGENT_USAGE_CMD` and `AGENT_USAGE_PARSER` for per-iteration cost tracking (see [Usage Tracking](#usage-tracking)). Any of these can be overridden individually in the config file — explicit config values take precedence over built-in defaults.
 
 The defaults are defined in the ralph script via a `load_agent_defaults` function, called after config is sourced. It uses the `${VAR:=default}` pattern so that config-supplied values are never overwritten.
 
@@ -191,10 +191,8 @@ Written at end of each iteration:
 ITERATION ${ITERATION} COMPLETE
 End Time: ${TIMESTAMP}
 Duration: ${DURATION}
-API Requests: ${API_REQUESTS} (if available)
-Model: ${MODEL} (if available)
-Messages: ${MESSAGE_COUNT} (if available)
-Cost: ${COST} (if available)
+Iteration Cost: ${ITER_COST} (if usage tracking configured)
+Balance: ${BALANCE} (if usage tracking configured)
 Status: ${STATUS}
 ================================================================================
 
@@ -216,6 +214,19 @@ Exit Reason: ${EXIT_REASON}
 Exit Code: ${EXIT_CODE}
 ================================================================================
 ```
+
+## Usage Tracking
+
+Agent types may optionally define `AGENT_USAGE_CMD` and `AGENT_USAGE_PARSER` to enable per-iteration cost tracking. When configured, the loop queries the agent's balance before and after each iteration, computes the cost, and displays both in the iteration footer.
+
+| Variable | Purpose | Example (amp) |
+|----------|---------|---------------|
+| `AGENT_USAGE_CMD` | Command to query account balance | `amp usage` |
+| `AGENT_USAGE_PARSER` | Pipeline to extract the numeric dollar amount from the command's output | `grep -o '$[0-9.]*' \| head -1 \| tr -d '$'` |
+
+When both variables are set, the iteration footer includes `Iteration Cost` and `Balance` lines. When unset (the default for most agent types), no usage information is displayed.
+
+Currently configured for: `amp`.
 
 ## Error Handling
 
