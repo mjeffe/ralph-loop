@@ -101,6 +101,22 @@ This pattern:
 - Appends output to the session log (`tee -a "$SESSION_LOG"`)
 - Captures full output in `$output` for completion signal scanning
 
+#### Display Filter
+
+Some agents (e.g., `amp` with `--stream-json-thinking`) produce structured output that is not human-readable by default. The optional `AGENT_DISPLAY_FILTER` config variable specifies a command to pipe agent output through for terminal display.
+
+When `AGENT_DISPLAY_FILTER` is set, the invocation becomes:
+
+```bash
+output=$(cat "$PROMPT_FILE" | $AGENT_CLI $AGENT_ARGS 2>&1 \
+    | tee >(eval "$AGENT_DISPLAY_FILTER" >&2) \
+    | tee -a "$SESSION_LOG")
+```
+
+This uses process substitution to fork the filtered output to stderr for real-time display, while the raw output still flows into `$output` and the session log for completion signal scanning.
+
+When `AGENT_DISPLAY_FILTER` is empty or unset, the original `tee /dev/stderr` behavior is used, which is appropriate for agents that already produce readable output (e.g., `cline --verbose`).
+
 The agent is invoked with the **project root as its working directory**. This is always `.` from the perspective of the agent, regardless of where the `ralph` script physically lives.
 
 ### Completion Detection

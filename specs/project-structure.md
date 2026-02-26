@@ -98,6 +98,23 @@ MAX_RETRIES=3
 # Agent configuration
 AGENT_CLI="cline"                   # Agent CLI command
 AGENT_ARGS="--yolo --verbose"       # Additional args for agent
+AGENT_DISPLAY_FILTER=""             # Optional command to filter agent output for display
+```
+
+The `AGENT_DISPLAY_FILTER` variable is optional. When set, agent output is piped through this command for terminal display while raw output is preserved for logging and completion signal detection. This keeps Ralph agent-agnostic — all agent-specific output formatting lives in the config.
+
+Example configurations:
+
+```bash
+# cline: output is already human-readable
+AGENT_CLI="cline"
+AGENT_ARGS="--yolo --verbose"
+AGENT_DISPLAY_FILTER=""
+
+# amp: JSON stream needs filtering for readability
+AGENT_CLI="amp"
+AGENT_ARGS="-x --dangerously-allow-all --stream-json-thinking"
+AGENT_DISPLAY_FILTER="jq -r 'select(.type==\"assistant\") | .message.content[] | if .type == \"thinking\" then \"[thinking] \" + .thinking elif .type == \"text\" then \"[text] \" + .text elif .type == \"tool_use\" then \"[tool] \" + .name else empty end'"
 ```
 
 Note: There is no `SRC_DIR` — agents explore the project root directly. If a project has unusual structure, document it in `AGENTS.md`.

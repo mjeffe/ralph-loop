@@ -22,6 +22,7 @@ MAX_RETRIES=3
 SPECS_DIR="specs"
 AGENT_CLI="cline"
 AGENT_ARGS="--yolo --verbose"
+AGENT_DISPLAY_FILTER=""
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -219,7 +220,17 @@ invoke_agent() {
     local prompt_file="$1"
     # Pipe prompt to agent stdin; merge stderr into stdout; tee to terminal and log
     # Capture full output for completion signal scanning
-    output=$(cat "$prompt_file" | $AGENT_CLI $AGENT_ARGS 2>&1 | tee /dev/stderr | tee -a "$SESSION_LOG")
+    if [[ -n "${AGENT_DISPLAY_FILTER:-}" ]]; then
+        # Use display filter for terminal output (e.g., jq for JSON streams)
+        # Raw output still flows to $output and session log for completion detection
+        output=$(cat "$prompt_file" | $AGENT_CLI $AGENT_ARGS 2>&1 \
+            | tee >(eval "$AGENT_DISPLAY_FILTER" >&2) \
+            | tee -a "$SESSION_LOG")
+    else
+        output=$(cat "$prompt_file" | $AGENT_CLI $AGENT_ARGS 2>&1 \
+            | tee /dev/stderr \
+            | tee -a "$SESSION_LOG")
+    fi
 }
 
 # ---------------------------------------------------------------------------

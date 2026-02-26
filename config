@@ -8,5 +8,9 @@ DEFAULT_MAX_ITERATIONS=10
 MAX_RETRIES=3
 
 # Agent configuration
-AGENT_CLI="cline"   # or path to agent CLI
-AGENT_ARGS="--yolo --verbose" # additional args for agent
+#AGENT_CLI="cline"   # or path to agent CLI
+#AGENT_ARGS="--yolo --verbose" # additional args for agent
+#AGENT_DISPLAY_FILTER=""
+AGENT_CLI="amp"
+AGENT_ARGS="-x --dangerously-allow-all --stream-json-thinking"
+AGENT_DISPLAY_FILTER="jq -r 'select(.type==\"assistant\") | .message.content[] | if .type == \"thinking\" then \"[thinking] \" + .thinking elif .type == \"text\" then \"[text] \" + .text elif .type == \"tool_use\" then \"[tool] \" + .name else empty end'"
