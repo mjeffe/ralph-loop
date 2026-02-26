@@ -18,7 +18,9 @@ There is no separate `src/` directory.
 
 This project has no automated test suite yet.
 
-Manual verification: run `./ralph plan` or `./ralph build` and confirm expected behavior.
+Running ralph can be expensive and time consuming. If you need to run it for testing purposes,
+**only** run it after temporarily inserting debug statements or bypasses, or swap out the default
+prompts with something very simple.
 
 ## Project-Specific Guidelines
 

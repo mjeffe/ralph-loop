@@ -4,7 +4,7 @@
 # Usage:
 #   ralph plan [max_iterations]
 #   ralph build [max_iterations]
-#   ralph prompt <file>
+#   ralph prompt <file> [max_iterations]
 #   ralph --config PATH <mode> [max_iterations]
 
 set -euo pipefail
@@ -35,9 +35,9 @@ usage() {
 Usage: ralph <mode> [max_iterations] [options]
 
 Modes:
-  plan   [max_iterations]   Run plan mode iterations
-  build  [max_iterations]   Run build mode iterations
-  prompt <file>             Run a single ad-hoc prompt from file
+  plan   [max_iterations]              Run plan mode iterations
+  build  [max_iterations]              Run build mode iterations
+  prompt <file> [max_iterations]       Run an ad-hoc prompt from file in the loop
 
 Options:
   --config PATH   Path to config file (default: config in ralph script directory)
@@ -76,7 +76,7 @@ while [[ $# -gt 0 ]]; do
                 usage >&2
                 exit 1
             fi
-            if [[ "$MODE" == "prompt" ]]; then
+            if [[ "$MODE" == "prompt" && -z "$PROMPT_FILE" ]]; then
                 PROMPT_FILE="$1"
             else
                 MAX_ITERATIONS="$1"
