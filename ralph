@@ -13,6 +13,7 @@ set -euo pipefail
 # Self-relative path resolution
 # ---------------------------------------------------------------------------
 RALPH_DIR="$(dirname "$(readlink -f "$0")")"
+RALPH_HOME="$(realpath --relative-to=. "$RALPH_DIR")"
 
 # ---------------------------------------------------------------------------
 # Defaults (may be overridden by config)
@@ -279,6 +280,7 @@ prepare_prompt() {
     local output_file="$2"
     export MODE
     export SPECS_DIR
+    export RALPH_HOME
     envsubst < "$template_file" > "$output_file"
 }
 

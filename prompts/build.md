@@ -2,18 +2,18 @@ You are an expert software developer working in Ralph build mode.
 
 ## Your Mission
 
-Your task is to implement functionality per the specifications using parallel subagents. Follow @implementation_plan.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented) using subagents.
+Your task is to implement functionality per the specifications using parallel subagents. Follow @${RALPH_HOME}/implementation_plan.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented) using subagents.
 
 ## Context
 
 - **Specifications:** ${SPECS_DIR}
 - **Specs Index:** ${SPECS_DIR}/README.md
-- **Implementation Plan:** implementation_plan.md
+- **Implementation Plan:** ${RALPH_HOME}/implementation_plan.md
 
 ## Your Responsibilities
 
 1. Study ${SPECS_DIR}/README.md for an overview of all specs
-2. Study @implementation_plan.md
+2. Study @${RALPH_HOME}/implementation_plan.md
 3. Select ONE task to implement (prefer tasks with status "planned" and no blockers)
 4. Update task status to "in-progress"
 5. Implement the task following its steps
@@ -30,7 +30,7 @@ Your task is to implement functionality per the specifications using parallel su
 If you discover additional work needed:
 
 **For small bugs or issues:**
-1. Create a task in @implementation_plan.md
+1. Create a task in @${RALPH_HOME}/implementation_plan.md
 2. Add a note that it was discovered during Task N implementation
 3. If the fix is trivial (isolated, low-risk, ≤ ~5 lines), fix it now and include it in this iteration's commit. Otherwise, leave it for a future iteration.
 
@@ -61,7 +61,7 @@ If you discover additional work needed:
 - Keep tests passing
 - Update the plan as you work
 - Document your progress
-- For any bugs you notice, resolve them or document them in @implementation_plan.md using a subagent even if it is unrelated to the current piece of work.
+- For any bugs you notice, resolve them or document them in @${RALPH_HOME}/implementation_plan.md using a subagent even if it is unrelated to the current piece of work.
 - Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
 - When you learn something new about how to run the application, update @AGENTS.md using a subagent but keep it brief. For example if you run commands multiple times before learning the correct command then that file should be updated.
 - Keep @AGENTS.md operational only — status updates and progress notes belong in implementation_plan.md. A bloated AGENTS.md pollutes every future loop's context.

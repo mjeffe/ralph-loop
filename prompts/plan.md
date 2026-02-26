@@ -8,7 +8,7 @@ Analyze the project specifications and source code to create a comprehensive imp
 
 - **Specifications:** ${SPECS_DIR}
 - **Specs Index:** ${SPECS_DIR}/README.md
-- **Implementation Plan:** implementation_plan.md
+- **Implementation Plan:** ${RALPH_HOME}/implementation_plan.md
 
 ## Planning Phases
 
@@ -28,7 +28,7 @@ For large projects, complete what you can and update the plan status to indicate
 2. Read all specifications in ${SPECS_DIR}
 3. Analyze the project codebase to understand current state
 4. Identify gaps between specs and code
-5. Create ordered tasks in implementation_plan.md
+5. Create ordered tasks in ${RALPH_HOME}/implementation_plan.md
 6. Document dependencies between tasks
 7. Update plan status to track your progress
 8. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
@@ -37,7 +37,7 @@ For large projects, complete what you can and update the plan status to indicate
 
 ## Implementation Plan
 
-Create or update `implementation_plan.md` — a prioritized list of work to be done. Keep it
+Create or update `${RALPH_HOME}/implementation_plan.md` — a prioritized list of work to be done. Keep it
 concise and actionable. At minimum, each task needs:
 - A short title
 - A brief description of what needs to be done
