@@ -13,4 +13,4 @@ MAX_RETRIES=3
 #AGENT_DISPLAY_FILTER=""
 AGENT_CLI="amp"
 AGENT_ARGS="-x --dangerously-allow-all --stream-json-thinking"
-AGENT_DISPLAY_FILTER="jq -r 'select(.type==\"assistant\") | .message.content[] | if .type == \"thinking\" then \"[thinking] \" + .thinking elif .type == \"text\" then \"[text] \" + .text elif .type == \"tool_use\" then \"[tool] \" + .name else empty end'"
+AGENT_DISPLAY_FILTER="jq -r 'select(.type==\"assistant\") | .message.content[] | if .type == \"thinking\" then \"[thinking] \" + .thinking elif .type == \"text\" then \"[text] \" + .text elif .type == \"tool_use\" then \"[tool] \" + .name + \": \" + (.input | ((.path // .cmd // .filePattern // .pattern // .query // .url // .objective // .task // .description // .prompt // (tostring)) | tostring | .[0:160])) else empty end'"
