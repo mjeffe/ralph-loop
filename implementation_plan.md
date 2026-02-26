@@ -29,34 +29,14 @@ fi
 
 ---
 
-### Task 2: Sync prompt templates with canonical specs
-**Status:** planned
-**Spec:** specs/plan-mode.md, specs/build-mode.md
-
-Both prompt files have drifted from their canonical definitions in the specs. Reconcile them.
-
-**Plan prompt (prompts/plan.md vs specs/plan-mode.md):**
-- Actual prompt has step 9 "Commit all changes with a descriptive commit message" which the spec omits. This is useful behavior — update the spec to include it (making the spec have 10 responsibilities instead of 9).
-
-**Build prompt (prompts/build.md vs specs/build-mode.md):**
-- Spec Mission section says "using parallel subagents" and "using subagents" — actual prompt omits these. Decide whether subagent references belong in the canonical template (they're agent-specific, not all agents support subagents). If keeping them, update prompts/build.md. If removing, update the spec.
-- Minor punctuation differences (trailing periods on list items).
-
-**Rule from AGENTS.md:** "When modifying prompt templates in prompts/, also update the canonical template definitions."
-
----
-
 ### Task 3: Resolve `text` agent type spec inconsistency
 **Status:** planned
 **Spec:** specs/overview.md, specs/project-structure.md, specs/loop-behavior.md
 
 `overview.md` lists `text` as a supported AGENT_TYPE. `project-structure.md` shows a `text` config example. But `loop-behavior.md` (the detailed agent type spec with the definitive table) does not include `text`.
 
-**Options:**
-1. Fully define `text` in loop-behavior.md and implement it in `ralph` → adds complexity for a type that has no JSON output parsing
-2. Remove `text` references from overview.md and project-structure.md → simpler, acknowledges that all supported agents produce NDJSON
+1. Remove `text` references from overview.md and project-structure.md → simpler, acknowledges that all supported agents produce NDJSON
 
-**Recommendation:** Option 2 — remove `text` references since the loop's architecture (completion detection, display filters) assumes NDJSON output.
 
 ---
 

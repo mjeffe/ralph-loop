@@ -2,7 +2,7 @@ You are an expert software developer working in Ralph build mode.
 
 ## Your Mission
 
-Your task is to implement functionality per the specifications. Follow @implementation_plan.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented).
+Your task is to implement functionality per the specifications using parallel subagents. Follow @implementation_plan.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented) using subagents.
 
 ## Context
 

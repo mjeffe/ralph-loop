@@ -75,7 +75,8 @@ During plan mode, the agent should:
 6. **Document dependencies** between tasks
 7. **Update plan status** to track progress through phases
 8. **Keep `specs/README.md` current** — update it if specs are added or removed
-9. **Output completion signal** when planning is done
+9. Commit all changes with a descriptive commit message
+10. **Output completion signal** when planning is done
 
 ## Prompt Template
 

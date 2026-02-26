@@ -156,7 +156,7 @@ Your task is to implement functionality per the specifications using parallel su
 4. Update task status to "in-progress"
 5. Implement the task following its steps
 6. Run all tests (see AGENTS.md for test instructions)
-7. Fix any broken tests (even unrelated ones).
+7. Fix any broken tests (even unrelated ones)
 8. Update task status to "complete"
 9. Add any new tasks discovered during implementation
 10. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
