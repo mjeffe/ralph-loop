@@ -97,12 +97,12 @@ DEFAULT_MAX_ITERATIONS=10
 MAX_RETRIES=3
 
 # Agent configuration
-AGENT_TYPE="amp"                    # Built-in presets: amp, claude, cline, codex, text
+AGENT_TYPE="amp"                    # Built-in presets: amp, claude, cline, codex
 ```
 
-`AGENT_TYPE` selects built-in presets for the agent CLI command, arguments, output format, response parsing, and terminal display filter. Supported types: `amp`, `claude`, `cline`, `codex`, `text`.
+`AGENT_TYPE` selects built-in presets for the agent CLI command, arguments, response parsing, and terminal display filter. Supported types: `amp`, `claude`, `cline`, `codex`.
 
-Each type sets defaults for: `AGENT_CLI`, `AGENT_ARGS`, `AGENT_OUTPUT_FORMAT`, `AGENT_RESPONSE_FILTER`, and `AGENT_DISPLAY_FILTER`. Any of these can be overridden individually in the config file — explicit values take precedence over built-in defaults.
+Each type sets defaults for: `AGENT_CLI`, `AGENT_ARGS`, `AGENT_RESPONSE_FILTER`, and `AGENT_DISPLAY_FILTER`. Any of these can be overridden individually in the config file — explicit values take precedence over built-in defaults.
 
 Example configurations:
 

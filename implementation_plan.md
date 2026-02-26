@@ -3,7 +3,7 @@
 ## Bug Fixes
 
 #### Task 1: Redesign output pipeline and remove text agent type
-- **Status:** planned
+- **Status:** complete
 - **Spec:** `specs/loop-behavior.md` (Agent Invocation, Agent Types, Completion Detection)
 - **Steps:**
   1. Update `invoke_agent` to use the new pipeline:

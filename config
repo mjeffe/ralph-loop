@@ -9,15 +9,14 @@ MAX_RETRIES=3
 
 # Agent configuration
 # AGENT_TYPE selects built-in presets for the agent CLI. Supported types:
-#   amp, claude, cline, codex, text
+#   amp, claude, cline, codex
 # Each type sets sensible defaults for AGENT_CLI, AGENT_ARGS,
-# AGENT_OUTPUT_FORMAT, AGENT_RESPONSE_FILTER, and AGENT_DISPLAY_FILTER.
+# AGENT_RESPONSE_FILTER, and AGENT_DISPLAY_FILTER.
 # You can override any individual value below the AGENT_TYPE line.
 AGENT_TYPE="amp"
 
 # Override individual agent settings if needed:
 #AGENT_CLI="amp"
 #AGENT_ARGS="-x --dangerously-allow-all --stream-json-thinking"
-#AGENT_OUTPUT_FORMAT="json"
 #AGENT_RESPONSE_FILTER='select(.type=="assistant") | .message.content[] | select(.type=="text") | .text'
 #AGENT_DISPLAY_FILTER="jq -r '...'"

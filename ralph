@@ -20,7 +20,7 @@ RALPH_DIR="$(dirname "$(readlink -f "$0")")"
 DEFAULT_MAX_ITERATIONS=10
 MAX_RETRIES=3
 SPECS_DIR="specs"
-AGENT_TYPE="text"
+AGENT_TYPE=""
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -119,11 +119,10 @@ fi
 # variable, it is not overwritten.
 # ---------------------------------------------------------------------------
 load_agent_defaults() {
-    case "${AGENT_TYPE:-text}" in
+    case "${AGENT_TYPE:-}" in
         amp)
             : "${AGENT_CLI:=amp}"
             : "${AGENT_ARGS:=-x --dangerously-allow-all --stream-json}"
-            : "${AGENT_OUTPUT_FORMAT:=json}"
             : "${AGENT_RESPONSE_FILTER:=select(.type==\"assistant\") | .message.content[] | select(.type==\"text\") | .text}"
             : "${AGENT_DISPLAY_FILTER:=jq -r 'select(.type==\"assistant\") | .message.content[] | if .type == \"thinking\" then \"[thinking] \" + .thinking elif .type == \"text\" then .text elif .type == \"tool_use\" then \"[tool] \" + .name + \": \" + (.input | ((.path // .cmd // .filePattern // .pattern // .query // .url // .objective // .task // .description // .prompt // (tostring)) | tostring | .[0:160])) else empty end'}"
             : "${AGENT_USAGE_CMD:=amp usage}"
@@ -132,34 +131,24 @@ load_agent_defaults() {
         claude)
             : "${AGENT_CLI:=claude}"
             : "${AGENT_ARGS:=-p --output-format stream-json --dangerously-skip-permissions}"
-            : "${AGENT_OUTPUT_FORMAT:=json}"
             : "${AGENT_RESPONSE_FILTER:=select(.type==\"assistant\") | .message.content[] | select(.type==\"text\") | .text}"
             : "${AGENT_DISPLAY_FILTER:=jq -r 'select(.type==\"assistant\") | .message.content[] | select(.type==\"text\") | .text'}"
             ;;
         cline)
             : "${AGENT_CLI:=cline}"
             : "${AGENT_ARGS:=--yolo --json}"
-            : "${AGENT_OUTPUT_FORMAT:=json}"
             : "${AGENT_RESPONSE_FILTER:=select(.type==\"say\") | .text}"
             : "${AGENT_DISPLAY_FILTER:=jq -r 'select(.type==\"say\") | .text'}"
             ;;
         codex)
             : "${AGENT_CLI:=codex}"
             : "${AGENT_ARGS:=exec --json --full-auto}"
-            : "${AGENT_OUTPUT_FORMAT:=json}"
             : "${AGENT_RESPONSE_FILTER:=select(.type==\"message\" and .role==\"assistant\") | .content}"
             : "${AGENT_DISPLAY_FILTER:=jq -r 'select(.type==\"message\" and .role==\"assistant\") | .content'}"
             ;;
-        text)
-            : "${AGENT_CLI:=cline}"
-            : "${AGENT_ARGS:=--yolo --verbose}"
-            : "${AGENT_OUTPUT_FORMAT:=text}"
-            : "${AGENT_RESPONSE_FILTER:=}"
-            : "${AGENT_DISPLAY_FILTER:=}"
-            ;;
         *)
             echo "Error: unknown AGENT_TYPE: ${AGENT_TYPE}" >&2
-            echo "Supported types: amp, claude, cline, codex, text" >&2
+            echo "Supported types: amp, claude, cline, codex" >&2
             exit 1
             ;;
     esac
@@ -290,42 +279,23 @@ prepare_prompt() {
 # ---------------------------------------------------------------------------
 invoke_agent() {
     local prompt_file="$1"
-    # Pipe prompt to agent stdin; merge stderr into stdout; tee to terminal and log.
-    # Capture full output in $output for completion signal scanning.
-    if [[ -n "${AGENT_DISPLAY_FILTER:-}" ]]; then
-        # Use display filter for terminal output (e.g., jq for JSON streams).
-        # Raw output still flows to $output and session log.
-        output=$(cat "$prompt_file" | $AGENT_CLI $AGENT_ARGS 2>&1 \
-            | tee >(eval "$AGENT_DISPLAY_FILTER" >&2) \
-            | tee -a "$SESSION_LOG")
-    else
-        output=$(cat "$prompt_file" | $AGENT_CLI $AGENT_ARGS 2>&1 \
-            | tee /dev/stderr \
-            | tee -a "$SESSION_LOG")
-    fi
+    cat "$prompt_file" | $AGENT_CLI $AGENT_ARGS 2>>"$SESSION_LOG" \
+        | tee -a "$SESSION_LOG" \
+        | tee >(eval "$AGENT_DISPLAY_FILTER" 2>/dev/null >&2 || true; cat >/dev/null) \
+        > "$RALPH_DIR/last_agent_output"
 }
 
 # ---------------------------------------------------------------------------
 # Completion signal detection
 # ---------------------------------------------------------------------------
 check_completion() {
-    local output="$1"
+    local output_file="$1"
     local signal='<promise>COMPLETE</promise>'
 
-    if [[ "${AGENT_OUTPUT_FORMAT:-text}" == "json" && -n "${AGENT_RESPONSE_FILTER:-}" ]]; then
-        # JSON mode: extract only agent response text, then check for signal.
-        # This avoids false positives from the prompt being echoed in the
-        # JSON stream (e.g., amp echoes the prompt as a "user" message).
-        local response_text
-        response_text=$(echo "$output" | jq -r "$AGENT_RESPONSE_FILTER" 2>/dev/null || true)
-        if echo "$response_text" | grep -qF "$signal"; then
-            return 0
-        fi
-    else
-        # Text mode: check the full output.
-        if echo "$output" | grep -qF "$signal"; then
-            return 0
-        fi
+    local response_text
+    response_text=$(jq -r "${AGENT_RESPONSE_FILTER}" "$output_file" 2>/dev/null || true)
+    if echo "$response_text" | grep -qF "$signal"; then
+        return 0
     fi
     return 1
 }
@@ -352,7 +322,6 @@ run_iteration() {
 
     local iter_status="success"
     local ret=0
-    output=""
 
     local balance_before balance_after iter_cost=""
     balance_before="$(get_agent_balance)"
@@ -375,10 +344,7 @@ run_iteration() {
         return 1
     fi
 
-    # Check for completion signal in agent response.
-    # In JSON mode, only agent response text is checked (not echoed prompts).
-    # In text mode, the full output is checked.
-    if check_completion "$output"; then
+    if check_completion "$RALPH_DIR/last_agent_output"; then
         return 2
     fi
 
