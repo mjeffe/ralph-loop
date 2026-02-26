@@ -95,7 +95,7 @@ Behavior:
 ---
 
 ### Task 7: Create update.sh
-**Status:** planned
+**Status:** complete
 **Spec:** specs/updater.md
 **Depends on:** Tasks 5, 6
 

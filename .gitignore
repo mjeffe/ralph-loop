@@ -3,3 +3,6 @@ logs/
 
 # Generated each iteration by the loop
 last_agent_output
+
+# Upstream review files from ralph update
+*.upstream
