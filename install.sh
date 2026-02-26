@@ -95,6 +95,9 @@ install_ralph_dir() {
     fetch_file "prompts/plan.md" "$RALPH_DIR/prompts/plan.md"
     fetch_file "prompts/build.md" "$RALPH_DIR/prompts/build.md"
 
+    # Copy overview as README
+    fetch_file "specs/overview.md" "$RALPH_DIR/README.md"
+
     # Create implementation_plan.md template
     cat > "$RALPH_DIR/implementation_plan.md" <<'EOF'
 # Implementation Plan

@@ -33,6 +33,7 @@ The installer script lives at the root of the ralph-loop repository so the curl 
    .ralph/
    ├── ralph               (executable)
    ├── config
+   ├── README.md           (overview of how Ralph works)
    ├── implementation_plan.md (empty template)
    ├── prompts/
    │   ├── plan.md
@@ -42,11 +43,12 @@ The installer script lives at the root of the ralph-loop repository so the curl 
    ```
 
 2. **Copy files into `.ralph/`**
-   - Copy `ralph` script (make executable)
-   - Copy default `config` template
-   - Copy prompt templates from `prompts/` (canonical source in ralph-loop repo)
-   - Create empty `implementation_plan.md` template
-   - Create `.ralph/.gitignore`
+    - Copy `ralph` script (make executable)
+    - Copy default `config` template
+    - Copy prompt templates from `prompts/` (canonical source in ralph-loop repo)
+    - Copy `specs/overview.md` as `README.md` (overview of how Ralph works)
+    - Create empty `implementation_plan.md` template
+    - Create `.ralph/.gitignore`
 
 3. **Create `specs/` directory** (if it doesn't exist)
    - Create `specs/` directory

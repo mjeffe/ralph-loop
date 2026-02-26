@@ -37,6 +37,7 @@ parent-project/
 ├── .ralph/                         # Ralph installation (hidden directory)
 │   ├── ralph                       # Main executable
 │   ├── config                      # Ralph configuration
+│   ├── README.md                   # Overview of how Ralph works
 │   ├── implementation_plan.md      # Current implementation plan
 │   ├── prompts/                    # Agent prompt templates (customizable)
 │   │   ├── plan.md
