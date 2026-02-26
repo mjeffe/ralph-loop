@@ -76,6 +76,43 @@ fetch_file() {
 }
 
 # ---------------------------------------------------------------------------
+# Determine the upstream commit hash for version tracking
+# ---------------------------------------------------------------------------
+get_upstream_version() {
+    local script_dir
+    script_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+
+    if [[ -d "$script_dir/.git" ]]; then
+        # Running locally from the ralph-loop repo
+        git -C "$script_dir" rev-parse --short HEAD
+    else
+        # Running remotely via curl — query GitHub
+        git ls-remote https://github.com/mjeffe/ralph-loop.git HEAD \
+            | cut -c1-7
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Generate manifest with SHA256 checksums of managed files
+# ---------------------------------------------------------------------------
+generate_manifest() {
+    local managed_files=(
+        ralph
+        config
+        prompts/plan.md
+        prompts/build.md
+        README.md
+    )
+
+    for file in "${managed_files[@]}"; do
+        local filepath="$RALPH_DIR/$file"
+        if [[ -f "$filepath" ]]; then
+            sha256sum "$filepath" | awk -v f="$file" '{print $1 "  " f}'
+        fi
+    done > "$RALPH_DIR/.manifest"
+}
+
+# ---------------------------------------------------------------------------
 # Create .ralph/ directory structure
 # ---------------------------------------------------------------------------
 install_ralph_dir() {
@@ -110,7 +147,15 @@ logs/
 
 # Generated each iteration by the loop
 last_agent_output
+
+# Upstream review files from ralph update
+*.upstream
 EOF
+
+    # Generate version and manifest for update tracking
+    info "Writing version and manifest..."
+    get_upstream_version > "$RALPH_DIR/.version"
+    generate_manifest
 }
 
 # ---------------------------------------------------------------------------

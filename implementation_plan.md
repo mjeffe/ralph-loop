@@ -54,7 +54,7 @@ fi
 ---
 
 ### Task 5: Update installer to generate .version and .manifest
-**Status:** planned
+**Status:** complete
 **Spec:** specs/updater.md (section "Changes to Existing Files → install.sh")
 **Depends on:** none (but prerequisite for Tasks 6-7)
 
