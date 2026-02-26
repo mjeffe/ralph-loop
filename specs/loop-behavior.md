@@ -88,48 +88,50 @@ Custom variables can be added to `config` and will be available automatically vi
 
 ### Agent Invocation
 
-The loop invokes the agent CLI by piping the substituted prompt to stdin:
+All agent types produce NDJSON output. The loop invokes the agent CLI by piping the substituted prompt to stdin, routing agent stdout to three destinations simultaneously:
 
 ```bash
-output=$(cat "$PROMPT_FILE" | $AGENT_CLI $AGENT_ARGS 2>&1 | tee /dev/stderr | tee -a "$SESSION_LOG")
+cat "$PROMPT_FILE" | $AGENT_CLI $AGENT_ARGS 2>>"$SESSION_LOG" \
+    | tee -a "$SESSION_LOG" \
+    | tee >(eval "$AGENT_DISPLAY_FILTER" 2>/dev/null >&2 || true; cat >/dev/null) \
+    > "$RALPH_DIR/last_agent_output"
 ```
 
 This pattern:
 - Pipes the prompt to the agent via stdin
-- Merges agent stderr into stdout (`2>&1`)
-- Streams output to the terminal in real-time (`tee /dev/stderr`)
-- Appends output to the session log (`tee -a "$SESSION_LOG"`)
-- Captures full output in `$output` for completion signal scanning
+- Routes agent stderr directly to the session log (`2>>"$SESSION_LOG"`), keeping it out of the NDJSON stream (some agent CLIs write terminal escape sequences to stderr on exit)
+- Appends raw NDJSON output to the session log (`tee -a "$SESSION_LOG"`)
+- Streams filtered output to the terminal in real-time via process substitution
+- Captures raw output to `last_agent_output` for completion signal scanning
 
-#### Agent Types and JSON Output
+#### Agent Types
 
-Ralph uses `AGENT_TYPE` to select built-in presets for the agent CLI, output format, response parsing, and terminal display. Supported types:
+Ralph uses `AGENT_TYPE` to select built-in presets for the agent CLI, output parsing, and terminal display. Supported types:
 
-| Type | CLI | Output Format | Description |
-|------|-----|---------------|-------------|
-| `amp` | `amp` | JSON (NDJSON) | Amp CLI with `--stream-json` |
-| `claude` | `claude` | JSON (NDJSON) | Claude Code CLI with `--output-format stream-json` |
-| `cline` | `cline` | JSON (NDJSON) | Cline CLI with `--json` |
-| `codex` | `codex` | JSON (NDJSON) | OpenAI Codex CLI with `--json` |
-| `text` | `cline` | Plain text | Any agent producing human-readable text output |
+| Type | CLI | Description |
+|------|-----|-------------|
+| `amp` | `amp` | Amp CLI with `--stream-json` |
+| `claude` | `claude` | Claude Code CLI with `--output-format stream-json` |
+| `cline` | `cline` | Cline CLI with `--json` |
+| `codex` | `codex` | OpenAI Codex CLI with `--json` |
 
-Each type provides defaults for five variables: `AGENT_CLI`, `AGENT_ARGS`, `AGENT_OUTPUT_FORMAT`, `AGENT_RESPONSE_FILTER`, and `AGENT_DISPLAY_FILTER`. Additionally, agent types may define `AGENT_USAGE_CMD` and `AGENT_USAGE_PARSER` for per-iteration cost tracking (see [Usage Tracking](#usage-tracking)). Any of these can be overridden individually in the config file — explicit config values take precedence over built-in defaults.
+Each type provides defaults for four variables: `AGENT_CLI`, `AGENT_ARGS`, `AGENT_RESPONSE_FILTER`, and `AGENT_DISPLAY_FILTER`. Additionally, agent types may define `AGENT_USAGE_CMD` and `AGENT_USAGE_PARSER` for per-iteration cost tracking (see [Usage Tracking](#usage-tracking)). Any of these can be overridden individually in the config file — explicit config values take precedence over built-in defaults.
 
 The defaults are defined in the ralph script via a `load_agent_defaults` function, called after config is sourced. It uses the `${VAR:=default}` pattern so that config-supplied values are never overwritten.
 
 #### Display Filter
 
-When `AGENT_DISPLAY_FILTER` is set (automatically by JSON agent types, or manually in config), the invocation becomes:
+The `AGENT_DISPLAY_FILTER` (a `jq` expression set per agent type) extracts human-readable text from the NDJSON stream for real-time terminal display. It runs inside a process substitution with a drain fallback:
 
 ```bash
-output=$(cat "$PROMPT_FILE" | $AGENT_CLI $AGENT_ARGS 2>&1 \
-    | tee >(eval "$AGENT_DISPLAY_FILTER" >&2) \
-    | tee -a "$SESSION_LOG")
+>(eval "$AGENT_DISPLAY_FILTER" 2>/dev/null >&2 || true; cat >/dev/null)
 ```
 
-This uses process substitution to fork the filtered output to stderr for real-time display, while the raw output still flows into `$output` and the session log.
+If the display filter fails for any reason, `cat >/dev/null` takes over reading from the pipe to prevent `tee` from receiving SIGPIPE. This makes the display filter purely cosmetic — it can never crash the pipeline.
 
-When `AGENT_DISPLAY_FILTER` is empty or unset (the `text` type), the original `tee /dev/stderr` behavior is used, which is appropriate for agents that already produce readable output.
+#### Raw Output File
+
+The raw agent output is written to `$RALPH_DIR/last_agent_output`, overwritten each iteration. This file is used for completion signal detection and is available for debugging after a failed run.
 
 The agent is invoked with the **project root as its working directory**. This is always `.` from the perspective of the agent, regardless of where the `ralph` script physically lives.
 
@@ -140,13 +142,7 @@ The loop scans agent output for the exact string:
 <promise>COMPLETE</promise>
 ```
 
-#### JSON Mode
-
-When `AGENT_OUTPUT_FORMAT` is `json`, the loop extracts only the agent's response text from the NDJSON stream using `AGENT_RESPONSE_FILTER` (a jq expression), then checks the extracted text for the completion signal. This avoids false positives from agents that echo the prompt back in their output (e.g., `amp` includes the prompt as a `user` type message in its JSON stream — the prompt itself contains the completion signal as an instruction to the agent). The response filter only selects `assistant` type messages, so echoed prompts are excluded.
-
-#### Text Mode
-
-When `AGENT_OUTPUT_FORMAT` is `text`, the loop checks the full captured output for the completion signal. This works correctly for agents that do not echo the prompt.
+After the agent finishes, the loop extracts the agent's response text from the raw output file (`last_agent_output`) using `AGENT_RESPONSE_FILTER` (a jq expression), then checks the extracted text for the completion signal. This avoids false positives from agents that echo the prompt back in their output (e.g., `amp` includes the prompt as a `user` type message in its JSON stream — the prompt itself contains the completion signal as an instruction to the agent). The response filter only selects `assistant` type messages, so echoed prompts are excluded.
 
 When detected:
 - Current iteration completes normally
