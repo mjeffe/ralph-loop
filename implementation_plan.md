@@ -10,7 +10,7 @@
 ---
 
 ### Task 1: Fix prompt mode max_iterations parsing
-**Status:** planned
+**Status:** complete
 **Spec:** specs/loop-behavior.md
 **Priority:** high (bug fix)
 
@@ -41,7 +41,7 @@ fi
 ---
 
 ### Task 4: Clean up .gitignore and add generated file exclusions
-**Status:** planned
+**Status:** complete
 **Spec:** specs/project-structure.md, specs/loop-behavior.md
 
 **Root .gitignore (ralph-loop repo):**

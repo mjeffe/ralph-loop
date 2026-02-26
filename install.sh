@@ -107,6 +107,9 @@ EOF
     cat > "$RALPH_DIR/.gitignore" <<'EOF'
 # Ralph session logs (generated, not committed)
 logs/
+
+# Generated each iteration by the loop
+last_agent_output
 EOF
 }
 
