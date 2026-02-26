@@ -122,7 +122,7 @@ load_agent_defaults() {
     case "${AGENT_TYPE:-}" in
         amp)
             : "${AGENT_CLI:=amp}"
-            : "${AGENT_ARGS:=-x --dangerously-allow-all --stream-json}"
+            : "${AGENT_ARGS:=-x --dangerously-allow-all --stream-json-thinking}"
             : "${AGENT_RESPONSE_FILTER:=select(.type==\"assistant\") | .message.content[] | select(.type==\"text\") | .text}"
             : "${AGENT_DISPLAY_FILTER:=jq -r 'select(.type==\"assistant\") | .message.content[] | if .type == \"thinking\" then \"[thinking] \" + .thinking elif .type == \"text\" then .text elif .type == \"tool_use\" then \"[tool] \" + .name + \": \" + (.input | ((.path // .cmd // .filePattern // .pattern // .query // .url // .objective // .task // .description // .prompt // (tostring)) | tostring | .[0:160])) else empty end'}"
             : "${AGENT_USAGE_CMD:=amp usage}"
@@ -281,7 +281,7 @@ invoke_agent() {
     local prompt_file="$1"
     cat "$prompt_file" | $AGENT_CLI $AGENT_ARGS 2>>"$SESSION_LOG" \
         | tee -a "$SESSION_LOG" \
-        | tee >(eval "$AGENT_DISPLAY_FILTER" 2>/dev/null >&2 || true; cat >/dev/null) \
+        | tee >(eval "$AGENT_DISPLAY_FILTER" >&2 2>/dev/null || true; cat >/dev/null) \
         > "$RALPH_DIR/last_agent_output"
 }
 
