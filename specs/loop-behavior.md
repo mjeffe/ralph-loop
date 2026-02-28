@@ -149,6 +149,16 @@ When detected:
 - Loop exits with success code 0
 - Final summary is written to log
 
+The loop also scans for:
+```
+<promise>REPLAN</promise>
+```
+
+When detected:
+- Current iteration completes normally
+- Loop exits with code 3
+- Message displayed: "Agent requested re-planning. Run 'ralph plan' to regenerate the implementation plan."
+
 ### Git Operations
 
 The **agent** is responsible for all git operations (add, commit, push) as part of completing its task. The loop does not commit on behalf of the agent.
@@ -159,9 +169,10 @@ Loop exits when any of these occur:
 
 1. **Completion signal detected** - Exit code 0
 2. **Max iterations reached** - Exit code 0 (success, but incomplete)
-3. **Plan missing (build mode)** - Exit code 2
-4. **Agent failure exceeds retries** - Exit code 4
-5. **Git operation failure** - Exit code 5
+3. **Replan signal detected** - Exit code 3
+4. **Plan missing (build mode)** - Exit code 2
+5. **Agent failure exceeds retries** - Exit code 4
+6. **Git operation failure** - Exit code 5
 
 ## Iteration Logging
 

@@ -311,11 +311,27 @@ check_completion() {
 }
 
 # ---------------------------------------------------------------------------
+# Replan signal detection
+# ---------------------------------------------------------------------------
+check_replan() {
+    local output_file="$1"
+    local signal='<promise>REPLAN</promise>'
+
+    local response_text
+    response_text=$(jq -r "${AGENT_RESPONSE_FILTER}" "$output_file" 2>/dev/null || true)
+    if echo "$response_text" | grep -qF "$signal"; then
+        return 0
+    fi
+    return 1
+}
+
+# ---------------------------------------------------------------------------
 # Run a single iteration
 # Returns:
 #   0 - success
 #   1 - agent failure (will be retried)
 #   2 - completion signal detected
+#   3 - replan signal detected
 # ---------------------------------------------------------------------------
 run_iteration() {
     local iteration="$1"
@@ -358,6 +374,10 @@ run_iteration() {
         return 2
     fi
 
+    if check_replan "$RALPH_DIR/last_agent_output"; then
+        return 3
+    fi
+
     return 0
 }
 
@@ -391,6 +411,16 @@ run_loop() {
                 log_session_summary "$iteration" "$success_count" "$fail_count" \
                     "$total_duration" "$exit_reason" "$exit_code"
                 exit 0
+            elif [[ $result -eq 3 ]]; then
+                # Replan signal
+                success_count=$(( success_count + 1 ))
+                exit_reason="replan signal detected"
+                exit_code=3
+                log "Agent requested re-planning. Run 'ralph plan' to regenerate the implementation plan."
+                local total_duration=$(( $(date +%s) - session_start ))
+                log_session_summary "$iteration" "$success_count" "$fail_count" \
+                    "$total_duration" "$exit_reason" "$exit_code"
+                exit 3
             elif [[ $result -eq 0 ]]; then
                 success_count=$(( success_count + 1 ))
                 break
