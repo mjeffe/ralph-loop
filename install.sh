@@ -99,6 +99,7 @@ generate_manifest() {
     local managed_files=(
         ralph
         config
+        agents/amp.sh
         prompts/plan.md
         prompts/build.md
         README.md
@@ -119,6 +120,7 @@ generate_manifest() {
 install_ralph_dir() {
     info "Creating .ralph/ directory structure..."
 
+    mkdir -p "$RALPH_DIR/agents"
     mkdir -p "$RALPH_DIR/prompts"
     mkdir -p "$RALPH_DIR/logs"
 
@@ -128,6 +130,9 @@ install_ralph_dir() {
 
     # Copy config
     fetch_file "config" "$RALPH_DIR/config"
+
+    # Copy agent scripts
+    fetch_file "agents/amp.sh" "$RALPH_DIR/agents/amp.sh"
 
     # Copy prompt templates
     fetch_file "prompts/plan.md" "$RALPH_DIR/prompts/plan.md"

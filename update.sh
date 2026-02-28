@@ -17,6 +17,7 @@ RALPH_DIR=".ralph"
 MANAGED_FILES=(
     ralph
     config
+    agents/amp.sh
     prompts/plan.md
     prompts/build.md
     README.md
@@ -27,6 +28,7 @@ MANAGED_FILES=(
 declare -A SOURCE_PATHS=(
     [ralph]="ralph"
     [config]="config"
+    [agents/amp.sh]="agents/amp.sh"
     [prompts/plan.md]="prompts/plan.md"
     [prompts/build.md]="prompts/build.md"
     [README.md]="specs/overview.md"
