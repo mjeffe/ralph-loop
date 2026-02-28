@@ -186,7 +186,7 @@ agent_format_display() {
             elif .type == "text" then .text
             elif .type == "tool_use" then "[tool] " + .name + ": " +
                 ((.input | (.path // .cmd // .filePattern // .pattern // .query // .url //
-                .prompt // (tostring)) | tostring | .[0:160]))
+                .description // .prompt // (tostring)) | tostring | .[0:200]))
             else empty end' 2>/dev/null || true
     done
 }
