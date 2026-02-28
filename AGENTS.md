@@ -16,11 +16,14 @@ There is no separate `src/` directory.
 
 ## Build & Test
 
-This project has no automated test suite yet.
+Run the test suite:
+```bash
+./tests/test_ralph.sh
+```
 
-Running ralph can be expensive and time consuming. If you need to run it for testing purposes,
-**only** run it after temporarily inserting debug statements or bypasses, or swap out the default
-prompts with something very simple.
+Running ralph itself can be expensive and time consuming. If you need to run it for testing
+purposes, **only** run it after temporarily inserting debug statements or bypasses, or swap
+out the default prompts with something very simple.
 
 ## Project-Specific Guidelines
 
