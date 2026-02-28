@@ -161,16 +161,16 @@ main() {
     fi
 
     # Fetch all upstream files into a temp directory first (atomic: no partial updates)
-    local tmp_dir
-    tmp_dir="$(mktemp -d)"
-    trap 'rm -rf "$tmp_dir"' EXIT
+    # TMP_DIR is script-scoped (not local) so the EXIT trap can reference it
+    TMP_DIR="$(mktemp -d)"
+    trap 'rm -rf "$TMP_DIR"' EXIT
 
     for file in "${MANAGED_FILES[@]}"; do
         local src_path="${SOURCE_PATHS[$file]}"
         local dest_dir
-        dest_dir="$(dirname "$tmp_dir/$file")"
+        dest_dir="$(dirname "$TMP_DIR/$file")"
         mkdir -p "$dest_dir"
-        if ! fetch_upstream_file "$src_path" "$tmp_dir/$file"; then
+        if ! fetch_upstream_file "$src_path" "$TMP_DIR/$file"; then
             die "Failed to fetch $src_path from GitHub."
         fi
     done
@@ -181,7 +181,7 @@ main() {
 
     for file in "${MANAGED_FILES[@]}"; do
         local local_file="$RALPH_DIR/$file"
-        local upstream_tmp="$tmp_dir/$file"
+        local upstream_tmp="$TMP_DIR/$file"
 
         # File doesn't exist locally
         if [[ ! -f "$local_file" ]]; then
