@@ -202,10 +202,13 @@ run_iteration() {
 
         rm -f "$tmp_prompt"
 
-        type agent_post_iteration &>/dev/null && agent_post_iteration
 
+        log "================================================================================"
         local duration=$(( $(date +%s) - iter_start ))
-        log "---- iteration ${iteration} done in ${duration}s ----"
+        log "ITERATION ${iteration} DONE in ${duration}s ----"
+
+        type agent_post_iteration &>/dev/null && agent_post_iteration
+        log "================================================================================"
 
         if [[ $agent_rc -ne 0 ]]; then
             retry=$(( retry + 1 ))
