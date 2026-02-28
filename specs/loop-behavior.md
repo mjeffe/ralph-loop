@@ -8,13 +8,13 @@ The Ralph loop orchestrates iterative agent execution with fresh context per ite
 
 ```bash
 # In the ralph-loop project (ralph at root)
-ralph <mode> [max_iterations] [options]
+ralph <mode> [max_iterations]
 
 # In a parent project (ralph installed in .ralph/)
-.ralph/ralph <mode> [max_iterations] [options]
+.ralph/ralph <mode> [max_iterations]
 
 # In a parent project with symlink (ln -s .ralph/ralph ralph)
-ralph <mode> [max_iterations] [options]
+ralph <mode> [max_iterations]
 ```
 
 ### Modes
@@ -22,10 +22,6 @@ ralph <mode> [max_iterations] [options]
 - `plan [max_iterations]` - Run plan mode iterations
 - `build [max_iterations]` - Run build mode iterations
 - `prompt <file> [max_iterations]` - Run an ad-hoc prompt in the loop
-
-### Options
-
-- `--config PATH` - Path to config file (default: `config` relative to ralph script directory)
 
 ### Examples
 
@@ -44,7 +40,7 @@ ralph <mode> [max_iterations] [options]
 
 ### Initialization
 
-1. Load configuration from `config` (relative to ralph script directory), or from `--config PATH` if provided
+1. Load configuration from `config` (relative to ralph script directory)
 2. Validate prerequisites:
    - Git repository exists
    - Agent CLI is available
@@ -88,50 +84,53 @@ Custom variables can be added to `config` and will be available automatically vi
 
 ### Agent Invocation
 
-All agent types produce NDJSON output. The loop invokes the agent CLI by piping the substituted prompt to stdin, routing agent stdout to three destinations simultaneously:
+Ralph delegates all agent-specific logic to pluggable agent scripts (see `specs/agent-scripts.md`).
+The active agent is selected by the `AGENT` variable in `config`, and ralph sources the
+corresponding script from `agents/${AGENT}.sh` at startup.
+
+The loop invokes the agent and routes output through a linear pipeline:
 
 ```bash
-cat "$PROMPT_FILE" | $AGENT_CLI $AGENT_ARGS 2>>"$SESSION_LOG" \
-    | tee -a "$SESSION_LOG" \
-    | tee >(eval "$AGENT_DISPLAY_FILTER" 2>/dev/null >&2 || true; cat >/dev/null) \
-    > "$RALPH_DIR/last_agent_output"
+agent_invoke "$prompt" \
+    | tee "$RALPH_DIR/last_agent_output" \
+    | agent_format_display \
+    | tee -a "$SESSION_LOG"
 ```
 
 This pattern:
-- Pipes the prompt to the agent via stdin
-- Routes agent stderr directly to the session log (`2>>"$SESSION_LOG"`), keeping it out of the NDJSON stream (some agent CLIs write terminal escape sequences to stderr on exit)
-- Appends raw NDJSON output to the session log (`tee -a "$SESSION_LOG"`)
-- Streams filtered output to the terminal in real-time via process substitution
-- Captures raw output to `last_agent_output` for completion signal scanning
+- Invokes the agent via `agent_invoke` (defined in the agent script), which pipes the prompt to the agent CLI via stdin
+- Captures the raw output to `last_agent_output` for post-iteration signal detection
+- Streams the output through `agent_format_display` (defined in the agent script), which converts the raw output to human-readable text in real time using per-line processing
+- Writes the filtered, human-readable output to both the terminal and the session log
 
-#### Agent Types
+The session log contains exactly what the human sees on the terminal — filtered, readable output
+rather than raw NDJSON. The raw output is available in `last_agent_output` (overwritten each
+iteration) for signal detection and debugging.
 
-Ralph uses `AGENT_TYPE` to select built-in presets for the agent CLI, output parsing, and terminal display. Supported types:
+#### Stderr Handling
 
-| Type | CLI | Description |
-|------|-----|-------------|
-| `amp` | `amp` | Amp CLI with `--stream-json` |
-| `claude` | `claude` | Claude Code CLI with `--output-format stream-json` |
-| `cline` | `cline` | Cline CLI with `--json` |
-| `codex` | `codex` | OpenAI Codex CLI with `--json` |
+Ralph does not redirect agent stderr. It flows directly to the user's terminal, ensuring that
+CLI errors (authentication failures, network errors, agent crashes) are immediately visible.
+Agent scripts control stderr handling in their `agent_invoke` function if needed. Since stderr
+is not part of the stdout pipeline, it cannot interfere with output capture or display filtering.
 
-Each type provides defaults for four variables: `AGENT_CLI`, `AGENT_ARGS`, `AGENT_RESPONSE_FILTER`, and `AGENT_DISPLAY_FILTER`. Additionally, agent types may define `AGENT_USAGE_CMD` and `AGENT_USAGE_PARSER` for per-iteration cost tracking (see [Usage Tracking](#usage-tracking)). Any of these can be overridden individually in the config file — explicit config values take precedence over built-in defaults.
+#### Pipeline Robustness
 
-The defaults are defined in the ralph script via a `load_agent_defaults` function, called after config is sourced. It uses the `${VAR:=default}` pattern so that config-supplied values are never overwritten.
+Both `agent_format_display` and `agent_extract_response` must process output line by line
+(using `while IFS= read -r line` loops) rather than passing the full stream or file to jq.
+This is critical because:
+- A malformed line in whole-file jq mode causes jq to abort, sending SIGPIPE back through the
+  pipeline and potentially terminating the agent mid-run
+- Per-line processing skips bad lines and continues, keeping the pipeline intact
+- The `while read` loop is inherently line-buffered, ensuring real-time terminal display
 
-#### Display Filter
+See `specs/agent-scripts.md` for the full function contract and examples.
 
-The `AGENT_DISPLAY_FILTER` (a `jq` expression set per agent type) extracts human-readable text from the NDJSON stream for real-time terminal display. It runs inside a process substitution with a drain fallback:
+#### Optional Hooks
 
-```bash
->(eval "$AGENT_DISPLAY_FILTER" 2>/dev/null >&2 || true; cat >/dev/null)
-```
-
-If the display filter fails for any reason, `cat >/dev/null` takes over reading from the pipe to prevent `tee` from receiving SIGPIPE. This makes the display filter purely cosmetic — it can never crash the pipeline.
-
-#### Raw Output File
-
-The raw agent output is written to `$RALPH_DIR/last_agent_output`, overwritten each iteration. This file is used for completion signal detection and is available for debugging after a failed run.
+Agent scripts may define `agent_pre_iteration` and `agent_post_iteration` hook functions for
+tasks like cost tracking. Ralph checks for their existence at runtime and calls them if present.
+See `specs/agent-scripts.md` for details.
 
 The agent is invoked with the **project root as its working directory**. This is always `.` from the perspective of the agent, regardless of where the `ralph` script physically lives.
 
@@ -142,7 +141,7 @@ The loop scans agent output for the exact string:
 <promise>COMPLETE</promise>
 ```
 
-After the agent finishes, the loop extracts the agent's response text from the raw output file (`last_agent_output`) using `AGENT_RESPONSE_FILTER` (a jq expression), then checks the extracted text for the completion signal. This avoids false positives from agents that echo the prompt back in their output (e.g., `amp` includes the prompt as a `user` type message in its JSON stream — the prompt itself contains the completion signal as an instruction to the agent). The response filter only selects `assistant` type messages, so echoed prompts are excluded.
+After the agent finishes, the loop extracts the agent's response text from the raw output file (`last_agent_output`) using `agent_extract_response` (defined in the agent script), then checks the extracted text for the completion signal. This avoids false positives from agents that echo the prompt back in their output (e.g., `amp` includes the prompt as a `user` type message in its JSON stream — the prompt itself contains the completion signal as an instruction to the agent). The response extraction function only selects agent response messages, so echoed prompts are excluded.
 
 When detected:
 - Current iteration completes normally
@@ -224,16 +223,13 @@ Exit Code: ${EXIT_CODE}
 
 ## Usage Tracking
 
-Agent types may optionally define `AGENT_USAGE_CMD` and `AGENT_USAGE_PARSER` to enable per-iteration cost tracking. When configured, the loop queries the agent's balance before and after each iteration, computes the cost, and displays both in the iteration footer.
+Agent scripts may optionally define `agent_pre_iteration` and `agent_post_iteration` hook
+functions to enable per-iteration cost tracking. Ralph checks for these functions at runtime
+and calls them if present. See `specs/agent-scripts.md` for the hook contract and examples.
 
-| Variable | Purpose | Example (amp) |
-|----------|---------|---------------|
-| `AGENT_USAGE_CMD` | Command to query account balance | `amp usage` |
-| `AGENT_USAGE_PARSER` | Pipeline to extract the numeric dollar amount from the command's output | `grep -o '$[0-9.]*' \| head -1 \| tr -d '$'` |
-
-When both variables are set, the iteration footer includes `Iteration Cost` and `Balance` lines. When unset (the default for most agent types), no usage information is displayed.
-
-Currently configured for: `amp`.
+When hooks are defined, they can query the agent's account balance before and after each
+iteration, compute the cost, and log it using the `log` function provided by ralph. When
+hooks are not defined, no usage information is displayed.
 
 ## Error Handling
 

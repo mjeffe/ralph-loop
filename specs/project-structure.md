@@ -17,6 +17,11 @@ ralph-loop/                         # Project root = Ralph's home
 ├── install.sh                      # Installer script (for parent projects)
 ├── config                          # Ralph configuration
 ├── implementation_plan.md          # Current implementation plan
+├── agents/                         # Agent scripts (one per supported agent)
+│   ├── amp.sh
+│   ├── claude.sh
+│   ├── cline.sh
+│   └── codex.sh
 ├── prompts/                        # Agent prompt templates (source of truth)
 │   ├── plan.md
 │   └── build.md
@@ -39,6 +44,9 @@ parent-project/
 │   ├── config                      # Ralph configuration
 │   ├── README.md                   # Overview of how Ralph works
 │   ├── implementation_plan.md      # Current implementation plan
+│   ├── agents/                     # Agent scripts (one per supported agent)
+│   │   ├── amp.sh
+│   │   └── ...
 │   ├── prompts/                    # Agent prompt templates (customizable)
 │   │   ├── plan.md
 │   │   └── build.md
@@ -96,24 +104,13 @@ SPECS_DIR="specs"                   # Specifications directory (relative to proj
 DEFAULT_MAX_ITERATIONS=10
 MAX_RETRIES=3
 
-# Agent configuration
-AGENT_TYPE="amp"                    # Built-in presets: amp, claude, cline, codex
+# Agent selection — corresponds to agents/{name}.sh
+AGENT="amp"
 ```
 
-`AGENT_TYPE` selects built-in presets for the agent CLI command, arguments, response parsing, and terminal display filter. Supported types: `amp`, `claude`, `cline`, `codex`.
-
-Each type sets defaults for: `AGENT_CLI`, `AGENT_ARGS`, `AGENT_RESPONSE_FILTER`, and `AGENT_DISPLAY_FILTER`. Any of these can be overridden individually in the config file — explicit values take precedence over built-in defaults.
-
-Example configurations:
-
-```bash
-# Minimal: just pick an agent type
-AGENT_TYPE="amp"
-
-# Override specific settings while keeping other defaults
-AGENT_TYPE="amp"
-AGENT_ARGS="-x --dangerously-allow-all --stream-json-thinking"
-```
+`AGENT` selects which agent script to source from the `agents/` directory. Each agent script
+defines the functions ralph needs to invoke the agent, parse its output, and format display.
+See `specs/agent-scripts.md` for the full contract.
 
 Note: There is no `SRC_DIR` — agents explore the project root directly. If a project has unusual structure, document it in `AGENTS.md`.
 

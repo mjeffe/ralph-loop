@@ -35,6 +35,11 @@ The installer script lives at the root of the ralph-loop repository so the curl 
    ├── config
    ├── README.md           (overview of how Ralph works)
    ├── implementation_plan.md (empty template)
+   ├── agents/
+   │   ├── amp.sh
+   │   ├── claude.sh
+   │   ├── cline.sh
+   │   └── codex.sh
    ├── prompts/
    │   ├── plan.md
    │   └── build.md
@@ -45,6 +50,7 @@ The installer script lives at the root of the ralph-loop repository so the curl 
 2. **Copy files into `.ralph/`**
     - Copy `ralph` script (make executable)
     - Copy default `config` template
+    - Copy agent scripts from `agents/` (canonical source in ralph-loop repo)
     - Copy prompt templates from `prompts/` (canonical source in ralph-loop repo)
     - Copy `specs/overview.md` as `README.md` (overview of how Ralph works)
     - Create empty `implementation_plan.md` template
@@ -83,9 +89,8 @@ SPECS_DIR="specs"
 DEFAULT_MAX_ITERATIONS=10
 MAX_RETRIES=3
 
-# Agent configuration
-# Supported types: amp, claude, cline, codex, text
-AGENT_TYPE="amp"
+# Agent selection — corresponds to agents/{name}.sh
+AGENT="amp"
 ```
 
 ### .ralph/.gitignore

@@ -12,4 +12,5 @@ Specs are the source of truth for desired behavior. When adding or removing a sp
 | [build-mode.md](build-mode.md) | Build mode behavior, task selection, and iteration outcomes |
 | [spec-lifecycle.md](spec-lifecycle.md) | How to write, maintain, and evolve specs |
 | [installer.md](installer.md) | Installation process, file templates, and post-install configuration |
+| [agent-scripts.md](agent-scripts.md) | Agent script contract, required/optional functions, and adding new agents |
 | [updater.md](updater.md) | Update mechanism, manifest tracking, and preserving user customizations |

@@ -53,7 +53,7 @@ To prevent plan staleness, build agents review remaining tasks after each implem
 3. **Incremental Progress** - One task per build iteration
 4. **Durable Memory** - All state persists in files between iterations
 5. **Cost Consciousness** - Minimize token usage through focused iterations
-6. **Extensibility** - Support multiple agent types via `AGENT_TYPE` presets (amp, claude, cline, codex)
+6. **Extensibility** - Support multiple agents via pluggable agent scripts (see `specs/agent-scripts.md`)
 
 ## Workflow Example
 

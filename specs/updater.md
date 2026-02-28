@@ -49,6 +49,7 @@ customizations.
 # Example .ralph/.manifest
 e3b0c44298fc1c14...  ralph
 a1b2c3d4e5f6a7b8...  config
+c7d6e5f4a3b2c1d0...  agents/amp.sh
 f9e8d7c6b5a4f3e2...  prompts/plan.md
 d4c3b2a1e5f6d7c8...  prompts/build.md
 b5a4c3d2e1f0a9b8...  README.md
@@ -62,7 +63,7 @@ Files in `.ralph/` fall into three categories that determine update behavior:
 
 | Category | Files | Update Behavior |
 |----------|-------|-----------------|
-| **Core** | `ralph`, `README.md`, `.gitignore` | Update unless user modified |
+| **Core** | `ralph`, `README.md`, `.gitignore`, `agents/*.sh` | Update unless user modified |
 | **Customizable** | `config`, `prompts/plan.md`, `prompts/build.md` | Update unless user modified |
 | **Project state** | `implementation_plan.md`, `logs/` | Never touched |
 
