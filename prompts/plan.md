@@ -24,8 +24,8 @@ For large projects, complete what you can and update the plan status to indicate
 
 ## Your Responsibilities
 
-1. Read ${SPECS_DIR}/README.md for an overview of all specs
-2. Read all specifications in ${SPECS_DIR}
+1. Study ${SPECS_DIR}/README.md for an overview of all specs
+2. Study all specifications in ${SPECS_DIR}
 3. Analyze the project codebase to understand current state
 4. Identify gaps between specs and code
 5. Create ordered tasks in ${RALPH_HOME}/implementation_plan.md
@@ -46,6 +46,14 @@ concise and actionable. At minimum, each task needs:
 - Enough detail for build mode to implement it without re-analyzing the project
 
 Order tasks by priority. Structure and format beyond that are up to you.
+
+## Task Sizing
+
+Group by **logical cohesion** rather than maximizing granularity:
+- **Group related changes** that serve a single purpose into one task
+- **Reserve separate tasks** for things that are independently testable or have distinct complexity
+- **Ask: "Would I commit these together?"** — if yes, they belong in one task
+- Each task should be completable in one build iteration and committable as a single logical unit
 
 ## Important
 

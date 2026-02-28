@@ -42,8 +42,9 @@ If during implementation the agent discovers:
 4. **Run tests** - All tests must pass (see `AGENTS.md` for project test instructions)
 5. **Fix any broken tests** - Even unrelated ones
 6. **Update task status** to `complete` in plan
-7. **Commit all changes** with a descriptive commit message
-8. **Output completion signal** if no tasks remain
+7. **Review remaining tasks** - Update any that are obsolete, incorrect, or mis-ordered
+8. **Commit all changes** with a descriptive commit message
+9. **Output completion signal** if no tasks remain
 
 ### Test Requirements
 
@@ -114,22 +115,37 @@ When the agent determines all tasks are complete:
 
 This signals the loop to exit successfully.
 
+### Replan Signal
+
+When the agent determines the implementation plan needs significant restructuring:
+```
+<promise>REPLAN</promise>
+```
+
+This signals the loop to exit build mode so the user can re-run `ralph plan`. The agent should use this when:
+- Multiple remaining tasks are obsolete or incorrect due to implementation changes
+- Task dependencies have shifted fundamentally
+- The plan's structure no longer reflects the project's actual needs
+
 ## Agent Responsibilities
 
 During build mode, the agent should:
 
-1. **Read `specs/README.md`** for an overview of all specs
-2. **Read the implementation plan**
+1. **Study `specs/README.md`** for an overview of all specs
+2. **Study the implementation plan**
 3. **Select one task** to implement
-4. **Update task status** to `in-progress`
-5. **Implement the task** following its steps
-6. **Run all tests** and ensure they pass (per `AGENTS.md`)
-7. **Fix any broken tests** (even unrelated ones)
-8. **Update task status** to `complete`
-9. **Update the plan** with any new tasks discovered
-10. **Keep `specs/README.md` current** — update it if specs are added or removed
-11. **Commit all changes** with a descriptive message
-12. **Output completion signal** if no tasks remain
+4. **Study the spec** referenced by the selected task
+5. **Update task status** to `in-progress`
+6. **Implement the task** following its steps
+7. **Run all tests** and ensure they pass (per `AGENTS.md`)
+8. **Fix any broken tests** (even unrelated ones)
+9. **Update task status** to `complete`
+10. **Review remaining planned tasks** — update any that are obsolete, incorrect, or mis-ordered
+11. **Update the plan** with any new tasks discovered
+12. **Keep `specs/README.md` current** — update it if specs are added or removed
+13. **Commit all changes** with a descriptive message
+14. **Output completion signal** if no tasks remain
+15. **Output replan signal** if the plan needs significant restructuring
 
 ## Prompt Template
 
@@ -140,28 +156,45 @@ You are an expert software developer working in Ralph build mode.
 
 ## Your Mission
 
-Your task is to implement functionality per the specifications using parallel subagents. Follow @implementation_plan.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented) using subagents
+Your task is to implement functionality per the specifications using parallel subagents. Follow ${RALPH_HOME}/implementation_plan.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented) using subagents.
 
 ## Context
 
 - **Specifications:** ${SPECS_DIR}
 - **Specs Index:** ${SPECS_DIR}/README.md
-- **Implementation Plan:** implementation_plan.md
+- **Implementation Plan:** ${RALPH_HOME}/implementation_plan.md
 
 ## Your Responsibilities
 
 1. Study ${SPECS_DIR}/README.md for an overview of all specs
-2. Study @implementation_plan.md
+2. Study ${RALPH_HOME}/implementation_plan.md
 3. Select ONE task to implement (prefer tasks with status "planned" and no blockers)
-4. Update task status to "in-progress"
-5. Implement the task following its steps
-6. Run all tests (see AGENTS.md for test instructions)
-7. Fix any broken tests (even unrelated ones)
-8. Update task status to "complete"
-9. Add any new tasks discovered during implementation
-10. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
-11. Commit all changes with a descriptive commit message
-12. If no tasks remain, output: <promise>COMPLETE</promise>
+4. Study the spec referenced by the task to understand full requirements and constraints
+5. Update task status to "in-progress"
+6. Implement the task following its steps
+7. Run all tests (see AGENTS.md for test instructions)
+8. Fix any broken tests (even unrelated ones)
+9. Update task status to "complete"
+10. Review remaining planned tasks — if your changes made any obsolete, incorrect, or mis-ordered, update them
+11. Add any new tasks discovered during implementation
+12. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
+13. Commit all changes with a descriptive commit message
+14. If no tasks remain, output: <promise>COMPLETE</promise>
+15. If the plan needs significant restructuring, output: <promise>REPLAN</promise>
+
+## Discovering New Work
+
+If you discover additional work needed:
+
+**For small bugs or issues:**
+1. Create a task in ${RALPH_HOME}/implementation_plan.md
+2. Add a note that it was discovered during Task N implementation
+3. If the fix is trivial (isolated, low-risk, ≤ ~5 lines), fix it now and include it in this iteration's commit. Otherwise, leave it for a future iteration.
+
+**For complex features:**
+1. Create a new spec in `specs/`
+2. Add task to plan referencing the new spec
+3. Continue with current task
 
 ## Critical Rules
 
@@ -170,6 +203,7 @@ Your task is to implement functionality per the specifications using parallel su
 - **DO NOT COMMIT BROKEN CODE**
 - If you discover new work, add it to the plan but don't do it now
 - If a task is blocked, mark it "blocked" and end iteration
+- If the plan needs significant restructuring, output `<promise>REPLAN</promise>` to trigger re-planning
 - **OUTPUT THE COMPLETION SIGNAL** when all tasks are done — this is mandatory, not optional
 
 ## Task Status Values
@@ -185,10 +219,10 @@ Your task is to implement functionality per the specifications using parallel su
 - Keep tests passing
 - Update the plan as you work
 - Document your progress
-- For any bugs you notice, resolve them or document them in @implementation_plan.md using a subagent even if it is unrelated to the current piece of work.
+- For any bugs you notice, resolve them or document them in ${RALPH_HOME}/implementation_plan.md using a subagent even if it is unrelated to the current piece of work.
 - Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
-- When you learn something new about how to run the application, update @AGENTS.md using a subagent but keep it brief. For example if you run commands multiple times before learning the correct command then that file should be updated.
-- Keep @AGENTS.md operational only — status updates and progress notes belong in implementation_plan.md. A bloated AGENTS.md pollutes every future loop's context.
+- When you learn something new about how to run the application, update AGENTS.md using a subagent but keep it brief. For example if you run commands multiple times before learning the correct command then that file should be updated.
+- Keep AGENTS.md operational only — status updates and progress notes belong in implementation_plan.md. A bloated AGENTS.md pollutes every future loop's context.
 - **When all tasks are done, you MUST output `<promise>COMPLETE</promise>` — the loop cannot
   exit without it. Do not skip this step.**
 
@@ -275,6 +309,12 @@ originally broken out as separate task.
 - `<promise>COMPLETE</promise>` output
 - Loop exits with code 0
 
+### Replan
+- Agent determines plan needs restructuring
+- `<promise>REPLAN</promise>` output
+- Loop exits with code 3
+- Human runs `ralph plan` to regenerate
+
 ### Failure
 - Agent crashes or times out after retries
 - Loop exits with code 4
@@ -314,9 +354,11 @@ If a task is too large, break it into subtasks in the plan.
 Build mode iteration exits when:
 1. Task completed, tests pass, and changes committed (success)
 2. Task blocked (success, but no progress)
-3. Agent failure after retries (failure)
+3. Replan signal output (plan needs restructuring)
+4. Agent failure after retries (failure)
 
 Build mode session exits when:
 1. `<promise>COMPLETE</promise>` detected (success)
-2. Max iterations reached (success, incomplete)
-3. Agent failure exit from iteration (failure)
+2. `<promise>REPLAN</promise>` detected (replan needed, exit code 3)
+3. Max iterations reached (success, incomplete)
+4. Agent failure exit from iteration (failure)

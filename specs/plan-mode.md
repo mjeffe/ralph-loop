@@ -67,8 +67,8 @@ Tasks should be ordered by priority. Structure and format beyond that are up to 
 
 During plan mode, the agent should:
 
-1. **Read `specs/README.md`** for an overview of all specs
-2. **Read all specs** in `specs/` directory
+1. **Study `specs/README.md`** for an overview of all specs
+2. **Study all specs** in `specs/` directory
 3. **Analyze the project** to understand current state
 4. **Identify gaps** between specs and code
 5. **Create ordered tasks** that will close the gaps
@@ -93,7 +93,7 @@ Analyze the project specifications and source code to create a comprehensive imp
 
 - **Specifications:** ${SPECS_DIR}
 - **Specs Index:** ${SPECS_DIR}/README.md
-- **Implementation Plan:** implementation_plan.md
+- **Implementation Plan:** ${RALPH_HOME}/implementation_plan.md
 
 ## Planning Phases
 
@@ -109,19 +109,20 @@ For large projects, complete what you can and update the plan status to indicate
 
 ## Your Responsibilities
 
-1. Read ${SPECS_DIR}/README.md for an overview of all specs
-2. Read all specifications in ${SPECS_DIR}
+1. Study ${SPECS_DIR}/README.md for an overview of all specs
+2. Study all specifications in ${SPECS_DIR}
 3. Analyze the project codebase to understand current state
 4. Identify gaps between specs and code
-5. Create ordered tasks in implementation_plan.md
+5. Create ordered tasks in ${RALPH_HOME}/implementation_plan.md
 6. Document dependencies between tasks
 7. Update plan status to track your progress
 8. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
-9. When planning is complete, output: <promise>COMPLETE</promise>
+9. Commit all changes with a descriptive commit message
+10. When planning is complete, output: <promise>COMPLETE</promise>
 
 ## Implementation Plan
 
-Create or update `implementation_plan.md` — a prioritized list of work to be done. Keep it
+Create or update `${RALPH_HOME}/implementation_plan.md` — a prioritized list of work to be done. Keep it
 concise and actionable. At minimum, each task needs:
 - A short title
 - A brief description of what needs to be done
@@ -130,6 +131,14 @@ concise and actionable. At minimum, each task needs:
 - Enough detail for build mode to implement it without re-analyzing the project
 
 Order tasks by priority. Structure and format beyond that are up to you.
+
+## Task Sizing
+
+Group by **logical cohesion** rather than maximizing granularity:
+- **Group related changes** that serve a single purpose into one task
+- **Reserve separate tasks** for things that are independently testable or have distinct complexity
+- **Ask: "Would I commit these together?"** — if yes, they belong in one task
+- Each task should be completable in one build iteration and committable as a single logical unit
 
 ## Important
 
