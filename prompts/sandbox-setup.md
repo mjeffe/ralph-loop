@@ -38,7 +38,9 @@ Build an all-in-one container based on ubuntu:24.04 that includes:
 - Amp CLI: npm install -g @sourcegraph/amp
 - tini (apt-get install -y tini) as PID 1 init process
 - supervisord (apt-get install -y supervisor) to manage long-running services
-- A non-root user named "ralph" with passwordless sudo
+- A non-root user named "ralph" (UID 1000, GID 1000) with passwordless sudo.
+  The base image may already have a user with UID 1000 (e.g., "ubuntu"). If so,
+  delete that user first with `userdel --remove` before creating "ralph".
 - Copy entrypoint.sh into the image
 - ENTRYPOINT ["/usr/bin/tini", "--", "entrypoint.sh"]
 - Expose relevant ports (app, database, mail UI, Vite/HMR if applicable)
@@ -46,10 +48,15 @@ Build an all-in-one container based on ubuntu:24.04 that includes:
 
 ### 2. entrypoint.sh
 
-Write an idempotent entrypoint that:
+Write an idempotent entrypoint that uses `set -euo pipefail` and includes an
+ERR trap (e.g., `trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >&2' ERR`)
+so failures are diagnosable in container logs. The entrypoint must:
 - Configures git credentials securely — write GITHUB_TOKEN to a temporary file,
-  pipe it to `gh auth login --with-token`, then run `gh auth setup-git`, then
-  delete the temporary file. Never pass the token on the command line.
+  temporarily unset GITHUB_TOKEN from the environment (gh CLI refuses
+  `--with-token` when GITHUB_TOKEN is already set as an env var, exiting
+  non-zero), pipe the file to `env -u GITHUB_TOKEN gh auth login --with-token`,
+  then run `gh auth setup-git`, then delete the temporary file. Never pass the
+  token on the command line.
 - Clones GITHUB_REPO into the workdir if .git/HEAD is missing (fresh volume)
 - Copies .env.example to .env if missing, with sandbox overrides (DB_HOST=127.0.0.1,
   MAIL_HOST=127.0.0.1, QUEUE_CONNECTION=sync, CACHE_STORE=file)
