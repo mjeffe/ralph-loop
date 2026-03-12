@@ -78,7 +78,7 @@ All sandbox commands are subcommands of `ralph sandbox`. They are **host-only** 
 ralph prints an error and exits.
 
 ```
-ralph sandbox setup           Generate sandbox files by prompting the agent
+ralph sandbox setup [--force] Generate sandbox files by prompting the agent
 ralph sandbox up              Start the sandbox container (build if needed)
 ralph sandbox down            Stop the sandbox container
 ralph sandbox reset           Re-clone codebase (preserves database volumes)
