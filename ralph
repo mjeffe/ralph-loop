@@ -6,6 +6,7 @@
 #   ralph build [max_iterations]
 #   ralph prompt <file> [max_iterations]
 #   ralph update
+#   ralph sandbox <setup|up|down|reset|shell|status>
 
 set -euo pipefail
 
@@ -28,6 +29,7 @@ SPECS_DIR="specs"
 MODE=""
 MAX_ITERATIONS=""
 PROMPT_FILE=""
+SANDBOX_ARGS=()
 
 usage() {
     cat <<EOF
@@ -38,6 +40,12 @@ Modes:
   build  [max_iterations]              Run build mode iterations
   prompt <file> [max_iterations]       Run an ad-hoc prompt from file in the loop
   update                               Update ralph to the latest upstream version
+  sandbox setup                        Generate sandbox files by prompting the agent
+  sandbox up                           Start the sandbox container
+  sandbox down                         Stop the sandbox container
+  sandbox reset [--all]                Re-clone codebase (--all: delete all volumes)
+  sandbox shell                        Open a bash shell inside the container
+  sandbox status                       Show sandbox container status
 
 Examples:
   ralph plan
@@ -48,7 +56,7 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        plan|build|prompt|update)
+        plan|build|prompt|update|sandbox)
             MODE="$1"
             shift
             ;;
@@ -62,7 +70,9 @@ while [[ $# -gt 0 ]]; do
                 usage >&2
                 exit 1
             fi
-            if [[ "$MODE" == "prompt" && -z "$PROMPT_FILE" ]]; then
+            if [[ "$MODE" == "sandbox" ]]; then
+                SANDBOX_ARGS+=("$1")
+            elif [[ "$MODE" == "prompt" && -z "$PROMPT_FILE" ]]; then
                 PROMPT_FILE="$1"
             else
                 MAX_ITERATIONS="$1"
@@ -95,7 +105,7 @@ source "$CONFIG_FILE"
 # ---------------------------------------------------------------------------
 # Load agent script
 # ---------------------------------------------------------------------------
-if [[ "$MODE" != "update" ]]; then
+if [[ "$MODE" != "update" && "$MODE" != "sandbox" ]]; then
     AGENT_SCRIPT="$RALPH_DIR/agents/${AGENT}.sh"
     if [[ ! -f "$AGENT_SCRIPT" ]]; then
         echo "Error: agent script not found: $AGENT_SCRIPT" >&2
@@ -109,6 +119,8 @@ fi
 # Prerequisite validation
 # ---------------------------------------------------------------------------
 validate_prerequisites() {
+    [[ "$MODE" == "sandbox" ]] && return
+
     if [[ ! -d ".git" ]]; then
         echo "Error: not a git repository (no .git directory found)" >&2
         exit 1
@@ -264,6 +276,134 @@ run_loop() {
 }
 
 # ---------------------------------------------------------------------------
+# Sandbox lifecycle commands
+# ---------------------------------------------------------------------------
+sandbox_container_name() {
+    local compose_file="$RALPH_DIR/sandbox/docker-compose.yml"
+    local name
+    name=$(docker compose -f "$compose_file" config --format json \
+        | jq -r '.services | to_entries[0].value.container_name // empty' 2>/dev/null)
+    if [[ -z "$name" ]]; then
+        name=$(docker compose -f "$compose_file" config --format json \
+            | jq -r '.name // empty' 2>/dev/null)
+        if [[ -n "$name" ]]; then
+            name="${name}-sandbox-1"
+        fi
+    fi
+    if [[ -z "$name" ]]; then
+        echo "Error: could not determine container name from compose file." >&2
+        exit 1
+    fi
+    echo "$name"
+}
+
+sandbox_setup() {
+    local sandbox_dir="$RALPH_DIR/sandbox"
+    local prompt_template="$RALPH_DIR/prompts/sandbox-setup.md"
+
+    # Load agent script (needed for agent_invoke)
+    AGENT_SCRIPT="$RALPH_DIR/agents/${AGENT}.sh"
+    if [[ ! -f "$AGENT_SCRIPT" ]]; then
+        echo "Error: agent script not found: $AGENT_SCRIPT" >&2
+        exit 1
+    fi
+    # shellcheck source=/dev/null
+    source "$AGENT_SCRIPT"
+
+    if ! command -v "$AGENT_CLI" &>/dev/null; then
+        echo "Error: agent CLI not found in PATH: $AGENT_CLI" >&2
+        exit 1
+    fi
+
+    if [[ ! -f "$prompt_template" ]]; then
+        echo "Error: sandbox setup prompt not found: $prompt_template" >&2
+        exit 1
+    fi
+
+    if [[ -f "$sandbox_dir/Dockerfile" ]]; then
+        echo "Sandbox files already exist in $sandbox_dir/"
+        echo "Delete them first or use --force to regenerate."
+        exit 1
+    fi
+
+    mkdir -p "$sandbox_dir"
+
+    local tmp_prompt
+    tmp_prompt=$(mktemp)
+    prepare_prompt "$prompt_template" "$tmp_prompt"
+    agent_invoke "$tmp_prompt" | agent_format_display
+    rm -f "$tmp_prompt"
+}
+
+sandbox_up() {
+    local compose_file="$RALPH_DIR/sandbox/docker-compose.yml"
+    if [[ ! -f "$compose_file" ]]; then
+        echo "Sandbox not configured. Run 'ralph sandbox setup' first." >&2
+        exit 1
+    fi
+    docker compose -f "$compose_file" up -d --build "$@"
+    echo ""
+    echo "Sandbox is starting. First build may take several minutes."
+    echo "Use 'ralph sandbox shell' to connect once ready."
+}
+
+sandbox_down() {
+    docker compose -f "$RALPH_DIR/sandbox/docker-compose.yml" down "$@"
+}
+
+sandbox_reset() {
+    local compose_file="$RALPH_DIR/sandbox/docker-compose.yml"
+    local reset_all=false
+
+    if [[ "${1:-}" == "--all" ]]; then
+        reset_all=true
+    fi
+
+    local project_name
+    project_name=$(docker compose -f "$compose_file" config --format json \
+        | jq -r '.name // empty' 2>/dev/null)
+
+    if [[ -z "$project_name" ]]; then
+        echo "Error: could not determine compose project name." >&2
+        exit 1
+    fi
+
+    if [[ "$reset_all" == true ]]; then
+        echo "This will delete ALL sandbox data (codebase AND database)."
+    else
+        echo "This will delete the sandbox codebase and re-clone from git."
+        echo "Database data will be preserved."
+    fi
+    read -p "Continue? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if [[ "$reset_all" == true ]]; then
+            docker compose -f "$compose_file" down -v
+        else
+            docker compose -f "$compose_file" down
+            docker volume rm "${project_name}_sandbox-codebase" 2>/dev/null || true
+        fi
+        docker compose -f "$compose_file" up -d --build
+        echo "Sandbox reset complete."
+    fi
+}
+
+sandbox_shell() {
+    local container_name
+    container_name=$(sandbox_container_name)
+    docker exec -it -u ralph -w /var/www/html "$container_name" bash
+}
+
+sandbox_status() {
+    local compose_file="$RALPH_DIR/sandbox/docker-compose.yml"
+    if [[ ! -f "$compose_file" ]]; then
+        echo "Sandbox not configured. Run 'ralph sandbox setup' first." >&2
+        exit 1
+    fi
+    docker compose -f "$compose_file" ps "$@"
+}
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 validate_prerequisites
@@ -312,6 +452,28 @@ case "$MODE" in
     update)
         echo "Fetching update script from GitHub..."
         curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/update.sh | bash
+        ;;
+
+    sandbox)
+        if [[ "${SANDBOX:-}" == "1" ]]; then
+            echo "Error: already inside the sandbox. Run ralph commands directly." >&2
+            exit 1
+        fi
+        local sandbox_sub="${SANDBOX_ARGS[0]:-}"
+        local sandbox_extra=()
+        [[ ${#SANDBOX_ARGS[@]} -gt 1 ]] && sandbox_extra=("${SANDBOX_ARGS[@]:1}")
+        case "$sandbox_sub" in
+            setup)  sandbox_setup "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
+            up)     sandbox_up "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
+            down)   sandbox_down "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
+            reset)  sandbox_reset "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
+            shell)  sandbox_shell "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
+            status) sandbox_status "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
+            *)
+                echo "Usage: ralph sandbox <setup|up|down|reset|shell|status>"
+                exit 1
+                ;;
+        esac
         ;;
 
     *)

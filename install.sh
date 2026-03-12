@@ -102,6 +102,7 @@ generate_manifest() {
         agents/amp.sh
         prompts/plan.md
         prompts/build.md
+        prompts/sandbox-setup.md
         README.md
         .gitignore
     )
@@ -123,6 +124,7 @@ install_ralph_dir() {
     mkdir -p "$RALPH_DIR/agents"
     mkdir -p "$RALPH_DIR/prompts"
     mkdir -p "$RALPH_DIR/logs"
+    mkdir -p "$RALPH_DIR/sandbox"
 
     # Copy ralph executable
     fetch_file "ralph" "$RALPH_DIR/ralph"
@@ -137,6 +139,7 @@ install_ralph_dir() {
     # Copy prompt templates
     fetch_file "prompts/plan.md" "$RALPH_DIR/prompts/plan.md"
     fetch_file "prompts/build.md" "$RALPH_DIR/prompts/build.md"
+    fetch_file "prompts/sandbox-setup.md" "$RALPH_DIR/prompts/sandbox-setup.md"
 
     # Copy overview as README
     fetch_file "specs/overview.md" "$RALPH_DIR/README.md"
@@ -156,6 +159,9 @@ last_agent_output
 
 # Upstream review files from ralph update
 *.upstream
+
+# Sandbox environment file (contains tokens)
+sandbox/.env
 EOF
 
     # Generate version and manifest for update tracking

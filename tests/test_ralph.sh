@@ -288,6 +288,37 @@ test_prompt_requires_completion_signal() {
         "$RALPH_DIR/ralph" prompt "$prompt" 1
 }
 
+test_sandbox_usage_output() {
+    echo "--- Sandbox usage in help ---"
+    local output
+    output=$("$RALPH_DIR/ralph" --help 2>&1)
+    assert_contains "shows sandbox setup" "sandbox setup" "$output"
+    assert_contains "shows sandbox up" "sandbox up" "$output"
+    assert_contains "shows sandbox down" "sandbox down" "$output"
+    assert_contains "shows sandbox reset" "sandbox reset" "$output"
+    assert_contains "shows sandbox shell" "sandbox shell" "$output"
+    assert_contains "shows sandbox status" "sandbox status" "$output"
+}
+
+test_sandbox_no_subcommand_exits_nonzero() {
+    echo "--- Sandbox with no subcommand ---"
+    assert_exit_code "sandbox without subcommand exits 1" 1 "$RALPH_DIR/ralph" sandbox
+}
+
+test_sandbox_bad_subcommand_exits_nonzero() {
+    echo "--- Sandbox with bad subcommand ---"
+    assert_exit_code "sandbox bogus exits 1" 1 "$RALPH_DIR/ralph" sandbox bogus
+}
+
+test_sandbox_guard_inside_sandbox() {
+    echo "--- Sandbox guard: SANDBOX=1 ---"
+    local rc=0
+    local output
+    output=$(SANDBOX=1 "$RALPH_DIR/ralph" sandbox up 2>&1) || rc=$?
+    assert_eq "SANDBOX=1 exits 1" "1" "$rc"
+    assert_contains "error message mentions already inside" "already inside the sandbox" "$output"
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -313,6 +344,10 @@ main() {
     test_display_filter_survives_malformed_json
     test_build_requires_plan
     test_prompt_requires_completion_signal
+    test_sandbox_usage_output
+    test_sandbox_no_subcommand_exits_nonzero
+    test_sandbox_bad_subcommand_exits_nonzero
+    test_sandbox_guard_inside_sandbox
 
     teardown
 

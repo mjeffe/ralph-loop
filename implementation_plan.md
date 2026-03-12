@@ -58,7 +58,7 @@ Also, `sandbox-cli.md` requires adding `sandbox/.env` to the `.gitignore` templa
 ---
 
 ### Task 10: Implement sandbox CLI lifecycle commands
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-cli.md
 **Priority:** high (implement before Task 11)
 

@@ -20,6 +20,7 @@ MANAGED_FILES=(
     agents/amp.sh
     prompts/plan.md
     prompts/build.md
+    prompts/sandbox-setup.md
     README.md
     .gitignore
 )
@@ -31,6 +32,7 @@ declare -A SOURCE_PATHS=(
     [agents/amp.sh]="agents/amp.sh"
     [prompts/plan.md]="prompts/plan.md"
     [prompts/build.md]="prompts/build.md"
+    [prompts/sandbox-setup.md]="prompts/sandbox-setup.md"
     [README.md]="specs/overview.md"
     [.gitignore]=".gitignore"
 )
