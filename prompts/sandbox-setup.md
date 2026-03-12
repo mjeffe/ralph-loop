@@ -60,10 +60,11 @@ so failures are diagnosable in container logs. The entrypoint must:
 - Clones GITHUB_REPO into the workdir if .git/HEAD is missing (fresh volume)
 - Copies .env.example to .env if missing, with sandbox overrides (DB_HOST=127.0.0.1,
   MAIL_HOST=127.0.0.1, QUEUE_CONNECTION=sync, CACHE_STORE=file)
-- Generates app secret/key if the framework requires it
 - Installs dependencies and tracks completion with a sentinel file (e.g., touch
   .sandbox-deps-installed after successful install). Check the sentinel, not the
   output directory, so partial installs get retried.
+- Generates app secret/key if the framework requires it (must come after
+  dependency installation, since key-generation CLIs need the framework loaded)
 - Initializes the database cluster/data directory if needed
 - Creates database user and databases
 - Starts the database temporarily, runs migrations (tracked with sentinel file),
