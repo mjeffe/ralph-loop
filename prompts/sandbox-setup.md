@@ -48,15 +48,30 @@ Build an all-in-one container based on ubuntu:24.04 that includes:
 
 ### 2. entrypoint.sh
 
-Write an idempotent entrypoint that uses `set -euo pipefail` and includes an
-ERR trap (e.g., `trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >&2' ERR`)
-so failures are diagnosable in container logs. The entrypoint must:
-- Configures git credentials securely — write GITHUB_TOKEN to a temporary file,
-  temporarily unset GITHUB_TOKEN from the environment (gh CLI refuses
-  `--with-token` when GITHUB_TOKEN is already set as an env var, exiting
-  non-zero), pipe the file to `env -u GITHUB_TOKEN gh auth login --with-token`,
-  then run `gh auth setup-git`, then delete the temporary file. Never pass the
-  token on the command line.
+Write an idempotent entrypoint. It MUST begin with these exact lines:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >&2' ERR
+```
+
+The ERR trap ensures failures are diagnosable in container logs.
+
+The entrypoint must:
+- Configure git credentials securely using this exact pattern:
+  ```bash
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+      TMPFILE=$(mktemp)
+      printf '%s' "$GITHUB_TOKEN" > "$TMPFILE"
+      env -u GITHUB_TOKEN gh auth login --with-token < "$TMPFILE"
+      gh auth setup-git
+      rm -f "$TMPFILE"
+  fi
+  ```
+  **Why `env -u`:** gh CLI refuses `--with-token` when GITHUB_TOKEN is already
+  set as an env var, exiting non-zero and silently killing the entrypoint under
+  `set -euo pipefail`. Never pass the token on the command line.
 - Clones GITHUB_REPO into the workdir if .git/HEAD is missing (fresh volume)
 - Copies .env.example to .env if missing, with sandbox overrides (DB_HOST=127.0.0.1,
   MAIL_HOST=127.0.0.1, QUEUE_CONNECTION=sync, CACHE_STORE=file)

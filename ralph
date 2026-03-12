@@ -40,6 +40,7 @@ Modes:
   build  [max_iterations]              Run build mode iterations
   prompt <file> [max_iterations]       Run an ad-hoc prompt from file in the loop
   update                               Update ralph to the latest upstream version
+  sandbox help                         Show detailed sandbox usage guide
   sandbox setup [--force]              Generate sandbox files by prompting the agent
   sandbox up                           Start the sandbox container
   sandbox down                         Stop the sandbox container
@@ -297,6 +298,87 @@ sandbox_container_name() {
     echo "$name"
 }
 
+sandbox_help() {
+    cat <<'EOF'
+SANDBOX USAGE GUIDE
+===================
+
+The sandbox is an isolated, all-in-one Docker container where AI coding agents
+can work safely without affecting your local environment.
+
+FIRST-TIME SETUP
+----------------
+
+  1. Generate sandbox files (Dockerfile, entrypoint, compose config):
+
+       ralph sandbox setup
+
+  2. Create your .env with tokens:
+
+       cp .ralph/sandbox/.env.example .ralph/sandbox/.env
+
+     Edit .ralph/sandbox/.env and set GITHUB_TOKEN and AMP_API_KEY.
+
+  3. Start the sandbox:
+
+       ralph sandbox up
+
+     The first build takes several minutes (installs PHP, Node, PostgreSQL,
+     clones the repo, runs migrations). Subsequent starts are fast.
+
+  4. Open a shell inside the sandbox:
+
+       ralph sandbox shell
+
+DAILY WORKFLOW
+--------------
+
+  ralph sandbox up           Start the sandbox (rebuilds image if files changed)
+  ralph sandbox shell        Open a bash shell as the "ralph" user
+  ralph sandbox status       Check if the container is running and healthy
+  ralph sandbox down         Stop the sandbox (preserves volumes)
+
+REGENERATING SANDBOX FILES
+--------------------------
+
+  ralph sandbox setup --force
+
+  Re-runs the AI agent to regenerate Dockerfile, entrypoint.sh,
+  docker-compose.yml, and .env.example from scratch. Your .env file
+  (containing tokens) is automatically preserved and restored.
+
+  After regenerating, review .env.example for any new variables that
+  may need to be added to your .env.
+
+RESETTING THE SANDBOX
+---------------------
+
+  ralph sandbox reset        Re-clone the codebase (database data preserved)
+  ralph sandbox reset --all  Delete everything (codebase AND database volumes)
+
+  Use "reset" when you want a fresh git clone but want to keep your database.
+  Use "reset --all" for a complete clean-room rebuild — the entrypoint will
+  re-clone, reinstall dependencies, and re-run migrations from scratch.
+
+TROUBLESHOOTING
+---------------
+
+  Container won't stay running?
+    Check logs:  docker compose -f .ralph/sandbox/docker-compose.yml logs
+
+  Healthcheck failing?
+    The healthcheck uses "supervisorctl status" and has a 60-second start
+    period. On first run, the entrypoint installs dependencies and runs
+    migrations before supervisord starts. Wait a few minutes, then check:
+      ralph sandbox status
+
+  Port conflicts?
+    Set alternate ports in .ralph/sandbox/.env:
+      SANDBOX_HTTP_PORT=8080
+      SANDBOX_DB_PORT=54321
+EOF
+}
+
 sandbox_setup() {
     local sandbox_dir="$RALPH_DIR/sandbox"
     local prompt_template="$RALPH_DIR/prompts/sandbox-setup.md"
@@ -334,6 +416,12 @@ sandbox_setup() {
             echo "Delete them first or use --force to regenerate."
             exit 1
         fi
+        # Preserve .env across regeneration (contains user secrets/tokens)
+        local saved_env=""
+        if [[ -f "$sandbox_dir/.env" ]]; then
+            saved_env=$(mktemp)
+            cp "$sandbox_dir/.env" "$saved_env"
+        fi
         rm -rf "$sandbox_dir"
     fi
 
@@ -345,11 +433,23 @@ sandbox_setup() {
     agent_invoke "$tmp_prompt" | agent_format_display
     rm -f "$tmp_prompt"
 
-    echo ""
-    echo "Next steps:"
-    echo "  1. cp $sandbox_dir/.env.example $sandbox_dir/.env"
-    echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN and AMP_API_KEY"
-    echo "  3. Run 'ralph sandbox up' to start the sandbox"
+    # Restore .env if it was preserved from a previous setup
+    if [[ -n "${saved_env:-}" && -f "$saved_env" ]]; then
+        cp "$saved_env" "$sandbox_dir/.env"
+        rm -f "$saved_env"
+        echo ""
+        echo "Restored existing .env (your tokens are preserved)."
+        echo ""
+        echo "Next steps:"
+        echo "  1. Review $sandbox_dir/.env against .env.example for any new variables"
+        echo "  2. Run 'ralph sandbox up' to start the sandbox"
+    else
+        echo ""
+        echo "Next steps:"
+        echo "  1. cp $sandbox_dir/.env.example $sandbox_dir/.env"
+        echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN and AMP_API_KEY"
+        echo "  3. Run 'ralph sandbox up' to start the sandbox"
+    fi
 }
 
 sandbox_up() {
@@ -489,6 +589,7 @@ case "$MODE" in
         sandbox_extra=()
         [[ ${#SANDBOX_ARGS[@]} -gt 1 ]] && sandbox_extra=("${SANDBOX_ARGS[@]:1}")
         case "$sandbox_sub" in
+            help)   sandbox_help ;;
             setup)  sandbox_setup "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             up)     sandbox_up "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             down)   sandbox_down "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
@@ -496,7 +597,7 @@ case "$MODE" in
             shell)  sandbox_shell "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             status) sandbox_status "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             *)
-                echo "Usage: ralph sandbox <setup|up|down|reset|shell|status>"
+                echo "Usage: ralph sandbox <help|setup|up|down|reset|shell|status>"
                 exit 1
                 ;;
         esac
