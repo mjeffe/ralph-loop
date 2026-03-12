@@ -328,10 +328,13 @@ sandbox_setup() {
         exit 1
     fi
 
-    if [[ -f "$sandbox_dir/Dockerfile" ]] && [[ "$force" -eq 0 ]]; then
-        echo "Sandbox files already exist in $sandbox_dir/"
-        echo "Delete them first or use --force to regenerate."
-        exit 1
+    if [[ -f "$sandbox_dir/Dockerfile" ]]; then
+        if [[ "$force" -eq 0 ]]; then
+            echo "Sandbox files already exist in $sandbox_dir/"
+            echo "Delete them first or use --force to regenerate."
+            exit 1
+        fi
+        rm -rf "$sandbox_dir"
     fi
 
     mkdir -p "$sandbox_dir"
