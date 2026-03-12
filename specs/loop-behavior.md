@@ -79,6 +79,7 @@ Default variables available in prompts:
 |----------|--------|-------|
 | `${SPECS_DIR}` | config | e.g., `specs` |
 | `${MODE}` | runtime | `plan`, `build`, or `prompt` |
+| `${RALPH_HOME}` | runtime | Relative path from project root to Ralph's directory (e.g., `.ralph` or `.`) |
 
 Custom variables can be added to `config` and will be available automatically via `envsubst`.
 

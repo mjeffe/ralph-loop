@@ -101,7 +101,8 @@ For each file that would be installed (same file list as `install.sh`):
 ### Post-update
 
 1. **Update `.ralph/.manifest`** with checksums of all files as written (for overwritten files,
-   the new checksum; for preserved files, keep the existing manifest entry)
+   the new checksum; for preserved files, record the new upstream checksum so that if the user
+   later accepts the `.upstream` file, the next update will see it as unmodified)
 2. **Update `.ralph/.version`** with the new commit hash
 3. **Display summary** of what was updated, skipped, and any `.upstream` files to review
 

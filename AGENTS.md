@@ -31,7 +31,8 @@ out the default prompts with something very simple.
 - **Keep `specs/README.md` current.** If you add or remove a spec file, update the index.
 - **Keep the root `README.md` in sync** with any significant structural or behavioral changes.
 - **The ralph script lives at the project root** (`./ralph`), not in a subdirectory.
-- **No `ralph/` or `.ralph/` directory exists in this project** — ralph runs from its own root.
+- **No `ralph/` directory exists in this project** — ralph runs from its own root.
+  (When installed into a target project, ralph lives under `.ralph/`.)
 - When modifying prompt templates in `prompts/`, also update the canonical template
   definitions: `specs/plan-mode.md` (plan prompt) and `specs/build-mode.md` (build prompt).
 

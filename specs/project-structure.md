@@ -124,6 +124,7 @@ Default variables available in all prompts:
 |----------|--------|-------------|
 | `${SPECS_DIR}` | config | Path to specs directory (e.g., `specs`) |
 | `${MODE}` | runtime | Current mode: `plan`, `build`, or `prompt` |
+| `${RALPH_HOME}` | runtime | Relative path from project root to Ralph's directory (e.g., `.ralph` or `.`) |
 
 Custom variables can be added to `config` and will be available in prompts automatically. This is the mechanism for orienting the agent to project-specific paths or settings.
 
