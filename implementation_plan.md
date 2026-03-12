@@ -83,7 +83,7 @@ Add the `sandbox` subcommand to the `ralph` script with all lifecycle functions:
 ---
 
 ### Task 11: Create sandbox setup prompt template
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-setup-prompt.md
 **Depends on:** Task 10
 
