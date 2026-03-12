@@ -82,11 +82,12 @@ Multi-step operations must use sentinel files for reliable idempotency.
 - name: {project-name}-sandbox (derive from git remote or directory name)
 - container_name: {project-name}-sandbox
 - Build context: . (the sandbox directory)
-- Environment (use list syntax `- KEY=value`, not map syntax). **Quote every
-  entry whose value contains a colon** — a trailing colon makes YAML interpret
-  the line as a mapping key instead of a string, e.g.:
-    - BAD:  `- GIT_CONFIG_VALUE_0=git@github.com:`   ← parsed as mapping
-    - GOOD: `- "GIT_CONFIG_VALUE_0=git@github.com:"`  ← parsed as string
+- **Environment: use list syntax (`- KEY=value`), NEVER map syntax (`KEY: value`).**
+  Quote every entry whose value contains a colon — a trailing colon makes YAML
+  interpret the line as a mapping key instead of a string, e.g.:
+    - BAD:  `GIT_CONFIG_VALUE_0: git@github.com:`     ← map syntax, colon breaks YAML
+    - BAD:  `- GIT_CONFIG_VALUE_0=git@github.com:`    ← list syntax but unquoted colon
+    - GOOD: `- "GIT_CONFIG_VALUE_0=git@github.com:"`  ← list syntax, quoted
   Required vars: SANDBOX=1, GITHUB_TOKEN,
   AMP_API_KEY, GITHUB_REPO, plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS
 - Named volumes: sandbox-codebase (for workdir), sandbox-db (for database data)
@@ -121,6 +122,7 @@ Template with:
 - Use named Docker volumes, not bind mounts, for the codebase and database.
 - Install services natively in the container (apt-get), not as separate containers.
 - The sandbox must support running the project's full test suite.
+- Use list syntax (`- KEY=value`) for all environment variables in docker-compose.yml, never map syntax (`KEY: value`).
 - Add comments in generated files explaining non-obvious choices.
 - Commit all generated files with message: "chore: generate sandbox environment"
 
