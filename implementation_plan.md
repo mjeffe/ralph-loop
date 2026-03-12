@@ -110,7 +110,7 @@ Also update `install.sh` to copy these scripts during installation, and update `
 ---
 
 ### Task 13: Sync README.md with sandbox feature
-**Status:** planned
+**Status:** complete
 **Spec:** specs/overview.md, specs/project-structure.md
 **Depends on:** Tasks 10-11
 

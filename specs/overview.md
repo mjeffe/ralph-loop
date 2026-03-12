@@ -89,4 +89,3 @@ See `specs/project-structure.md` for full details.
 - Parallel task execution
 - Web UI
 - Cloud deployment
-- Containerization/sandboxing (future feature)
