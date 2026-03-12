@@ -78,13 +78,14 @@ All sandbox commands are subcommands of `ralph sandbox`. They are **host-only** 
 ralph prints an error and exits.
 
 ```
-ralph sandbox setup [--force] Generate sandbox files by prompting the agent
-ralph sandbox up              Start the sandbox container (build if needed)
-ralph sandbox down            Stop the sandbox container
-ralph sandbox reset           Re-clone codebase (preserves database volumes)
-ralph sandbox reset --all     Delete all volumes (codebase + database) and restart
-ralph sandbox shell           Open a bash shell inside the container
-ralph sandbox status          Show sandbox container status and service health
+ralph sandbox help             Show detailed sandbox usage guide
+ralph sandbox setup [--force]  Generate sandbox files by prompting the agent
+ralph sandbox up               Start the sandbox container (build if needed)
+ralph sandbox down             Stop the sandbox container
+ralph sandbox reset            Re-clone codebase (preserves database volumes)
+ralph sandbox reset --all      Delete all volumes (codebase + database) and restart
+ralph sandbox shell            Open a bash shell inside the container
+ralph sandbox status           Show sandbox container status and service health
 ```
 
 ### Detection of execution context
@@ -105,6 +106,12 @@ sandbox)
 Inside the container, users run ralph normally (`ralph plan`, `ralph build`, etc.)
 with no sandbox prefix.
 
+## `ralph sandbox help`
+
+Prints a detailed usage guide covering first-time setup steps, daily workflow
+commands, regeneration, resetting, and troubleshooting. This is a self-contained
+reference so users don't need to consult external documentation.
+
 ## `ralph sandbox setup` — Agent-Generated Scaffolding
 
 ### Purpose
@@ -118,14 +125,21 @@ keeps ralph project-agnostic while producing tailored containers.
 1. Verify `.ralph/sandbox/` does not already contain generated files (Dockerfile,
    docker-compose.yml, entrypoint.sh). If they exist, print a message and exit
    (the user should delete them manually or use a `--force` flag to regenerate).
-2. Create `.ralph/sandbox/` directory if it does not exist.
-3. Invoke the configured agent with the `prompts/sandbox-setup.md` prompt template.
+2. When `--force` is used and existing files are found, preserve the user's `.env`
+   file (which contains secrets/tokens) before deleting the sandbox directory.
+   After the agent regenerates files, restore the saved `.env`. This allows
+   regeneration without losing credentials.
+3. Create `.ralph/sandbox/` directory if it does not exist.
+4. Invoke the configured agent with the `prompts/sandbox-setup.md` prompt template.
    This uses the same `agent_invoke` mechanism as plan/build modes — the configured
    agent script (`agents/${AGENT}.sh`) handles invocation.
-4. The agent analyzes the project and creates the sandbox files.
-5. The agent commits the generated files.
-6. Print next-steps guidance telling the user to copy `.env.example` to `.env`,
-   set `GITHUB_TOKEN` and `AMP_API_KEY`, and run `ralph sandbox up`.
+5. The agent analyzes the project and creates the sandbox files.
+6. The agent commits the generated files.
+7. Print next-steps guidance:
+   - If `.env` was restored from a previous setup, tell the user their tokens are
+     preserved and suggest reviewing `.env.example` for any new variables.
+   - Otherwise, tell the user to copy `.env.example` to `.env`, set `GITHUB_TOKEN`
+     and `AMP_API_KEY`, and run `ralph sandbox up`.
 
 ## `ralph sandbox up`
 
@@ -238,6 +252,7 @@ sandbox)
     fi
     shift
     case "${1:-}" in
+        help)   shift; sandbox_help ;;
         setup)  shift; sandbox_setup "$@" ;;
         up)     shift; sandbox_up "$@" ;;
         down)   shift; sandbox_down "$@" ;;
@@ -245,7 +260,7 @@ sandbox)
         shell)  shift; sandbox_shell "$@" ;;
         status) shift; sandbox_status "$@" ;;
         *)
-            echo "Usage: ralph sandbox <setup|up|down|reset|shell|status>"
+            echo "Usage: ralph sandbox <help|setup|up|down|reset|shell|status>"
             exit 1
             ;;
     esac
@@ -265,9 +280,19 @@ sandbox_setup() {
     fi
 
     if [[ -f "$sandbox_dir/Dockerfile" ]]; then
-        echo "Sandbox files already exist in $sandbox_dir/"
-        echo "Delete them first or use --force to regenerate."
-        exit 1
+        if [[ "${1:-}" == "--force" ]]; then
+            # Preserve .env across regeneration (contains user secrets/tokens)
+            local saved_env=""
+            if [[ -f "$sandbox_dir/.env" ]]; then
+                saved_env=$(mktemp)
+                cp "$sandbox_dir/.env" "$saved_env"
+            fi
+            rm -rf "$sandbox_dir"
+        else
+            echo "Sandbox files already exist in $sandbox_dir/"
+            echo "Delete them first or use --force to regenerate."
+            exit 1
+        fi
     fi
 
     mkdir -p "$sandbox_dir"
@@ -278,6 +303,24 @@ sandbox_setup() {
     prepare_prompt "$prompt_template" "$tmp_prompt"
     agent_invoke "$tmp_prompt" | agent_format_display
     rm -f "$tmp_prompt"
+
+    # Restore .env if it was preserved from a previous setup
+    if [[ -n "${saved_env:-}" && -f "$saved_env" ]]; then
+        cp "$saved_env" "$sandbox_dir/.env"
+        rm -f "$saved_env"
+        echo ""
+        echo "Restored existing .env (your tokens are preserved)."
+        echo ""
+        echo "Next steps:"
+        echo "  1. Review $sandbox_dir/.env against .env.example for any new variables"
+        echo "  2. Run 'ralph sandbox up' to start the sandbox"
+    else
+        echo ""
+        echo "Next steps:"
+        echo "  1. cp $sandbox_dir/.env.example $sandbox_dir/.env"
+        echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN and AMP_API_KEY"
+        echo "  3. Run 'ralph sandbox up' to start the sandbox"
+    fi
 }
 ```
 
