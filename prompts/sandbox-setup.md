@@ -21,6 +21,8 @@ Scan the project to determine the full runtime stack:
 5. Read CI config (.github/workflows/, .gitlab-ci.yml) for service dependencies
 6. Read test config (phpunit.xml, jest.config.*, pytest.ini) for test database needs
 7. Identify the git remote URL for GITHUB_REPO default
+8. Read ${RALPH_HOME}/dependencies for ralph's own system package requirements
+   and ensure ALL listed packages are installed in the Dockerfile
 
 ## What to generate
 

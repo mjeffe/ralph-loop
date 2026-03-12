@@ -17,6 +17,7 @@ RALPH_DIR=".ralph"
 MANAGED_FILES=(
     ralph
     config
+    dependencies
     agents/amp.sh
     agents/claude.sh
     agents/cline.sh
@@ -32,6 +33,7 @@ MANAGED_FILES=(
 declare -A SOURCE_PATHS=(
     [ralph]="ralph"
     [config]="config"
+    [dependencies]="dependencies"
     [agents/amp.sh]="agents/amp.sh"
     [agents/claude.sh]="agents/claude.sh"
     [agents/cline.sh]="agents/cline.sh"

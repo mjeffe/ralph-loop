@@ -99,6 +99,7 @@ generate_manifest() {
     local managed_files=(
         ralph
         config
+        dependencies
         agents/amp.sh
         agents/claude.sh
         agents/cline.sh
@@ -133,8 +134,9 @@ install_ralph_dir() {
     fetch_file "ralph" "$RALPH_DIR/ralph"
     chmod +x "$RALPH_DIR/ralph"
 
-    # Copy config
+    # Copy config and dependencies
     fetch_file "config" "$RALPH_DIR/config"
+    fetch_file "dependencies" "$RALPH_DIR/dependencies"
 
     # Copy agent scripts
     fetch_file "agents/amp.sh" "$RALPH_DIR/agents/amp.sh"

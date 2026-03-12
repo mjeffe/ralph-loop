@@ -16,6 +16,7 @@ ralph-loop/                         # Project root = Ralph's home
 ├── ralph                           # Main executable
 ├── install.sh                      # Installer script (for parent projects)
 ├── config                          # Ralph configuration
+├── dependencies                    # System package dependencies (apt)
 ├── implementation_plan.md          # Current implementation plan
 ├── agents/                         # Agent scripts (one per supported agent)
 │   ├── amp.sh
@@ -45,6 +46,7 @@ parent-project/
 ├── .ralph/                         # Ralph installation (hidden directory)
 │   ├── ralph                       # Main executable
 │   ├── config                      # Ralph configuration
+│   ├── dependencies                # System package dependencies (apt)
 │   ├── README.md                   # Overview of how Ralph works
 │   ├── implementation_plan.md      # Current implementation plan
 │   ├── agents/                     # Agent scripts (one per supported agent)
@@ -181,7 +183,7 @@ See `specs/installer.md` for full details.
 Ralph is designed to be portable:
 
 - Uses standard Bash (no exotic shell features)
-- Requires only: Bash, Git, and the agent CLI
+- Requires only: Bash, Git, the agent CLI, and packages listed in `dependencies`
 - All internal paths relative to the ralph script's own directory
 - External paths (specs, project root) relative to working directory
 - No OS-specific commands beyond POSIX standard tools

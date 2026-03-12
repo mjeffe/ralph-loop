@@ -1,0 +1,7 @@
+# Ralph system dependencies (apt package names)
+# These must be available inside any environment where ralph runs,
+# including the sandbox container.
+jq
+gettext-base
+curl
+git
