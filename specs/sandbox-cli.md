@@ -124,6 +124,8 @@ keeps ralph project-agnostic while producing tailored containers.
    agent script (`agents/${AGENT}.sh`) handles invocation.
 4. The agent analyzes the project and creates the sandbox files.
 5. The agent commits the generated files.
+6. Print next-steps guidance telling the user to copy `.env.example` to `.env`,
+   set `GITHUB_TOKEN` and `AMP_API_KEY`, and run `ralph sandbox up`.
 
 ## `ralph sandbox up`
 
@@ -134,6 +136,15 @@ sandbox_up() {
         echo "Sandbox not configured. Run 'ralph sandbox setup' first." >&2
         exit 1
     fi
+
+    local env_file="$RALPH_DIR/sandbox/.env"
+    if [[ ! -f "$env_file" ]]; then
+        echo "Warning: $env_file not found." >&2
+        echo "Copy .env.example to .env and set GITHUB_TOKEN and AMP_API_KEY:" >&2
+        echo "  cp $RALPH_DIR/sandbox/.env.example $env_file" >&2
+        exit 1
+    fi
+
     docker compose -f "$compose_file" up -d --build "$@"
     echo ""
     echo "Sandbox is starting. First build may take several minutes."

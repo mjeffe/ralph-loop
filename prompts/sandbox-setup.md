@@ -74,8 +74,9 @@ Multi-step operations must use sentinel files for reliable idempotency.
 - name: {project-name}-sandbox (derive from git remote or directory name)
 - container_name: {project-name}-sandbox
 - Build context: . (the sandbox directory)
-- Environment: SANDBOX=1, GITHUB_TOKEN, AMP_API_KEY, GITHUB_REPO,
-  plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS
+- Environment (use list syntax `- KEY=value`, not map syntax, to avoid YAML
+  parsing issues with values containing colons): SANDBOX=1, GITHUB_TOKEN,
+  AMP_API_KEY, GITHUB_REPO, plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS
 - Named volumes: sandbox-codebase (for workdir), sandbox-db (for database data)
 - Ports: map standard ports using env vars with defaults
   (e.g., ${SANDBOX_HTTP_PORT:-80}:80) so users can remap to avoid collisions

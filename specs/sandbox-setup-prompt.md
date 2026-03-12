@@ -99,7 +99,9 @@ Compose configuration. Key requirements:
   directory name) to avoid collisions with the project's own compose setup.
 - **Container name:** Use `{project-name}-sandbox` for predictable `docker exec`.
 - **Environment variables:** Pass through `GITHUB_TOKEN`, `AMP_API_KEY`, and
-  `GITHUB_REPO` from `.env`. Set `SANDBOX=1`.
+  `GITHUB_REPO` from `.env`. Set `SANDBOX=1`. Use list syntax (`- KEY=value`)
+  not map syntax (`KEY: value`) to avoid YAML parsing issues with values
+  containing colons.
 - **Git SSH-to-HTTPS rewrite:** Include `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_0`, and
   `GIT_CONFIG_VALUE_0` to rewrite `git@github.com:` to `https://github.com/` so the
   PAT works for git operations.
@@ -228,8 +230,9 @@ Multi-step operations must use sentinel files for reliable idempotency.
 - name: {project-name}-sandbox (derive from git remote or directory name)
 - container_name: {project-name}-sandbox
 - Build context: . (the sandbox directory)
-- Environment: SANDBOX=1, GITHUB_TOKEN, AMP_API_KEY, GITHUB_REPO,
-  plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS
+- Environment (use list syntax `- KEY=value`, not map syntax, to avoid YAML
+  parsing issues with values containing colons): SANDBOX=1, GITHUB_TOKEN,
+  AMP_API_KEY, GITHUB_REPO, plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS
 - Named volumes: sandbox-codebase (for workdir), sandbox-db (for database data)
 - Ports: map standard ports using env vars with defaults
   (e.g., ${SANDBOX_HTTP_PORT:-80}:80) so users can remap to avoid collisions
@@ -448,13 +451,13 @@ services:
     container_name: myapp-sandbox
     env_file: .env
     environment:
-      SANDBOX: 1
-      GITHUB_TOKEN: '${GITHUB_TOKEN}'
-      AMP_API_KEY: '${AMP_API_KEY}'
-      GITHUB_REPO: '${GITHUB_REPO:-https://github.com/owner/myapp.git}'
-      GIT_CONFIG_COUNT: 1
-      GIT_CONFIG_KEY_0: url.https://github.com/.insteadOf
-      GIT_CONFIG_VALUE_0: 'git@github.com:'
+      - SANDBOX=1
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - AMP_API_KEY=${AMP_API_KEY}
+      - GITHUB_REPO=${GITHUB_REPO:-https://github.com/owner/myapp.git}
+      - GIT_CONFIG_COUNT=1
+      - GIT_CONFIG_KEY_0=url.https://github.com/.insteadOf
+      - GIT_CONFIG_VALUE_0=git@github.com:
     volumes:
       - sandbox-codebase:/var/www/html
       - sandbox-pgsql:/var/lib/postgresql

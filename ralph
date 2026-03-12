@@ -333,6 +333,12 @@ sandbox_setup() {
     prepare_prompt "$prompt_template" "$tmp_prompt"
     agent_invoke "$tmp_prompt" | agent_format_display
     rm -f "$tmp_prompt"
+
+    echo ""
+    echo "Next steps:"
+    echo "  1. cp $sandbox_dir/.env.example $sandbox_dir/.env"
+    echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN and AMP_API_KEY"
+    echo "  3. Run 'ralph sandbox up' to start the sandbox"
 }
 
 sandbox_up() {
@@ -341,6 +347,15 @@ sandbox_up() {
         echo "Sandbox not configured. Run 'ralph sandbox setup' first." >&2
         exit 1
     fi
+
+    local env_file="$RALPH_DIR/sandbox/.env"
+    if [[ ! -f "$env_file" ]]; then
+        echo "Warning: $env_file not found." >&2
+        echo "Copy .env.example to .env and set GITHUB_TOKEN and AMP_API_KEY:" >&2
+        echo "  cp $RALPH_DIR/sandbox/.env.example $env_file" >&2
+        exit 1
+    fi
+
     docker compose -f "$compose_file" up -d --build "$@"
     echo ""
     echo "Sandbox is starting. First build may take several minutes."
