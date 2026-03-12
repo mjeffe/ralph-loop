@@ -18,6 +18,9 @@ MANAGED_FILES=(
     ralph
     config
     agents/amp.sh
+    agents/claude.sh
+    agents/cline.sh
+    agents/codex.sh
     prompts/plan.md
     prompts/build.md
     prompts/sandbox-setup.md
@@ -30,6 +33,9 @@ declare -A SOURCE_PATHS=(
     [ralph]="ralph"
     [config]="config"
     [agents/amp.sh]="agents/amp.sh"
+    [agents/claude.sh]="agents/claude.sh"
+    [agents/cline.sh]="agents/cline.sh"
+    [agents/codex.sh]="agents/codex.sh"
     [prompts/plan.md]="prompts/plan.md"
     [prompts/build.md]="prompts/build.md"
     [prompts/sandbox-setup.md]="prompts/sandbox-setup.md"

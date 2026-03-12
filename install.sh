@@ -100,6 +100,9 @@ generate_manifest() {
         ralph
         config
         agents/amp.sh
+        agents/claude.sh
+        agents/cline.sh
+        agents/codex.sh
         prompts/plan.md
         prompts/build.md
         prompts/sandbox-setup.md
@@ -135,6 +138,9 @@ install_ralph_dir() {
 
     # Copy agent scripts
     fetch_file "agents/amp.sh" "$RALPH_DIR/agents/amp.sh"
+    fetch_file "agents/claude.sh" "$RALPH_DIR/agents/claude.sh"
+    fetch_file "agents/cline.sh" "$RALPH_DIR/agents/cline.sh"
+    fetch_file "agents/codex.sh" "$RALPH_DIR/agents/codex.sh"
 
     # Copy prompt templates
     fetch_file "prompts/plan.md" "$RALPH_DIR/prompts/plan.md"

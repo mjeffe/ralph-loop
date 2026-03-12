@@ -94,7 +94,7 @@ The prompt template content is fully specified in `specs/sandbox-setup-prompt.md
 ---
 
 ### Task 12: Add placeholder agent scripts for claude, cline, codex
-**Status:** planned
+**Status:** complete
 **Spec:** specs/agent-scripts.md, specs/project-structure.md, specs/installer.md
 
 The project-structure spec and installer spec list `claude.sh`, `cline.sh`, and `codex.sh` as agent scripts that should exist. Currently only `amp.sh` exists.

@@ -288,6 +288,35 @@ test_prompt_requires_completion_signal() {
         "$RALPH_DIR/ralph" prompt "$prompt" 1
 }
 
+test_claude_agent_script() {
+    echo "--- Claude agent script ---"
+    local output
+    output=$(bash -c "source '$RALPH_DIR/agents/claude.sh' && echo \$AGENT_CLI")
+    assert_eq "claude AGENT_CLI is claude" "claude" "$output"
+
+    output=$(bash -c "source '$RALPH_DIR/agents/claude.sh' && type -t agent_invoke")
+    assert_eq "claude agent_invoke is defined" "function" "$output"
+
+    output=$(bash -c "source '$RALPH_DIR/agents/claude.sh' && type -t agent_extract_response")
+    assert_eq "claude agent_extract_response is defined" "function" "$output"
+
+    output=$(bash -c "source '$RALPH_DIR/agents/claude.sh' && type -t agent_format_display")
+    assert_eq "claude agent_format_display is defined" "function" "$output"
+}
+
+test_stub_agent_scripts() {
+    echo "--- Stub agent scripts (cline, codex) ---"
+    for agent in cline codex; do
+        local output
+        output=$(bash -c "source '$RALPH_DIR/agents/${agent}.sh' && echo \$AGENT_CLI")
+        assert_eq "${agent} AGENT_CLI is ${agent}" "$agent" "$output"
+
+        local rc=0
+        bash -c "source '$RALPH_DIR/agents/${agent}.sh' && agent_invoke /dev/null" 2>/dev/null || rc=$?
+        assert_eq "${agent} agent_invoke exits 1" "1" "$rc"
+    done
+}
+
 test_sandbox_usage_output() {
     echo "--- Sandbox usage in help ---"
     local output
@@ -344,6 +373,8 @@ main() {
     test_display_filter_survives_malformed_json
     test_build_requires_plan
     test_prompt_requires_completion_signal
+    test_claude_agent_script
+    test_stub_agent_scripts
     test_sandbox_usage_output
     test_sandbox_no_subcommand_exits_nonzero
     test_sandbox_bad_subcommand_exits_nonzero
