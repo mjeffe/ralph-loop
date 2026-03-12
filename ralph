@@ -459,8 +459,8 @@ case "$MODE" in
             echo "Error: already inside the sandbox. Run ralph commands directly." >&2
             exit 1
         fi
-        local sandbox_sub="${SANDBOX_ARGS[0]:-}"
-        local sandbox_extra=()
+        sandbox_sub="${SANDBOX_ARGS[0]:-}"
+        sandbox_extra=()
         [[ ${#SANDBOX_ARGS[@]} -gt 1 ]] && sandbox_extra=("${SANDBOX_ARGS[@]:1}")
         case "$sandbox_sub" in
             setup)  sandbox_setup "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
