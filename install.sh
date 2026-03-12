@@ -100,6 +100,7 @@ generate_manifest() {
         ralph
         config
         dependencies
+        sandbox-preferences.md
         agents/amp.sh
         agents/claude.sh
         agents/cline.sh
@@ -134,9 +135,10 @@ install_ralph_dir() {
     fetch_file "ralph" "$RALPH_DIR/ralph"
     chmod +x "$RALPH_DIR/ralph"
 
-    # Copy config and dependencies
+    # Copy config, dependencies, and sandbox preferences
     fetch_file "config" "$RALPH_DIR/config"
     fetch_file "dependencies" "$RALPH_DIR/dependencies"
+    fetch_file "sandbox-preferences.md" "$RALPH_DIR/sandbox-preferences.md"
 
     # Copy agent scripts
     fetch_file "agents/amp.sh" "$RALPH_DIR/agents/amp.sh"

@@ -17,6 +17,7 @@ ralph-loop/                         # Project root = Ralph's home
 ├── install.sh                      # Installer script (for parent projects)
 ├── config                          # Ralph configuration
 ├── dependencies                    # System package dependencies (apt)
+├── sandbox-preferences.md          # User sandbox environment preferences
 ├── implementation_plan.md          # Current implementation plan
 ├── agents/                         # Agent scripts (one per supported agent)
 │   ├── amp.sh
@@ -47,6 +48,7 @@ parent-project/
 │   ├── ralph                       # Main executable
 │   ├── config                      # Ralph configuration
 │   ├── dependencies                # System package dependencies (apt)
+│   ├── sandbox-preferences.md      # User sandbox environment preferences
 │   ├── README.md                   # Overview of how Ralph works
 │   ├── implementation_plan.md      # Current implementation plan
 │   ├── agents/                     # Agent scripts (one per supported agent)

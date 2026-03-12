@@ -40,6 +40,10 @@ The prompt instructs the agent to examine:
 - **Ralph dependencies:** The `dependencies` file in ralph's home directory lists
   system packages (apt) that ralph itself requires at runtime. All listed packages
   must be installed in the Dockerfile.
+- **Sandbox preferences:** `sandbox-preferences.md` in ralph's home directory
+  contains user-defined sandbox environment preferences (e.g., preferred editor,
+  additional packages, configuration choices). The agent incorporates these into
+  the generated files. This is a managed file (installed/updated like `config`).
 
 ## What the Setup Agent Generates
 
@@ -187,6 +191,8 @@ Scan the project to determine the full runtime stack:
 7. Identify the git remote URL for GITHUB_REPO default
 8. Read ${RALPH_HOME}/dependencies for ralph's own system package requirements
    and ensure ALL listed packages are installed in the Dockerfile
+9. Read ${RALPH_HOME}/sandbox-preferences.md for user-defined sandbox environment
+   preferences and incorporate them into the generated files
 
 ## What to generate
 

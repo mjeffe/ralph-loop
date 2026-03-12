@@ -23,6 +23,8 @@ Scan the project to determine the full runtime stack:
 7. Identify the git remote URL for GITHUB_REPO default
 8. Read ${RALPH_HOME}/dependencies for ralph's own system package requirements
    and ensure ALL listed packages are installed in the Dockerfile
+9. Read ${RALPH_HOME}/sandbox-preferences.md for user-defined sandbox environment
+   preferences and incorporate them into the generated files
 
 ## What to generate
 
