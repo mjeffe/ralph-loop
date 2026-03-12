@@ -47,7 +47,7 @@
 ## New Tasks
 
 ### Task 9: Update installer spec `.gitignore` template
-**Status:** planned
+**Status:** complete
 **Spec:** specs/installer.md
 **Priority:** low (spec housekeeping)
 

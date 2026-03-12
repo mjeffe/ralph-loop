@@ -98,6 +98,12 @@ AGENT="amp"
 ```
 # Ralph session logs (generated, not committed)
 logs/
+
+# Generated each iteration by the loop
+last_agent_output
+
+# Upstream review files from ralph update
+*.upstream
 ```
 
 ### .ralph/implementation_plan.md (template)
