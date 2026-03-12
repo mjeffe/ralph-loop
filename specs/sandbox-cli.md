@@ -140,6 +140,8 @@ keeps ralph project-agnostic while producing tailored containers.
      preserved and suggest reviewing `.env.example` for any new variables.
    - Otherwise, tell the user to copy `.env.example` to `.env`, set `GITHUB_TOKEN`
      and `AMP_API_KEY`, and run `ralph sandbox up`.
+   - Always print a reminder about updating `AGENTS.md` with sandbox command
+     variants if the project uses environment-specific command prefixes.
 
 ## `ralph sandbox up`
 
@@ -372,6 +374,31 @@ cp .ralph/sandbox/.env.example .ralph/sandbox/.env
 exit
 .ralph/ralph sandbox down
 ```
+
+## Updating AGENTS.md for Sandbox Commands
+
+When a project's `AGENTS.md` contains environment-specific command instructions
+(e.g., prefixed commands like `./vendor/bin/sail artisan migrate` for Docker
+Compose on the host), those commands typically change inside the sandbox container
+where services run locally. The recommended pattern is a command table in
+`AGENTS.md` keyed off the `SANDBOX` environment variable:
+
+```markdown
+## Running Commands
+
+| Environment | Prefix | Example |
+|---|---|---|
+| Host (Sail) | `./vendor/bin/sail` | `./vendor/bin/sail artisan migrate` |
+| Sandbox container | *(none)* | `php artisan migrate` |
+
+**How to detect your environment:** Check the `SANDBOX` environment variable.
+If `SANDBOX=1`, you are inside the sandbox container — run commands directly.
+Otherwise, use the host prefix.
+```
+
+This is a human responsibility — `ralph sandbox setup` prints a reminder after
+generating sandbox files, but the actual `AGENTS.md` edits are project-specific
+and best done by the developer.
 
 ## Non-Goals
 
