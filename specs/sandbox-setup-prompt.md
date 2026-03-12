@@ -100,8 +100,9 @@ Compose configuration. Key requirements:
 - **Container name:** Use `{project-name}-sandbox` for predictable `docker exec`.
 - **Environment variables:** Pass through `GITHUB_TOKEN`, `AMP_API_KEY`, and
   `GITHUB_REPO` from `.env`. Set `SANDBOX=1`. Use list syntax (`- KEY=value`)
-  not map syntax (`KEY: value`) to avoid YAML parsing issues with values
-  containing colons.
+  not map syntax (`KEY: value`). **Quote any entry whose value contains a colon**
+  — a trailing colon causes YAML to parse the line as a mapping key instead of
+  a string (e.g., `- "GIT_CONFIG_VALUE_0=git@github.com:"`).
 - **Git SSH-to-HTTPS rewrite:** Include `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_0`, and
   `GIT_CONFIG_VALUE_0` to rewrite `git@github.com:` to `https://github.com/` so the
   PAT works for git operations.
@@ -230,8 +231,12 @@ Multi-step operations must use sentinel files for reliable idempotency.
 - name: {project-name}-sandbox (derive from git remote or directory name)
 - container_name: {project-name}-sandbox
 - Build context: . (the sandbox directory)
-- Environment (use list syntax `- KEY=value`, not map syntax, to avoid YAML
-  parsing issues with values containing colons): SANDBOX=1, GITHUB_TOKEN,
+- Environment (use list syntax `- KEY=value`, not map syntax). **Quote every
+  entry whose value contains a colon** — a trailing colon makes YAML interpret
+  the line as a mapping key instead of a string, e.g.:
+    - BAD:  `- GIT_CONFIG_VALUE_0=git@github.com:`   ← parsed as mapping
+    - GOOD: `- "GIT_CONFIG_VALUE_0=git@github.com:"`  ← parsed as string
+  Required vars: SANDBOX=1, GITHUB_TOKEN,
   AMP_API_KEY, GITHUB_REPO, plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS
 - Named volumes: sandbox-codebase (for workdir), sandbox-db (for database data)
 - Ports: map standard ports using env vars with defaults
@@ -457,7 +462,7 @@ services:
       - GITHUB_REPO=${GITHUB_REPO:-https://github.com/owner/myapp.git}
       - GIT_CONFIG_COUNT=1
       - GIT_CONFIG_KEY_0=url.https://github.com/.insteadOf
-      - GIT_CONFIG_VALUE_0=git@github.com:
+      - "GIT_CONFIG_VALUE_0=git@github.com:"
     volumes:
       - sandbox-codebase:/var/www/html
       - sandbox-pgsql:/var/lib/postgresql
