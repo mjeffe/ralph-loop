@@ -40,7 +40,7 @@ Modes:
   build  [max_iterations]              Run build mode iterations
   prompt <file> [max_iterations]       Run an ad-hoc prompt from file in the loop
   update                               Update ralph to the latest upstream version
-  sandbox setup                        Generate sandbox files by prompting the agent
+  sandbox setup [--force]              Generate sandbox files by prompting the agent
   sandbox up                           Start the sandbox container
   sandbox down                         Stop the sandbox container
   sandbox reset [--all]                Re-clone codebase (--all: delete all volumes)
@@ -300,6 +300,14 @@ sandbox_container_name() {
 sandbox_setup() {
     local sandbox_dir="$RALPH_DIR/sandbox"
     local prompt_template="$RALPH_DIR/prompts/sandbox-setup.md"
+    local force=0
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --force) force=1; shift ;;
+            *) echo "Error: unknown option for sandbox setup: $1" >&2; exit 1 ;;
+        esac
+    done
 
     # Load agent script (needed for agent_invoke)
     AGENT_SCRIPT="$RALPH_DIR/agents/${AGENT}.sh"
@@ -320,7 +328,7 @@ sandbox_setup() {
         exit 1
     fi
 
-    if [[ -f "$sandbox_dir/Dockerfile" ]]; then
+    if [[ -f "$sandbox_dir/Dockerfile" ]] && [[ "$force" -eq 0 ]]; then
         echo "Sandbox files already exist in $sandbox_dir/"
         echo "Delete them first or use --force to regenerate."
         exit 1
