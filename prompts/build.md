@@ -18,15 +18,16 @@ Your task is to implement functionality per the specifications using parallel su
 4. Study the spec referenced by the task to understand full requirements and constraints
 5. Update task status to "in-progress"
 6. Implement the task following its steps
-7. Run all tests (see AGENTS.md for test instructions)
-8. Fix any broken tests (even unrelated ones)
-9. Update task status to "complete"
-10. Review remaining planned tasks — if your changes made any obsolete, incorrect, or mis-ordered, update them
-11. Add any new tasks discovered during implementation
-12. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
-13. Commit all changes with a descriptive commit message
-14. If no tasks remain, output: <promise>COMPLETE</promise>
-15. If the plan needs significant restructuring, output: <promise>REPLAN</promise>
+7. Add or update targeted tests for the behavior you changed when appropriate — especially for bug fixes and user-visible behavior changes. Use judgment: don't force brittle or high-setup tests for pure refactors, trivial wiring, or dead code removal; if you skip meaningful coverage, note it in ${RALPH_HOME}/implementation_plan.md.
+8. Run all tests (see AGENTS.md for test instructions)
+9. Fix any broken tests (even unrelated ones)
+10. Update task status to "complete"
+11. Review remaining planned tasks — if your changes made any obsolete, incorrect, or mis-ordered, update them
+12. Add any new tasks discovered during implementation
+13. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
+14. Commit all changes with a descriptive commit message
+15. If no tasks remain, output: <promise>COMPLETE</promise>
+16. If the plan needs significant restructuring, output: <promise>REPLAN</promise>
 
 ## Discovering New Work
 
