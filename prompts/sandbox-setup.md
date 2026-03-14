@@ -20,7 +20,7 @@ Scan the project to determine the full runtime stack:
 4. Read AGENTS.md for project-specific run instructions
 5. Read CI config (.github/workflows/, .gitlab-ci.yml) for service dependencies
 6. Read test config (phpunit.xml, jest.config.*, pytest.ini) for test database needs
-7. Identify the git remote URL for GITHUB_REPO default
+7. Identify the git remote URL for GIT_REPO default
 8. Read ${RALPH_HOME}/dependencies for ralph's own system package requirements
    and ensure ALL listed packages are installed in the Dockerfile
 9. Read ${RALPH_HOME}/sandbox-preferences.md for user-defined sandbox environment
@@ -38,7 +38,7 @@ Build an all-in-one container based on ubuntu:24.04 that includes:
 - Database server (PostgreSQL, MySQL, SQLite — whatever the project uses)
 - Mail catcher (Mailpit) for local SMTP
 - Package managers (composer, npm/yarn/pnpm, pip, etc.)
-- GitHub CLI (gh) for git authentication
+- GitHub CLI (gh) — only if the project is hosted on GitHub
 - Amp CLI: npm install -g @sourcegraph/amp
 - tini (apt-get install -y tini) as PID 1 init process
 - supervisord (apt-get install -y supervisor) to manage long-running services
@@ -63,7 +63,10 @@ trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >
 The ERR trap ensures failures are diagnosable in container logs.
 
 The entrypoint must:
-- Configure git credentials securely using this exact pattern:
+- Configure git credentials securely. Support two strategies depending on which
+  environment variables are set:
+
+  **GitHub path** — if `GITHUB_TOKEN` is set:
   ```bash
   if [ -n "${GITHUB_TOKEN:-}" ]; then
       TMPFILE=$(mktemp)
@@ -76,7 +79,25 @@ The entrypoint must:
   **Why `env -u`:** gh CLI refuses `--with-token` when GITHUB_TOKEN is already
   set as an env var, exiting non-zero and silently killing the entrypoint under
   `set -euo pipefail`. Never pass the token on the command line.
-- Clones GITHUB_REPO into the workdir if .git/HEAD is missing (fresh volume)
+
+  **Generic path** — if `GIT_CRED_USER` and `GIT_CRED_PASS` are set (for
+  GitLab, Bitbucket, AWS CodeCommit, self-hosted git, etc.):
+  ```bash
+  elif [ -n "${GIT_CRED_USER:-}" ] && [ -n "${GIT_CRED_PASS:-}" ]; then
+      REPO_HOST=$(echo "${GIT_REPO}" | sed -E 's|https?://([^/]+).*|\1|')
+      ENCODED_USER=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_USER}")
+      ENCODED_PASS=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_PASS}")
+      printf 'https://%s:%s@%s\n' "${ENCODED_USER}" "${ENCODED_PASS}" "${REPO_HOST}" \
+          > /home/ralph/.git-credentials
+      chmod 600 /home/ralph/.git-credentials
+      chown ralph:ralph /home/ralph/.git-credentials
+      su - ralph -c "git config --global credential.helper 'store --file=/home/ralph/.git-credentials'"
+  fi
+  ```
+  Credentials are URL-encoded because some providers (notably AWS CodeCommit)
+  generate passwords containing `/`, `+`, and `=` that break the credential
+  URL format if written raw.
+- Clones GIT_REPO into the workdir if .git/HEAD is missing (fresh volume)
 - Copies .env.example to .env if missing, with sandbox overrides (DB_HOST=127.0.0.1,
   MAIL_HOST=127.0.0.1, QUEUE_CONNECTION=sync, CACHE_STORE=file)
 - Installs dependencies and tracks completion with a sentinel file (e.g., touch
@@ -95,6 +116,8 @@ The entrypoint must:
 
 Simple existence checks (.git/HEAD, .env) are fine for single-command steps.
 Multi-step operations must use sentinel files for reliable idempotency.
+**Create sentinel directories after the clone step** — the workdir must be
+empty for `git clone` to succeed into it.
 
 ### 3. docker-compose.yml
 
@@ -104,11 +127,13 @@ Multi-step operations must use sentinel files for reliable idempotency.
 - **Environment: use list syntax (`- KEY=value`), NEVER map syntax (`KEY: value`).**
   Quote every entry whose value contains a colon — a trailing colon makes YAML
   interpret the line as a mapping key instead of a string, e.g.:
-    - BAD:  `GIT_CONFIG_VALUE_0: git@github.com:`     ← map syntax, colon breaks YAML
-    - BAD:  `- GIT_CONFIG_VALUE_0=git@github.com:`    ← list syntax but unquoted colon
-    - GOOD: `- "GIT_CONFIG_VALUE_0=git@github.com:"`  ← list syntax, quoted
-  Required vars: SANDBOX=1, GITHUB_TOKEN,
-  AMP_API_KEY, GITHUB_REPO, plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS
+    - BAD:  `GIT_CONFIG_VALUE_0: git@example.com:`     ← map syntax, colon breaks YAML
+    - BAD:  `- GIT_CONFIG_VALUE_0=git@example.com:`    ← list syntax but unquoted colon
+    - GOOD: `- "GIT_CONFIG_VALUE_0=git@example.com:"`  ← list syntax, quoted
+  Required vars: SANDBOX=1, GIT_REPO, AMP_API_KEY, plus credential vars
+  (GITHUB_TOKEN for GitHub, or GIT_CRED_USER + GIT_CRED_PASS for other
+  providers), plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS (derive the
+  host from GIT_REPO, do not hardcode github.com)
 - Named volumes: sandbox-codebase (for workdir), sandbox-db (for database data)
 - Ports: map standard ports using env vars with defaults
   (e.g., ${SANDBOX_HTTP_PORT:-80}:80) so users can remap to avoid collisions
@@ -121,9 +146,11 @@ Multi-step operations must use sentinel files for reliable idempotency.
 ### 4. .env.example
 
 Template with:
-- GITHUB_TOKEN= (with comment: fine-grained PAT scoped to this repo)
+- GIT_REPO= (pre-filled from git remote)
+- GITHUB_TOKEN= (with comment: for GitHub repos — fine-grained PAT)
+- GIT_CRED_USER= (with comment: for non-GitHub repos — HTTPS username or token)
+- GIT_CRED_PASS= (with comment: for non-GitHub repos — HTTPS password or token)
 - AMP_API_KEY= (with comment: https://ampcode.com)
-- GITHUB_REPO= (pre-filled from git remote)
 - SANDBOX_MEMORY_LIMIT=4g (with comment: optional resource limits)
 - SANDBOX_CPU_LIMIT=2
 - SANDBOX_HTTP_PORT=80 (with comment: optional port mappings)
@@ -131,6 +158,9 @@ Template with:
 - SANDBOX_DB_PORT=5432
 - SANDBOX_SMTP_PORT=1025
 - SANDBOX_MAIL_UI_PORT=8025
+
+For GitHub remotes, uncomment GITHUB_TOKEN by default. For non-GitHub remotes,
+uncomment GIT_CRED_USER and GIT_CRED_PASS instead.
 
 ## Rules
 

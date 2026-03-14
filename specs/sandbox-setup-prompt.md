@@ -63,7 +63,9 @@ An all-in-one container image. Key requirements the prompt enforces:
    hands off to `supervisord` which starts and restarts services as needed.
 - **Include the agent CLI.** Install `@sourcegraph/amp` via npm (or whichever agent
    the project uses). The agent must be runnable inside the container.
-- **Include `gh` CLI.** Required for git authentication via `gh auth setup-git`.
+- **Include `gh` CLI (GitHub projects only).** Install `gh` for git authentication
+   via `gh auth setup-git`. For non-GitHub projects, `gh` is not needed — git's
+   native credential store handles authentication instead.
 - **Create a non-root user.** Use `ralph` with passwordless sudo.
 - **Copy `entrypoint.sh`** into the image.
 
@@ -71,15 +73,28 @@ An all-in-one container image. Key requirements the prompt enforces:
 
 The container entrypoint script. Key requirements:
 
-- **Git credential setup:** Configure git authentication using `GITHUB_TOKEN`.
-  The prompt provides an exact code block using `env -u GITHUB_TOKEN` to unset
-  the env var before calling `gh auth login --with-token`, because gh CLI refuses
-  `--with-token` when `GITHUB_TOKEN` is already set as an env var (exiting
-  non-zero, which silently kills the entrypoint under `set -euo pipefail`).
-  The token is written to a temp file and piped via stdin redirection to avoid
-  exposing it in process listings (`/proc/*/cmdline`).
+- **Git credential setup:** The entrypoint supports two credential strategies,
+  selected by which environment variables are set:
+  1. **GitHub path (`GITHUB_TOKEN`):** Use `gh auth login --with-token` and
+     `gh auth setup-git`. The prompt provides an exact code block using
+     `env -u GITHUB_TOKEN` to unset the env var before calling `gh auth login`,
+     because gh CLI refuses `--with-token` when `GITHUB_TOKEN` is already set
+     (exiting non-zero under `set -euo pipefail`). The token is written to a
+     temp file and piped via stdin redirection to avoid exposing it in process
+     listings (`/proc/*/cmdline`).
+  2. **Generic path (`GIT_CRED_USER` + `GIT_CRED_PASS`):** For non-GitHub
+     hosting (GitLab, Bitbucket, AWS CodeCommit, self-hosted, etc.), write a
+     `.git-credentials` file for the `ralph` user and configure `git config
+     --global credential.helper store`. The host is derived from `GIT_REPO`.
+     **Credentials must be URL-encoded** — some providers (notably CodeCommit)
+     generate passwords containing `/`, `+`, and `=` that break the credential
+     URL format if written raw. Use `python3 -c "import urllib.parse;
+     print(urllib.parse.quote(sys.argv[1], safe=''))"` or equivalent.
+     The credential file must be owned by `ralph` with mode `600`.
+  If neither is set, git operations proceed without explicit credentials
+  (useful for public repos).
 - **Clone on first run:** If the codebase directory is empty (fresh volume), clone
-  `GITHUB_REPO`. Skip on subsequent starts.
+  `GIT_REPO`. Skip on subsequent starts.
 - **Generate `.env` on first run:** Copy the project's `.env.example` and apply
   sandbox-specific overrides (e.g., `DB_HOST=127.0.0.1`, `MAIL_HOST=127.0.0.1`,
   `QUEUE_CONNECTION=sync`).
@@ -101,6 +116,9 @@ The container entrypoint script. Key requirements:
   (interrupted `composer install` that created `vendor/` but didn't finish) gets
   retried on next start. Simple existence checks (e.g., `.git/HEAD` for clone,
   `.env` for env generation) are fine for single-command steps.
+  **Sentinel directories must be created after the clone step** — the workdir
+  must be empty for `git clone` to succeed into it, so `mkdir` before clone
+  will cause a fatal error on first run.
 
 ### 3. `docker-compose.yml`
 
@@ -109,14 +127,17 @@ Compose configuration. Key requirements:
 - **Project name:** Use `{project-name}-sandbox` (derived from the git repo name or
   directory name) to avoid collisions with the project's own compose setup.
 - **Container name:** Use `{project-name}-sandbox` for predictable `docker exec`.
-- **Environment variables:** Pass through `GITHUB_TOKEN`, `AMP_API_KEY`, and
-  `GITHUB_REPO` from `.env`. Set `SANDBOX=1`. Use list syntax (`- KEY=value`)
-  not map syntax (`KEY: value`). **Quote any entry whose value contains a colon**
-  — a trailing colon causes YAML to parse the line as a mapping key instead of
-  a string (e.g., `- "GIT_CONFIG_VALUE_0=git@github.com:"`).
+- **Environment variables:** Pass through `GIT_REPO`, `AMP_API_KEY`, and
+  credential variables (`GITHUB_TOKEN` for GitHub, or `GIT_CRED_USER` +
+  `GIT_CRED_PASS` for other providers) from `.env`. Set `SANDBOX=1`. Use list
+  syntax (`- KEY=value`) not map syntax (`KEY: value`). **Quote any entry whose
+  value contains a colon** — a trailing colon causes YAML to parse the line as
+  a mapping key instead of a string.
 - **Git SSH-to-HTTPS rewrite:** Include `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_0`, and
-  `GIT_CONFIG_VALUE_0` to rewrite `git@github.com:` to `https://github.com/` so the
-  PAT works for git operations.
+  `GIT_CONFIG_VALUE_0` to rewrite SSH URLs to HTTPS. Derive the host from
+  `GIT_REPO` (e.g., if `GIT_REPO` points to `https://gitlab.example.com/...`,
+  rewrite `git@gitlab.example.com:` to `https://gitlab.example.com/`). Do not
+  hardcode `github.com`.
 - **Volumes:** Named volumes for the codebase and database data (not bind mounts).
 - **Ports:** Expose application port, database port, mail UI port, etc. Source
   host-side ports from `.env` variables (e.g., `${SANDBOX_HTTP_PORT:-80}:80`) so
@@ -137,14 +158,20 @@ Compose configuration. Key requirements:
 Template for the secrets file. Always includes:
 
 ```env
-# GitHub Personal Access Token (fine-grained, scoped to this repo)
+# Repository to clone (HTTPS URL, pre-filled from git remote)
+GIT_REPO=https://example.com/{owner}/{repo}.git
+
+# --- Git credentials (choose ONE option) ---
+
+# Option A: GitHub — use a fine-grained PAT scoped to this repo
 GITHUB_TOKEN=
+
+# Option B: Other providers (GitLab, Bitbucket, CodeCommit, etc.)
+# GIT_CRED_USER=    (HTTPS username or token name)
+# GIT_CRED_PASS=    (HTTPS password or token value)
 
 # Amp API key (https://ampcode.com)
 AMP_API_KEY=
-
-# Repository to clone (HTTPS URL)
-GITHUB_REPO=https://github.com/{owner}/{repo}.git
 
 # Resource limits (optional — defaults shown)
 SANDBOX_MEMORY_LIMIT=4g
@@ -158,7 +185,9 @@ SANDBOX_SMTP_PORT=1025
 SANDBOX_MAIL_UI_PORT=8025
 ```
 
-The agent pre-fills `GITHUB_REPO` based on the project's git remote.
+The agent pre-fills `GIT_REPO` based on the project's git remote. For GitHub
+remotes, `GITHUB_TOKEN` is uncommented by default. For non-GitHub remotes,
+`GIT_CRED_USER` and `GIT_CRED_PASS` are uncommented instead.
 
 ## Prompt Template Content
 
@@ -188,7 +217,7 @@ Scan the project to determine the full runtime stack:
 4. Read AGENTS.md for project-specific run instructions
 5. Read CI config (.github/workflows/, .gitlab-ci.yml) for service dependencies
 6. Read test config (phpunit.xml, jest.config.*, pytest.ini) for test database needs
-7. Identify the git remote URL for GITHUB_REPO default
+7. Identify the git remote URL for GIT_REPO default
 8. Read ${RALPH_HOME}/dependencies for ralph's own system package requirements
    and ensure ALL listed packages are installed in the Dockerfile
 9. Read ${RALPH_HOME}/sandbox-preferences.md for user-defined sandbox environment
@@ -206,7 +235,7 @@ Build an all-in-one container based on ubuntu:24.04 that includes:
 - Database server (PostgreSQL, MySQL, SQLite — whatever the project uses)
 - Mail catcher (Mailpit) for local SMTP
 - Package managers (composer, npm/yarn/pnpm, pip, etc.)
-- GitHub CLI (gh) for git authentication
+- GitHub CLI (gh) — only if the project is hosted on GitHub
 - Amp CLI: npm install -g @sourcegraph/amp
 - tini (apt-get install -y tini) as PID 1 init process
 - supervisord (apt-get install -y supervisor) to manage long-running services
@@ -229,7 +258,10 @@ trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >
 The ERR trap ensures failures are diagnosable in container logs.
 
 The entrypoint must:
-- Configure git credentials securely using this exact pattern:
+- Configure git credentials securely. Support two strategies depending on which
+  environment variables are set:
+
+  **GitHub path** — if `GITHUB_TOKEN` is set:
   ```bash
   if [ -n "${GITHUB_TOKEN:-}" ]; then
       TMPFILE=$(mktemp)
@@ -244,7 +276,25 @@ The entrypoint must:
   `set -euo pipefail`. The token is written to a temp file and piped via
   stdin redirection (not passed as a command-line argument) to avoid exposing
   it in process listings (`/proc/*/cmdline`).
-- Clones GITHUB_REPO into the workdir if .git/HEAD is missing (fresh volume)
+
+  **Generic path** — if `GIT_CRED_USER` and `GIT_CRED_PASS` are set (for
+  GitLab, Bitbucket, AWS CodeCommit, self-hosted git, etc.):
+  ```bash
+  elif [ -n "${GIT_CRED_USER:-}" ] && [ -n "${GIT_CRED_PASS:-}" ]; then
+      REPO_HOST=$(echo "${GIT_REPO}" | sed -E 's|https?://([^/]+).*|\1|')
+      ENCODED_USER=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_USER}")
+      ENCODED_PASS=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_PASS}")
+      printf 'https://%s:%s@%s\n' "${ENCODED_USER}" "${ENCODED_PASS}" "${REPO_HOST}" \
+          > /home/ralph/.git-credentials
+      chmod 600 /home/ralph/.git-credentials
+      chown ralph:ralph /home/ralph/.git-credentials
+      su - ralph -c "git config --global credential.helper 'store --file=/home/ralph/.git-credentials'"
+  fi
+  ```
+  Credentials are URL-encoded because some providers (notably AWS CodeCommit)
+  generate passwords containing `/`, `+`, and `=` that break the credential
+  URL format if written raw.
+- Clones GIT_REPO into the workdir if .git/HEAD is missing (fresh volume)
 - Copies .env.example to .env if missing, with sandbox overrides (DB_HOST=127.0.0.1,
   MAIL_HOST=127.0.0.1, QUEUE_CONNECTION=sync, CACHE_STORE=file)
 - Generates app secret/key if the framework requires it
@@ -262,6 +312,8 @@ The entrypoint must:
 
 Simple existence checks (.git/HEAD, .env) are fine for single-command steps.
 Multi-step operations must use sentinel files for reliable idempotency.
+**Create sentinel directories after the clone step** — the workdir must be
+empty for `git clone` to succeed into it.
 
 ### 3. docker-compose.yml
 
@@ -270,11 +322,11 @@ Multi-step operations must use sentinel files for reliable idempotency.
 - Build context: . (the sandbox directory)
 - Environment (use list syntax `- KEY=value`, not map syntax). **Quote every
   entry whose value contains a colon** — a trailing colon makes YAML interpret
-  the line as a mapping key instead of a string, e.g.:
-    - BAD:  `- GIT_CONFIG_VALUE_0=git@github.com:`   ← parsed as mapping
-    - GOOD: `- "GIT_CONFIG_VALUE_0=git@github.com:"`  ← parsed as string
-  Required vars: SANDBOX=1, GITHUB_TOKEN,
-  AMP_API_KEY, GITHUB_REPO, plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS
+  the line as a mapping key instead of a string.
+  Required vars: SANDBOX=1, GIT_REPO, AMP_API_KEY, plus credential vars
+  (GITHUB_TOKEN for GitHub, or GIT_CRED_USER + GIT_CRED_PASS for other
+  providers), plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS (derive the
+  host from GIT_REPO, do not hardcode github.com)
 - Named volumes: sandbox-codebase (for workdir), sandbox-db (for database data)
 - Ports: map standard ports using env vars with defaults
   (e.g., ${SANDBOX_HTTP_PORT:-80}:80) so users can remap to avoid collisions
@@ -287,9 +339,11 @@ Multi-step operations must use sentinel files for reliable idempotency.
 ### 4. .env.example
 
 Template with:
-- GITHUB_TOKEN= (with comment: fine-grained PAT scoped to this repo)
+- GIT_REPO= (pre-filled from git remote)
+- GITHUB_TOKEN= (with comment: for GitHub repos — fine-grained PAT)
+- GIT_CRED_USER= (with comment: for non-GitHub repos — HTTPS username or token)
+- GIT_CRED_PASS= (with comment: for non-GitHub repos — HTTPS password or token)
 - AMP_API_KEY= (with comment: https://ampcode.com)
-- GITHUB_REPO= (pre-filled from git remote)
 - SANDBOX_MEMORY_LIMIT=4g (with comment: optional resource limits)
 - SANDBOX_CPU_LIMIT=2
 - SANDBOX_HTTP_PORT=80 (with comment: optional port mappings)
@@ -297,6 +351,9 @@ Template with:
 - SANDBOX_DB_PORT=5432
 - SANDBOX_SMTP_PORT=1025
 - SANDBOX_MAIL_UI_PORT=8025
+
+For GitHub remotes, uncomment GITHUB_TOKEN by default. For non-GitHub remotes,
+uncomment GIT_CRED_USER and GIT_CRED_PASS instead.
 
 ## Rules
 
@@ -376,7 +433,8 @@ RUN curl -sS https://www.postgresql.org/media/keys/ACCC4CF8.asc \
 # Mailpit
 RUN curl -sL https://raw.githubusercontent.com/axllent/mailpit/develop/install.sh | bash
 
-# GitHub CLI
+# GitHub CLI (only needed for GitHub-hosted repos)
+# For non-GitHub repos, remove this block — git credential store is used instead
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
         | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -412,20 +470,31 @@ ENTRYPOINT ["/usr/bin/tini", "--", "entrypoint.sh"]
 set -euo pipefail
 trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >&2' ERR
 
-# Git credentials — env -u is required because gh CLI refuses --with-token
-# when GITHUB_TOKEN is already set as an env var (exits non-zero).
+# Git credentials — supports GitHub (gh CLI) or generic (git credential store)
 if [ -n "${GITHUB_TOKEN:-}" ]; then
+    # GitHub path — env -u is required because gh CLI refuses --with-token
+    # when GITHUB_TOKEN is already set as an env var (exits non-zero).
     TMPFILE=$(mktemp)
     printf '%s' "$GITHUB_TOKEN" > "$TMPFILE"
     env -u GITHUB_TOKEN gh auth login --with-token < "$TMPFILE"
     gh auth setup-git
     rm -f "$TMPFILE"
+elif [ -n "${GIT_CRED_USER:-}" ] && [ -n "${GIT_CRED_PASS:-}" ]; then
+    # Generic path — GitLab, Bitbucket, CodeCommit, self-hosted, etc.
+    REPO_HOST=$(echo "${GIT_REPO}" | sed -E 's|https?://([^/]+).*|\1|')
+    ENCODED_USER=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_USER}")
+    ENCODED_PASS=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_PASS}")
+    printf 'https://%s:%s@%s\n' "${ENCODED_USER}" "${ENCODED_PASS}" "${REPO_HOST}" \
+        > /home/ralph/.git-credentials
+    chmod 600 /home/ralph/.git-credentials
+    chown ralph:ralph /home/ralph/.git-credentials
+    su - ralph -c "git config --global credential.helper 'store --file=/home/ralph/.git-credentials'"
 fi
 
 # Clone on fresh volume
 if [ ! -f /var/www/html/.git/HEAD ]; then
-    echo "[sandbox] Cloning $GITHUB_REPO..."
-    su - ralph -c "git clone $GITHUB_REPO /var/www/html"
+    echo "[sandbox] Cloning $GIT_REPO..."
+    su - ralph -c "git clone $GIT_REPO /var/www/html"
 else
     echo "[sandbox] Codebase present, skipping clone."
 fi
@@ -496,10 +565,15 @@ services:
     env_file: .env
     environment:
       - SANDBOX=1
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GIT_REPO=${GIT_REPO:-https://github.com/owner/myapp.git}
       - AMP_API_KEY=${AMP_API_KEY}
-      - GITHUB_REPO=${GITHUB_REPO:-https://github.com/owner/myapp.git}
+      # GitHub credentials (comment out if using GIT_CRED_USER/GIT_CRED_PASS)
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      # Generic credentials (uncomment for non-GitHub repos)
+      # - GIT_CRED_USER=${GIT_CRED_USER}
+      # - GIT_CRED_PASS=${GIT_CRED_PASS}
       - GIT_CONFIG_COUNT=1
+      # Derive host from GIT_REPO — example below is for github.com
       - GIT_CONFIG_KEY_0=url.https://github.com/.insteadOf
       - "GIT_CONFIG_VALUE_0=git@github.com:"
     volumes:
@@ -535,14 +609,20 @@ volumes:
 ### `.env.example` (example)
 
 ```env
-# GitHub Personal Access Token (fine-grained, scoped to this repo)
+# Repository to clone (HTTPS URL, pre-filled from git remote)
+GIT_REPO=https://github.com/owner/myapp.git
+
+# --- Git credentials (choose ONE option) ---
+
+# Option A: GitHub — use a fine-grained PAT scoped to this repo
 GITHUB_TOKEN=
+
+# Option B: Other providers (GitLab, Bitbucket, CodeCommit, etc.)
+# GIT_CRED_USER=    (HTTPS username or token name)
+# GIT_CRED_PASS=    (HTTPS password or token value)
 
 # Amp API key (https://ampcode.com)
 AMP_API_KEY=
-
-# Repository to clone (HTTPS URL)
-GITHUB_REPO=https://github.com/owner/myapp.git
 
 # Resource limits (optional — defaults shown)
 SANDBOX_MEMORY_LIMIT=4g
