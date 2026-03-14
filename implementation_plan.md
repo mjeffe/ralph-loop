@@ -77,7 +77,7 @@ created during installation.
 
 ### Task 4: Update project-structure.md with playbooks directory
 
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-setup-prompt.md
 
 Update `specs/project-structure.md` to include the `prompts/playbooks/` directory in both the
