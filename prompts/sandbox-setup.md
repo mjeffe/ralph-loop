@@ -7,172 +7,261 @@ in a safe, disposable environment.
 - **Ralph home:** ${RALPH_HOME}
 - **Sandbox directory:** ${RALPH_HOME}/sandbox
 
-## What to analyze
+## Definition of Done
 
-Scan the project to determine the full runtime stack:
+The sandbox is complete when ALL of these are true:
 
-1. Read package manifests (composer.json, package.json, Gemfile, go.mod,
-   requirements.txt, Cargo.toml, pyproject.toml, etc.)
-2. Read existing Docker/container files (Dockerfile, docker-compose.yml,
-   .devcontainer/, docker/, etc.) for reference — do not reuse them directly,
-   build the sandbox independently
-3. Read .env.example or equivalent for database engine, cache, mail, queue config
-4. Read AGENTS.md for project-specific run instructions
-5. Read CI config (.github/workflows/, .gitlab-ci.yml) for service dependencies
-6. Read test config (phpunit.xml, jest.config.*, pytest.ini) for test database needs
-7. Identify the git remote URL for GIT_REPO default
-8. Read ${RALPH_HOME}/dependencies for ralph's own system package requirements
-   and ensure ALL listed packages are installed in the Dockerfile
-9. Read ${RALPH_HOME}/sandbox-preferences.md for user-defined sandbox environment
-   preferences and incorporate them into the generated files
+1. `docker compose up --build` succeeds without errors
+2. The repo is cloned into the code volume
+3. Dependencies install successfully
+4. Every service required by the project's tests is running
+5. The project's primary test command can be run as user `ralph`
+6. All env vars referenced in compose/entrypoint are documented in `.env.example`
+7. All four generated files are internally consistent (ports ↔ services,
+   workdir ↔ compose volumes, DB type ↔ init logic)
 
-## What to generate
+## Priority Order
+
+When making trade-offs, follow this priority:
+
+1. **Container boots reliably** — entrypoint completes, supervisord starts
+2. **Repo clones and credentials work** — git auth, clone into volume
+3. **Dependencies install** — correct package manager, idempotent with sentinels
+4. **Required services run** — only services the project actually needs
+5. **Migrations and bootstrap** — only if the project has them
+6. **Developer ergonomics** — editor config, aliases, preferences
+
+## Project Analysis
+
+Scan the project to build a **project profile**. Read these sources and extract
+the conclusions listed below. Existing Docker/devcontainer files are reference
+material — do not copy them, but do reuse authoritative details like runtime
+versions, package names, and startup commands.
+
+**Sources to read:**
+- Package manifests (composer.json, package.json, Gemfile, go.mod,
+  requirements.txt, Cargo.toml, pyproject.toml, etc.)
+- Existing Docker/container files (Dockerfile, docker-compose.yml,
+  .devcontainer/, docker/) — for reference only
+- .env.example or equivalent
+- AGENTS.md for project-specific run/test instructions
+- CI config (.github/workflows/, .gitlab-ci.yml) for service dependencies
+- Test config (phpunit.xml, jest.config.*, pytest.ini) for test database needs
+- Git remote URL (for GIT_REPO default)
+- ${RALPH_HOME}/dependencies for ralph's own system package requirements
+- ${RALPH_HOME}/sandbox-preferences.md for user-defined environment preferences
+
+**Conclusions to extract:**
+- Primary runtime(s) and version(s)
+- Package manager(s) — prefer lockfiles over manifests for tool choice
+- Required services for tests and dev (DB, cache, search, mail, etc.)
+- Long-running processes the project needs (web server, queue worker,
+  Vite/HMR dev server, scheduler, etc.)
+- Primary workdir path
+- Bootstrap/install command(s)
+- Likely test command
+- Git hosting provider (GitHub vs other)
+
+If a stack playbook is provided, read and follow it: ${STACK_PLAYBOOK}
+
+**Decision rules:**
+- Always provision the project's primary database engine — agents need to
+  run the full app, not just tests. Use .env.example, config files, and
+  docker-compose.yml to determine the primary engine.
+- If tests use a different DB (e.g., SQLite for speed), configure that as
+  the test database, but still provision the primary server DB
+- Include only *additional* services (cache, search, queue) that AGENTS.md,
+  CI, test config, or env/config actually require
+- Include Mailpit only when mail is used by the project or implied by framework
+- For ambiguous cases (monorepos, multiple runtimes), optimize for the
+  primary app; note limitations in comments
+
+## Hard Constraints
+
+These are non-negotiable:
+
+- **Single container** — all-in-one, no Docker-in-Docker, no sidecars
+- **Named volumes** — for codebase and database data, never bind mounts
+- **Non-root user** named "ralph" (UID 1000, GID 1000) with passwordless sudo
+- **tini** as PID 1 init process
+- **supervisord** to manage long-running services
+- **Ralph dependencies** — every package in ${RALPH_HOME}/dependencies must
+  be installed in the Dockerfile
+- **Amp CLI** — `npm install -g @sourcegraph/amp`
+- **Idempotent entrypoint** — safe to re-run on existing volumes
+- **Base image:** ubuntu:24.04
+
+## Generated Files
 
 Create these four files in ${RALPH_HOME}/sandbox/:
 
 ### 1. Dockerfile
 
-Build an all-in-one container based on ubuntu:24.04 that includes:
-- The project's language runtime and version (e.g., PHP 8.4, Node 22, Python 3.12)
-- All required extensions and system packages
-- Database server (PostgreSQL, MySQL, SQLite — whatever the project uses)
-- Mail catcher (Mailpit) for local SMTP
-- Package managers (composer, npm/yarn/pnpm, pip, etc.)
-- GitHub CLI (gh) — only if the project is hosted on GitHub
-- Amp CLI: npm install -g @sourcegraph/amp
-- tini (apt-get install -y tini) as PID 1 init process
-- supervisord (apt-get install -y supervisor) to manage long-running services
-- A non-root user named "ralph" (UID 1000, GID 1000) with passwordless sudo.
-  The base image may already have a user with UID 1000 (e.g., "ubuntu"). If so,
-  delete that user first with `userdel --remove` before creating "ralph".
-- Copy entrypoint.sh into the image
-- ENTRYPOINT ["/usr/bin/tini", "--", "entrypoint.sh"]
-- Expose relevant ports (app, database, mail UI, Vite/HMR if applicable)
-- WORKDIR set to /var/www/html for PHP projects, /app for others
+Responsibilities:
+- Install the project's language runtime and version
+- Install all required extensions and system packages
+- Install service packages natively (database server, etc.) — only those
+  identified as required during project analysis
+- Install package managers (composer, npm/yarn/pnpm, pip, etc.)
+- Install GitHub CLI (gh) — only for GitHub-hosted projects
+- Install Amp CLI, tini, supervisord, and ralph dependencies
+- Handle UID 1000 conflicts: the base image may have a user with UID 1000
+  (e.g., "ubuntu") — delete it with `userdel --remove` before creating "ralph"
+- Copy entrypoint.sh and make it executable
+- ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
+- WORKDIR: /var/www/html for PHP projects, /app for others
+- EXPOSE only ports for services that are actually provisioned
 
 ### 2. entrypoint.sh
 
-Write an idempotent entrypoint. It MUST begin with these exact lines:
-
+Must begin with:
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >&2' ERR
 ```
 
-The ERR trap ensures failures are diagnosable in container logs.
-
-The entrypoint must:
-- Configure git credentials securely. Support two strategies depending on which
-  environment variables are set:
-
-  **GitHub path** — if `GITHUB_TOKEN` is set:
-  ```bash
-  if [ -n "${GITHUB_TOKEN:-}" ]; then
-      TMPFILE=$(mktemp)
-      printf '%s' "$GITHUB_TOKEN" > "$TMPFILE"
-      env -u GITHUB_TOKEN gh auth login --with-token < "$TMPFILE"
-      gh auth setup-git
-      rm -f "$TMPFILE"
-  fi
-  ```
-  **Why `env -u`:** gh CLI refuses `--with-token` when GITHUB_TOKEN is already
-  set as an env var, exiting non-zero and silently killing the entrypoint under
-  `set -euo pipefail`. Never pass the token on the command line.
-
-  **Generic path** — if `GIT_CRED_USER` and `GIT_CRED_PASS` are set (for
-  GitLab, Bitbucket, AWS CodeCommit, self-hosted git, etc.):
-  ```bash
-  elif [ -n "${GIT_CRED_USER:-}" ] && [ -n "${GIT_CRED_PASS:-}" ]; then
-      REPO_HOST=$(echo "${GIT_REPO}" | sed -E 's|https?://([^/]+).*|\1|')
-      ENCODED_USER=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_USER}")
-      ENCODED_PASS=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_PASS}")
-      printf 'https://%s:%s@%s\n' "${ENCODED_USER}" "${ENCODED_PASS}" "${REPO_HOST}" \
-          > /home/ralph/.git-credentials
-      chmod 600 /home/ralph/.git-credentials
-      chown ralph:ralph /home/ralph/.git-credentials
-      su - ralph -c "git config --global credential.helper 'store --file=/home/ralph/.git-credentials'"
-  fi
-  ```
-  Credentials are URL-encoded because some providers (notably AWS CodeCommit)
-  generate passwords containing `/`, `+`, and `=` that break the credential
-  URL format if written raw.
-- Clones GIT_REPO into the workdir if .git/HEAD is missing (fresh volume)
-- Copies .env.example to .env if missing, with sandbox overrides (DB_HOST=127.0.0.1,
-  MAIL_HOST=127.0.0.1, QUEUE_CONNECTION=sync, CACHE_STORE=file)
-- Installs dependencies and tracks completion with a sentinel file (e.g., touch
-  .sandbox-deps-installed after successful install). Check the sentinel, not the
-  output directory, so partial installs get retried.
-- Generates app secret/key if the framework requires it (must come after
-  dependency installation, since key-generation CLIs need the framework loaded)
-- Initializes the database cluster/data directory if needed
-- Creates database user and databases
-- Starts the database temporarily, runs migrations (tracked with sentinel file),
-  then stops it — supervisord will manage the database process going forward
-- Ends with: exec supervisord -n -c /etc/supervisor/supervisord.conf
-  (tini handles signal forwarding as PID 1 above supervisord)
-- Generates supervisord config files in /etc/supervisor/conf.d/ for each service
-  (database, mail catcher, etc.) with autorestart=true and startsecs=5
-
-Simple existence checks (.git/HEAD, .env) are fine for single-command steps.
-Multi-step operations must use sentinel files for reliable idempotency.
-**Create sentinel directories after the clone step** — the workdir must be
-empty for `git clone` to succeed into it.
+Responsibilities (in order):
+1. Configure git credentials (see Appendix A)
+2. Clone GIT_REPO into workdir if `.git/HEAD` is missing (fresh volume)
+3. Create sentinel directory (after clone — workdir must be empty for clone)
+4. Copy .env.example → .env if missing, with sandbox-appropriate overrides.
+   Common overrides: DB_HOST=127.0.0.1, MAIL_HOST=127.0.0.1,
+   QUEUE_CONNECTION=sync, CACHE_STORE=file. Adjust based on what services
+   are actually provisioned in the container.
+5. Apply project-level secrets from container environment into .env:
+   for each key in .env, if a matching env var is set in the container
+   environment and non-empty, overwrite that key's value. This runs on
+   **every boot** (not just first creation) so users can add or update
+   secrets in the sandbox .env and restart the container.
+   The sandbox .env contains real secrets and must never be committed.
+6. Install dependencies idempotently (sentinel file pattern — check sentinel,
+   not output directory, so partial installs get retried)
+7. Generate app secret/key if framework requires it (after deps install)
+8. Initialize and bootstrap database if applicable:
+   - Init data directory if needed
+   - Start DB temporarily, create user/databases, run migrations (sentinel)
+   - Stop DB — supervisord manages it going forward
+9. Generate supervisord config files in /etc/supervisor/conf.d/ for each
+   required service (autorestart=true, startsecs=5). Determine which
+   long-running processes the project needs — this typically includes the
+   database server and may include a web server, queue worker, Vite/HMR
+   dev server, mail catcher, etc. Only include processes the project
+   actually uses. Do NOT include one-shot tasks like migrations.
+10. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
 
 ### 3. docker-compose.yml
 
 - name: {project-name}-sandbox (derive from git remote or directory name)
 - container_name: {project-name}-sandbox
-- Build context: . (the sandbox directory)
-- **Environment: use list syntax (`- KEY=value`), NEVER map syntax (`KEY: value`).**
-  Quote every entry whose value contains a colon — a trailing colon makes YAML
-  interpret the line as a mapping key instead of a string, e.g.:
-    - BAD:  `GIT_CONFIG_VALUE_0: git@example.com:`     ← map syntax, colon breaks YAML
-    - BAD:  `- GIT_CONFIG_VALUE_0=git@example.com:`    ← list syntax but unquoted colon
-    - GOOD: `- "GIT_CONFIG_VALUE_0=git@example.com:"`  ← list syntax, quoted
-  Required vars: SANDBOX=1, GIT_REPO, AMP_API_KEY, plus credential vars
-  (GITHUB_TOKEN for GitHub, or GIT_CRED_USER + GIT_CRED_PASS for other
-  providers), plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS (derive the
-  host from GIT_REPO, do not hardcode github.com)
-- Named volumes: sandbox-codebase (for workdir), sandbox-db (for database data)
-- Ports: map standard ports using env vars with defaults
-  (e.g., ${SANDBOX_HTTP_PORT:-80}:80) so users can remap to avoid collisions
-- healthcheck using supervisorctl status to verify all services are RUNNING
-  (start_period: 60s to allow for first-run setup)
+- Build context: `.` (the sandbox directory)
+- Environment variables: **use list syntax (`- KEY=value`), never map syntax**
+  (see Appendix B for YAML quoting rules)
+- Required env vars: SANDBOX=1, GIT_REPO, AMP_API_KEY, plus credential vars,
+  plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS (derive host from GIT_REPO)
+- Named volumes: sandbox-codebase (workdir), sandbox-db (database data, if applicable)
+- Ports: use env vars with defaults (e.g., `${SANDBOX_HTTP_PORT:-80}:80`)
+  so users can remap to avoid collisions — only map ports for provisioned services
+- Healthcheck: `supervisorctl status` to verify all services are RUNNING
+  (start_period: 60s)
 - tty: true, stdin_open: true
 - deploy.resources.limits: memory ${SANDBOX_MEMORY_LIMIT:-4g}, cpus ${SANDBOX_CPU_LIMIT:-2}
 - env_file: .env
 
 ### 4. .env.example
 
-Template with:
 - GIT_REPO= (pre-filled from git remote)
-- GITHUB_TOKEN= (with comment: for GitHub repos — fine-grained PAT)
-- GIT_CRED_USER= (with comment: for non-GitHub repos — HTTPS username or token)
-- GIT_CRED_PASS= (with comment: for non-GitHub repos — HTTPS password or token)
+- Credential vars: uncomment GITHUB_TOKEN for GitHub repos, or GIT_CRED_USER
+  and GIT_CRED_PASS for non-GitHub repos
 - AMP_API_KEY= (with comment: https://ampcode.com)
-- SANDBOX_MEMORY_LIMIT=4g (with comment: optional resource limits)
+- SANDBOX_MEMORY_LIMIT=4g
 - SANDBOX_CPU_LIMIT=2
-- SANDBOX_HTTP_PORT=80 (with comment: optional port mappings)
-- SANDBOX_VITE_PORT=5173
-- SANDBOX_DB_PORT=5432
-- SANDBOX_SMTP_PORT=1025
-- SANDBOX_MAIL_UI_PORT=8025
+- Port mappings with defaults matching the provisioned services, e.g.:
+  SANDBOX_HTTP_PORT=80, SANDBOX_DB_PORT=5432 (or 3306 for MySQL),
+  SANDBOX_SMTP_PORT=1025, SANDBOX_MAIL_UI_PORT=8025,
+  SANDBOX_VITE_PORT=5173 (if applicable)
+- Document every env var used in docker-compose.yml or entrypoint.sh
+- **Project-level secrets:** Scan the project's .env.example (or equivalent)
+  for third-party API keys and secrets not covered by the sandbox infrastructure
+  vars above (e.g., STRIPE_SECRET, AWS_ACCESS_KEY_ID, SENDGRID_API_KEY).
+  Include each as a commented-out entry with a note that the user must fill
+  it in if the project requires it. Prefix the section with a comment:
+  `# Project secrets (fill in if needed by your app)`
 
-For GitHub remotes, uncomment GITHUB_TOKEN by default. For non-GitHub remotes,
-uncomment GIT_CRED_USER and GIT_CRED_PASS instead.
+## Self-Validation Checklist
+
+Before finishing, verify:
+
+- [ ] Chosen workdir matches project type
+- [ ] Every compose env var is documented in .env.example
+- [ ] Supervisord services match exposed ports (no orphan ports or services)
+- [ ] DB init/migration logic matches the detected database type
+  (no server init for SQLite, no pg_* commands for MySQL, etc.)
+- [ ] Install commands match the detected package manager
+- [ ] entrypoint.sh is copied to a location in PATH (e.g., /usr/local/bin/)
+- [ ] User ralph has correct permissions for workdir and home directory
+- [ ] All packages from ${RALPH_HOME}/dependencies are installed
+- [ ] User preferences from ${RALPH_HOME}/sandbox-preferences.md are applied
 
 ## Rules
 
-- Do NOT reuse the project's existing Dockerfile or docker-compose.yml. Build
-  from scratch for the sandbox — existing files are reference only.
-- The container must be fully self-contained. No Docker-in-Docker, no sidecar
-  containers, no host mounts for the codebase.
-- Use named Docker volumes, not bind mounts, for the codebase and database.
-- Install services natively in the container (apt-get), not as separate containers.
-- The sandbox must support running the project's full test suite.
-- Use list syntax (`- KEY=value`) for all environment variables in docker-compose.yml, never map syntax (`KEY: value`).
-- Add comments in generated files explaining non-obvious choices.
+- Add comments in generated files explaining non-obvious choices
 - Commit all generated files with message: "chore: generate sandbox environment"
 
 When complete, output: <promise>COMPLETE</promise>
+
+---
+
+## Appendix A: Git Credential Configuration
+
+The entrypoint must support two credential strategies:
+
+**GitHub path** — when `GITHUB_TOKEN` is set:
+```bash
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    TMPFILE=$(mktemp)
+    printf '%s' "$GITHUB_TOKEN" > "$TMPFILE"
+    env -u GITHUB_TOKEN gh auth login --with-token < "$TMPFILE"
+    gh auth setup-git
+    rm -f "$TMPFILE"
+fi
+```
+**Why `env -u`:** gh CLI refuses `--with-token` when GITHUB_TOKEN is already
+set as an env var, exiting non-zero and silently killing the entrypoint under
+`set -euo pipefail`. Never pass the token on the command line.
+
+**Generic path** — when `GIT_CRED_USER` and `GIT_CRED_PASS` are set (GitLab,
+Bitbucket, AWS CodeCommit, self-hosted git, etc.):
+```bash
+elif [ -n "${GIT_CRED_USER:-}" ] && [ -n "${GIT_CRED_PASS:-}" ]; then
+    REPO_HOST=$(echo "${GIT_REPO}" | sed -E 's|https?://([^/]+).*|\1|')
+    ENCODED_USER=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_USER}")
+    ENCODED_PASS=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_PASS}")
+    printf 'https://%s:%s@%s\n' "${ENCODED_USER}" "${ENCODED_PASS}" "${REPO_HOST}" \
+        > /home/ralph/.git-credentials
+    chmod 600 /home/ralph/.git-credentials
+    chown ralph:ralph /home/ralph/.git-credentials
+    su - ralph -c "git config --global credential.helper 'store --file=/home/ralph/.git-credentials'"
+fi
+```
+Credentials are URL-encoded because some providers (notably AWS CodeCommit)
+generate passwords containing `/`, `+`, and `=` that break the credential
+URL format if written raw.
+
+## Appendix B: YAML Environment Variable Syntax
+
+In docker-compose.yml, always use list syntax for environment variables.
+Quote any entry whose value contains a colon:
+
+- BAD:  `GIT_CONFIG_VALUE_0: git@example.com:`     ← map syntax, colon breaks YAML
+- BAD:  `- GIT_CONFIG_VALUE_0=git@example.com:`    ← list syntax but unquoted colon
+- GOOD: `- "GIT_CONFIG_VALUE_0=git@example.com:"`  ← list syntax, quoted
+
+## Appendix C: Idempotency Patterns
+
+- Simple existence checks (`.git/HEAD`, `.env`) are fine for single-command steps
+- Multi-step operations (dependency install, migrations) must use **sentinel files**
+  (e.g., `touch .sandbox-deps-installed` after success; check the sentinel, not
+  the output directory, so partial installs get retried)
+- **Create sentinel directories after the clone step** — the workdir must be
+  empty for `git clone` to succeed into it

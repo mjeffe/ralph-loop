@@ -38,20 +38,10 @@ migrations, extensions, workdir, env overrides, and long-running processes.
 5. Update `specs/project-structure.md` directory layouts to include `prompts/playbooks/`.
 
 ### Task 3: Consolidate sandbox-setup prompt (v1 → v2)
-**Status:** planned
-**Spec:** specs/sandbox-setup-prompt.md
+**Status:** done
 
-The `prompts/sandbox-setup-v2.md` file implements the restructured prompt format described in
-the spec (Definition of Done → Priority Order → Project Analysis → Hard Constraints →
-Generated Files → Self-Validation Checklist → Appendices). The current active file
-`prompts/sandbox-setup.md` uses the older flat format. The spec says the prompt should follow
-the restructured layout.
-
-**What to do:**
-1. Replace `prompts/sandbox-setup.md` content with `prompts/sandbox-setup-v2.md` content
-   (incorporating the `${STACK_PLAYBOOK}` reference from Task 1 if not already present).
-2. Delete `prompts/sandbox-setup-v2.md`.
-3. Verify the `${RALPH_HOME}` and other template variables are correct in the merged file.
+Replaced `prompts/sandbox-setup.md` with the v2 restructured prompt and removed the
+v2 file. The `${STACK_PLAYBOOK}` and `${RALPH_HOME}` template variables are present.
 
 ### Task 4: Align iteration logging with spec format
 **Status:** planned
