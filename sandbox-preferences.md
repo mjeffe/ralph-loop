@@ -13,6 +13,8 @@ the generated Dockerfile and related files.
 - Add the following preferences to the bottom of the user's `~/.bashrc` so they override existing defaults.
 ```
 set -o vi
+export EDITOR=vim
+export VISUAL=vim
 alias ll="ls -lF --group-directories-first"
 alias vi=`which vim`
 alias view="`which vim` -R"
@@ -48,4 +50,25 @@ set pastetoggle=<F12>               " toggles the paste nopaste modes to turn on
 "syntax enable                       " enable syntax highlighting, but allow customization (v.s. syn on)
 syntax on                           " enable syntax highlighting, but allow customization (v.s. syn on)
 ```
+
+- Add a `~/.gitconfig` with the following contents:
+```
+[push]
+	default = simple
+[pull]
+	rebase = true
+	stat = true
+[alias]
+	# simple log
+	slog = log --decorate --oneline
+	# full log
+	flog = log --graph --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ad)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(bold yellow)%d%C(reset)' --full-history --sparse --date=local
+	# who log
+	wlog = log --pretty=format:"%h%x09%an%x09%ad%x09%s" --date=local
+	# history log
+	hlog = log --stat -p
+	# history follow log (follows renames, deletes, etc)
+	fhlog = log --oneline --find-renames --stat --follow
+```
+
 
