@@ -26,11 +26,9 @@ The agent may:
 
 ### Plan Regeneration
 
-Plan mode **always regenerates** `implementation_plan.md` from scratch by comparing specs to code. This ensures the plan stays aligned with current reality.
+When the agent finds an existing plan with tasks marked `complete` (from prior build iterations), it regenerates the task list from scratch by comparing specs to current code. It may carry forward useful notes/learnings, but the task list and ordering are rebuilt fresh. This ensures the plan stays aligned with current reality.
 
-The agent may:
-- Carry forward useful notes/learnings from a previous plan if one exists
-- But the task list and ordering are rebuilt fresh
+When the plan contains only planning-phase progress (inventory, gap notes, partial task list with no `complete` tasks), the agent continues from where it left off rather than rebuilding.
 
 ### Completion
 
@@ -52,7 +50,7 @@ The plan is a prioritized list of work to be done. At minimum, each task needs:
 - A brief description of what needs to be done
 - The **spec** that drives it (e.g., `specs/feature.md`)
 - A **status**: `planned` | `blocked` | `complete`
-- Enough detail for build mode to implement it without re-analyzing the project
+- Enough context for build mode to start work without re-surveying the entire project
 
 Tasks should be ordered by priority. Structure and format beyond that are up to the agent.
 
@@ -84,50 +82,49 @@ The following is the canonical prompt template for plan mode. It lives at `promp
 ```markdown
 You are an expert software architect and planner working in Ralph plan mode.
 
-## Your Mission
+Each iteration starts with **fresh context** — you have no memory of prior iterations. Treat repo files as the sole source of truth: `${SPECS_DIR}/`, `AGENTS.md`, git history, and any existing `${RALPH_HOME}/implementation_plan.md`.
 
-Analyze the project specifications and source code to create a comprehensive implementation plan.
+## Operating Contract
+
+- You have full autonomy in how you decompose, order, and describe tasks. Specs define *what* to build; you decide how to break it into buildable units.
+- **Do not implement product code** — plan mode produces only the implementation plan, spec index updates, and commits.
+- Do not invent requirements. If a spec is silent on a detail that affects task scope, surface it as a planning note — do not encode assumptions about product behavior into tasks.
+- When in doubt, prefer conservative framing: validation over silent behavior, deny over allow, preserve data over destructive changes.
+- Commit your plan updates at the end of each iteration with a descriptive commit message.
 
 ## Context
 
 - **Specifications:** ${SPECS_DIR}
 - **Specs Index:** ${SPECS_DIR}/README.md
 - **Implementation Plan:** ${RALPH_HOME}/implementation_plan.md
+- **Project instructions:** AGENTS.md
 
-## Planning Phases
+## Workflow
 
-Work through these phases systematically:
+Work through these phases in order. For small projects, complete all phases in one iteration. For large projects, complete what you can — the plan file is your durable progress marker across fresh-context iterations.
 
-1. **Inventory** - Survey the codebase and identify key modules/components
-2. **Spec Alignment** - For each spec, identify gaps between desired and current behavior
-3. **Task Decomposition** - Break gaps into discrete, ordered tasks with clear steps
-4. **Dependency Ordering** - Order tasks based on dependencies and logical sequence
+1. **Read inputs** — Study `AGENTS.md`, `${SPECS_DIR}/README.md`, and all specs. If `${RALPH_HOME}/implementation_plan.md` exists, read it to understand prior progress.
+2. **Inventory** — Survey the codebase and identify key modules, components, and areas.
+3. **Spec alignment** — For each spec, identify gaps between desired behavior and current state.
+4. **Task decomposition** — Break gaps into discrete, ordered tasks (see Task Format below).
+5. **Dependency ordering** — Order tasks by dependencies, then by logical sequence. Use a stable heuristic: foundational/infrastructure first, then core features, then refinements.
+6. **Write the plan** — Create or update `${RALPH_HOME}/implementation_plan.md`. If the plan already contains tasks marked `complete` (from prior build iterations), rebuild the task list from scratch — you may carry forward useful notes but the task list and ordering are rebuilt fresh. If the plan contains only planning-phase progress (inventory, gap notes, partial task list with no `complete` tasks), continue from where it left off.
+7. **Commit** all changes with a descriptive commit message.
+8. **If planning is complete**, output the completion signal (see Exit Signal). Planning is complete when: every spec has been reviewed, every gap is tasked or noted as already satisfied, dependencies are coherent, and tasks are build-iteration-sized.
+9. **If planning is not yet complete**, stop without outputting a signal — the loop will start another iteration automatically and your plan file will carry your progress forward.
 
-For small projects, you may complete all phases in one iteration.
-For large projects, complete what you can and update the plan status to indicate progress.
+## Exit Signal
 
-## Your Responsibilities
+When planning is complete, output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it.
 
-1. Study ${SPECS_DIR}/README.md for an overview of all specs
-2. Study all specifications in ${SPECS_DIR}
-3. Analyze the project codebase to understand current state
-4. Identify gaps between specs and code
-5. Create ordered tasks in ${RALPH_HOME}/implementation_plan.md
-6. Document dependencies between tasks
-7. Update plan status to track your progress
-8. Keep ${SPECS_DIR}/README.md current — update it if you add or remove specs
-9. Commit all changes with a descriptive commit message
-10. When planning is complete, output: <promise>COMPLETE</promise>
+## Task Format
 
-## Implementation Plan
-
-Create or update `${RALPH_HOME}/implementation_plan.md` — a prioritized list of work to be done. Keep it
-concise and actionable. At minimum, each task needs:
+Each task in `${RALPH_HOME}/implementation_plan.md` needs at minimum:
 - A short title
 - A brief description of what needs to be done
 - The **spec** that drives it (e.g., `specs/feature.md`)
 - A **status**: `planned` | `blocked` | `complete`
-- Enough detail for build mode to implement it without re-analyzing the project
+- Enough context for a build agent to start work without re-surveying the entire project
 
 Order tasks by priority. Structure and format beyond that are up to you.
 
@@ -139,42 +136,39 @@ Group by **logical cohesion** rather than maximizing granularity:
 - **Ask: "Would I commit these together?"** — if yes, they belong in one task
 - Each task should be completable in one build iteration and committable as a single logical unit
 
-## Important
+## Planning Discoveries
 
-- Be thorough but cost-conscious
-- Break large work into manageable tasks
-- Order tasks logically by dependencies
-- Document your learnings and gotchas
-- **OUTPUT THE COMPLETION SIGNAL** when finished planning — this is mandatory, not optional
+### Spec gaps
+When a spec is silent on a detail that affects how you decompose or order tasks:
+1. Resolve using this order: **spec → existing code/tests → repo conventions → framework conventions**.
+2. If the gap is purely about task breakdown (not product behavior), make a reasonable choice and note it in the task.
+3. If the gap affects product behavior, public interfaces, or security/data semantics, do **not** decide it — add a planning note labeled `Spec gap:` describing the ambiguity so the human can address it.
+
+### Conflicting sources of truth
+If specs, code, or tests disagree on intended behavior, note the conflict in the affected task(s) labeled `Conflict:` rather than silently choosing a side.
+
+## Task Status Values
+
+- `planned` — ready to work on
+- `blocked` — cannot proceed (document why in the task)
+- `complete` — finished and committed
+
+## Secondary Maintenance
+
+- Keep `${SPECS_DIR}/README.md` current if you add or remove specs.
 
 Begin planning now.
 ```
 
 ## Iterative Planning
 
-For large projects, the agent may need multiple iterations:
+For large projects, the agent may need multiple iterations. The plan file itself is the durable progress marker — each iteration commits its work, and the next iteration reads the plan to determine what phases have been completed. For example:
 
-### Iteration 1: Inventory
-- Survey the codebase
-- List major modules/components
-- Create high-level plan outline
-- Update plan status: "Inventory complete"
+- **Iteration 1:** Inventory the codebase, begin spec alignment, write findings to the plan file
+- **Iteration 2:** Continue spec alignment, begin task decomposition
+- **Iteration 3:** Complete task decomposition, order by dependencies, output `<promise>COMPLETE</promise>`
 
-### Iteration 2: Spec Alignment
-- For each spec, identify what exists vs. what's needed
-- Document gaps
-- Update plan status: "Spec alignment complete"
-
-### Iteration 3: Task Decomposition
-- Break gaps into specific tasks
-- Write steps for each task
-- Update plan status: "Task decomposition complete"
-
-### Iteration 4: Ordering
-- Order tasks by dependencies
-- Mark any blocked tasks
-- Update plan status: "Complete"
-- Output `<promise>COMPLETE</promise>`
+The agent uses its judgment on how to break up the work across iterations.
 
 ## Task Sizing Heuristic
 
@@ -201,7 +195,7 @@ Humans can:
 - **Edit** specs to change desired behavior
 - **Run** `ralph plan` at any time to regenerate the plan
 
-The plan is always regenerated from scratch, ensuring it reflects current specs and code state.
+When the existing plan contains completed tasks from prior build iterations, it is regenerated from scratch, ensuring it reflects current specs and code state.
 
 ## Example Plan
 
