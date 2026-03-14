@@ -8,6 +8,31 @@ Specifications are the source of truth for desired project behavior. They define
 
 **Specs represent the target state of the project** - both completed features and planned additions.
 
+## Target-State Specs vs. Process Specs
+
+Target-state specs and process specs serve different purposes and use different planning
+modes.
+
+**Target-state specs** describe *what the system should be* — desired behavior, APIs,
+constraints. They live in `${SPECS_DIR}/` and drive `ralph plan`, which infers tasks by
+comparing specs to current code.
+
+**Process specs** describe *how to get there* — phased migrations, ordered refactors,
+incremental rollouts. They live in `${PROCESS_DIR}/` and drive `ralph plan --process`,
+which decomposes the human-defined phases into build-iteration-sized tasks while preserving
+the author's sequencing.
+
+### Choosing the Right Mode
+
+| Your work has... | Use |
+|---|---|
+| Phases with ordering constraints (migrations, multi-phase refactors, incremental rollouts) | Process spec → `ralph plan --process` |
+| No sequencing constraints (new features, independent improvements) | Target-state spec → `ralph plan` |
+| A single coherent job with no phasing (discovery, documentation, analysis) | Ad-hoc prompt → `ralph prompt` |
+
+Process specs are not target-state specs. Do not place them in `${SPECS_DIR}/`. See
+`specs/process-planning.md` for the full process planning specification.
+
 ## Spec Evolution Rules
 
 ### When to Update Specs
@@ -96,7 +121,7 @@ Usage examples, sample inputs/outputs.
 
 ### Example Spec
 
-```markdown
+~~~markdown
 # User Authentication
 
 ## Purpose
@@ -204,7 +229,7 @@ curl -X POST http://localhost:3000/api/register \
 curl http://localhost:3000/api/profile \
   -H "Authorization: Bearer eyJhbGc..."
 ```
-```
+~~~
 
 ## Specs Index (specs/README.md)
 

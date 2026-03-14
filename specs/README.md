@@ -16,3 +16,5 @@ Specs are the source of truth for desired behavior. When adding or removing a sp
 | [updater.md](updater.md) | Update mechanism, manifest tracking, and preserving user customizations |
 | [sandbox-cli.md](sandbox-cli.md) | Sandbox lifecycle commands (`up`, `down`, `reset`, `shell`, `status`, `setup`) — implement first |
 | [sandbox-setup-prompt.md](sandbox-setup-prompt.md) | Prompt template structure, stack playbooks, and agent instructions for sandbox generation — implement after sandbox-cli |
+| [process-planning.md](process-planning.md) | Process planning mode: phased playbooks, CLI flags, plan-type metadata, and prompt template |
+| [help-system.md](help-system.md) | CLI help system: `ralph help <topic>` for operational guidance on planning, specs, build, and sandbox |
