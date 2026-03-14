@@ -33,6 +33,8 @@ The installer script lives at the root of the ralph-loop repository so the curl 
    .ralph/
    ├── ralph               (executable)
    ├── config
+   ├── dependencies         (system package dependencies)
+   ├── sandbox-preferences.md (user sandbox environment preferences)
    ├── README.md           (overview of how Ralph works)
    ├── implementation_plan.md (empty template)
    ├── agents/
@@ -50,6 +52,8 @@ The installer script lives at the root of the ralph-loop repository so the curl 
 2. **Copy files into `.ralph/`**
     - Copy `ralph` script (make executable)
     - Copy default `config` template
+    - Copy `dependencies` file (system package dependencies for ralph runtime)
+    - Copy `sandbox-preferences.md` (user sandbox environment preferences)
     - Copy agent scripts from `agents/` (canonical source in ralph-loop repo)
     - Copy prompt templates from `prompts/` (canonical source in ralph-loop repo)
     - Copy `specs/overview.md` as `README.md` (overview of how Ralph works)
