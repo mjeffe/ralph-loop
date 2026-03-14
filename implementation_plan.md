@@ -1,90 +1,95 @@
 # Implementation Plan
 
-### Task 1: Add detect_stack() and playbook injection to sandbox_setup()
+## Summary
+
+Most specs are fully implemented. The remaining gaps are all in `specs/sandbox-setup-prompt.md`:
+stack detection, playbook injection into the sandbox setup flow, playbook files themselves, and
+installer/updater awareness of the new playbook files.
+
+---
+
+### Task 1: Add detect_stack() and STACK_PLAYBOOK injection to ralph script
+
 **Status:** planned
 **Spec:** specs/sandbox-setup-prompt.md
 
-The `sandbox-setup-prompt.md` spec requires `detect_stack()` — a deterministic bash function
-that identifies the project's primary stack (php-laravel, php, rails, ruby, python-django,
-python, go, rust, node). It also requires `sandbox_setup()` to call `detect_stack()`, resolve
-the playbook path, and export `STACK_PLAYBOOK` for `envsubst` before `prepare_prompt`.
+Add the `detect_stack()` function to the `ralph` script and update `sandbox_setup()` to call it,
+export `STACK_PLAYBOOK`, and pass it through `prepare_prompt` before invoking the agent.
 
 **What to do:**
-1. Add the `detect_stack()` function to `ralph` (place it in the sandbox lifecycle section,
-   before `sandbox_setup()`). Use the exact detection logic from the spec.
-2. Update `sandbox_setup()` to call `detect_stack()` and export `STACK_PLAYBOOK` before
-   `prepare_prompt`.
-3. Add tests for `detect_stack()` to `tests/test_ralph.sh` — create temp projects with
-   marker files (composer.json, artisan, package.json, etc.) and verify correct stack output.
+- Add the `detect_stack()` function (as specified in the spec) to the ralph script, in the sandbox
+  lifecycle section before `sandbox_setup()`.
+- In `sandbox_setup()`, before the `prepare_prompt` call, add the stack detection and playbook
+  resolution logic:
+  ```bash
+  STACK=$(detect_stack)
+  PLAYBOOK_FILE="$RALPH_DIR/prompts/playbooks/${STACK}.md"
+  if [[ -n "$STACK" && -f "$PLAYBOOK_FILE" ]]; then
+      export STACK_PLAYBOOK="$PLAYBOOK_FILE"
+  else
+      export STACK_PLAYBOOK=""
+  fi
+  ```
+- Add tests to `tests/test_ralph.sh` for `detect_stack()` (create temp project dirs with
+  indicator files like `artisan`, `composer.json`, `package.json`, etc. and verify correct
+  stack identification).
 
-### Task 2: Create playbooks directory and initial playbook(s)
+---
+
+### Task 2: Create playbooks directory and initial playbook files
+
 **Status:** planned
 **Spec:** specs/sandbox-setup-prompt.md
-**Dependencies:** Task 1
 
-Create `prompts/playbooks/` directory with at least one initial playbook (e.g.,
-`php-laravel.md`) as a reference implementation. The spec provides content guidelines:
-under 50 lines, covering runtime installation, package manager, framework bootstrap,
-migrations, extensions, workdir, env overrides, and long-running processes.
+Create the `prompts/playbooks/` directory and write the initial set of stack playbook files.
+The spec says to start with the stacks you use most — at minimum `php-laravel.md` since that's
+the most fleshed out in the spec examples.
 
 **What to do:**
-1. Create `prompts/playbooks/` directory.
-2. Write `prompts/playbooks/php-laravel.md` following the content guidelines in the spec.
-3. Add playbook files to `MANAGED_FILES` in `install.sh` and `update.sh`, and to `SOURCE_PATHS`
-   in `update.sh`.
-4. Add `mkdir -p "$RALPH_DIR/prompts/playbooks"` to `install_ralph_dir()` in `install.sh`.
-5. Update `specs/project-structure.md` directory layouts (both ralph-loop and parent project)
-   to include `prompts/playbooks/`.
+- Create `prompts/playbooks/` directory.
+- Create `prompts/playbooks/php-laravel.md` following the content guidelines in the spec
+  (under 50 lines, covers runtime installation, package manager, framework bootstrap,
+  migrations, common extensions, workdir convention, sandbox env overrides, long-running
+  processes). Do NOT repeat hard constraints from the core prompt.
+- Optionally create additional playbooks (`php.md`, `node.md`, `python.md`, `python-django.md`,
+  `rails.md`) if time permits — keep them short and stack-specific.
 
-### Task 3: Align iteration logging with spec format
+---
+
+### Task 3: Add playbook files to installer and updater MANAGED_FILES
+
 **Status:** planned
-**Spec:** specs/loop-behavior.md
+**Spec:** specs/sandbox-setup-prompt.md
 
-The `loop-behavior.md` spec defines a detailed iteration header/footer format and session
-summary format. The current `run_iteration()` and `run_loop()` in `ralph` use a simplified
-format that doesn't match.
+Add the playbook files to `MANAGED_FILES` and `SOURCE_PATHS` in both `install.sh` and `update.sh`
+so they are installed and tracked for updates. Also ensure the `prompts/playbooks/` directory is
+created during installation.
 
 **What to do:**
-1. Update `run_iteration()` header to match the spec format:
-   ```
-   ================================================================================
-   ITERATION ${ITERATION}
-   ================================================================================
-   Mode: ${MODE}
-   Start Time: ${TIMESTAMP}
-   --------------------------------------------------------------------------------
-   ```
-2. Update `run_iteration()` footer to match the spec format:
-   ```
-   --------------------------------------------------------------------------------
-   ITERATION ${ITERATION} COMPLETE
-   End Time: ${TIMESTAMP}
-   Duration: ${DURATION}
-   Status: ${STATUS}
-   ================================================================================
-   ```
-3. Update session summary labels to match spec:
-   ```
-   Total Iterations: ${TOTAL}
-   Successful: ${SUCCESS_COUNT}
-   Failed: ${FAIL_COUNT}
-   Total Duration: ${TOTAL_DURATION}
-   Exit Reason: ${EXIT_REASON}
-   Exit Code: ${EXIT_CODE}
-   ```
-4. The cost/balance lines come from `agent_post_iteration()` which logs via `log` —
-   ensure they appear between Duration and Status in the footer. Currently
-   `agent_post_iteration` is called after the footer; reorder so it's called after
-   Duration is logged but before Status.
-5. Update any tests that assert on log output format.
+- Add each playbook file (e.g., `prompts/playbooks/php-laravel.md`) to the `MANAGED_FILES` array
+  in both `install.sh` and `update.sh`.
+- Add corresponding entries in the `SOURCE_PATHS` associative array in both files.
+- The `install_ralph_dir()` function in `install.sh` already does `mkdir -p "$dest_dir"` for each
+  file, so the `prompts/playbooks/` directory will be created automatically.
+- Run `./tests/test_ralph.sh` to verify the `MANAGED_FILES` sync test still passes.
 
-**Gotcha:** The spec says "Iteration Cost" and "Balance" lines appear only "if usage
-tracking configured" — the current `agent_post_iteration` hook already handles this
-conditionally. The main change is reordering when it's called and updating the
-header/footer framing.
+---
 
-### Task 4: Consolidate sandbox-setup prompt (v1 → v2)
-**Status:** done
+### Task 4: Update project-structure.md with playbooks directory
 
-Replaced `prompts/sandbox-setup.md` with the v2 restructured prompt and removed the
-v2 file. The `${STACK_PLAYBOOK}` and `${RALPH_HOME}` template variables are present.
+**Status:** planned
+**Spec:** specs/sandbox-setup-prompt.md
+
+Update `specs/project-structure.md` to include the `prompts/playbooks/` directory in both the
+Ralph project layout and the parent project layout diagrams.
+
+**What to do:**
+- In the "Ralph Project Layout" tree, add under `prompts/`:
+  ```
+  ├── sandbox-setup.md
+  └── playbooks/
+      ├── php-laravel.md
+      └── ...
+  ```
+- In the "Parent Project Layout" tree, add the same under `.ralph/prompts/`.
+- This is a documentation-only change.
