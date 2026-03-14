@@ -127,20 +127,26 @@ Responsibilities (in order):
    Common overrides: DB_HOST=127.0.0.1, MAIL_HOST=127.0.0.1,
    QUEUE_CONNECTION=sync, CACHE_STORE=file. Adjust based on what services
    are actually provisioned in the container.
-5. Install dependencies idempotently (sentinel file pattern — check sentinel,
+5. Apply project-level secrets from container environment into .env:
+   for each key in .env, if a matching env var is set in the container
+   environment and non-empty, overwrite that key's value. This runs on
+   **every boot** (not just first creation) so users can add or update
+   secrets in the sandbox .env and restart the container.
+   The sandbox .env contains real secrets and must never be committed.
+6. Install dependencies idempotently (sentinel file pattern — check sentinel,
    not output directory, so partial installs get retried)
-6. Generate app secret/key if framework requires it (after deps install)
-7. Initialize and bootstrap database if applicable:
+7. Generate app secret/key if framework requires it (after deps install)
+8. Initialize and bootstrap database if applicable:
    - Init data directory if needed
    - Start DB temporarily, create user/databases, run migrations (sentinel)
    - Stop DB — supervisord manages it going forward
-8. Generate supervisord config files in /etc/supervisor/conf.d/ for each
+9. Generate supervisord config files in /etc/supervisor/conf.d/ for each
    required service (autorestart=true, startsecs=5). Determine which
    long-running processes the project needs — this typically includes the
    database server and may include a web server, queue worker, Vite/HMR
    dev server, mail catcher, etc. Only include processes the project
    actually uses. Do NOT include one-shot tasks like migrations.
-9. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
+10. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
 
 ### 3. docker-compose.yml
 
@@ -173,6 +179,12 @@ Responsibilities (in order):
   SANDBOX_SMTP_PORT=1025, SANDBOX_MAIL_UI_PORT=8025,
   SANDBOX_VITE_PORT=5173 (if applicable)
 - Document every env var used in docker-compose.yml or entrypoint.sh
+- **Project-level secrets:** Scan the project's .env.example (or equivalent)
+  for third-party API keys and secrets not covered by the sandbox infrastructure
+  vars above (e.g., STRIPE_SECRET, AWS_ACCESS_KEY_ID, SENDGRID_API_KEY).
+  Include each as a commented-out entry with a note that the user must fill
+  it in if the project requires it. Prefix the section with a comment:
+  `# Project secrets (fill in if needed by your app)`
 
 ## Self-Validation Checklist
 

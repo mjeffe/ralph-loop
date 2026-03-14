@@ -326,15 +326,21 @@ Responsibilities (in order):
 3. Create sentinel directory (after clone — workdir must be empty for clone)
 4. Copy `.env.example` → `.env` if missing, with sandbox-appropriate overrides
    (e.g., `DB_HOST=127.0.0.1`, `MAIL_HOST=127.0.0.1`, `QUEUE_CONNECTION=sync`,
-   `CACHE_STORE=file` — adjusted based on provisioned services)
-5. Install dependencies idempotently (sentinel file pattern)
-6. Generate app secret/key if framework requires it (after deps install)
-7. Initialize and bootstrap database if applicable (init data directory, start
+   `CACHE_STORE=file` — adjusted based on provisioned services).
+5. Apply project-level secrets from container environment into `.env`:
+   for each key in `.env`, if a matching env var is set in the container
+   environment and non-empty, overwrite that key's value. This runs on
+   **every boot** (not just first creation) so users can add or update
+   secrets in the sandbox `.env` and restart the container.
+   The sandbox `.env` contains real secrets and must never be committed.
+6. Install dependencies idempotently (sentinel file pattern)
+7. Generate app secret/key if framework requires it (after deps install)
+8. Initialize and bootstrap database if applicable (init data directory, start
    DB temporarily, create user/databases, run migrations with sentinel, stop DB)
-8. Generate supervisord config files for each required long-running process
+9. Generate supervisord config files for each required long-running process
    (database server, web server, queue worker, Vite dev server, mail catcher,
    etc. — only processes the project actually uses)
-9. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
+10. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
 
 Multi-step operations must use **sentinel files** for idempotency. Check the
 sentinel, not the output directory, so partial installs get retried. Simple
@@ -376,6 +382,12 @@ Template with:
   `SANDBOX_VITE_PORT=5173` if applicable)
 - Every env var used in `docker-compose.yml` or `entrypoint.sh` must be
   documented here
+- **Project-level secrets:** Scan the project's `.env.example` (or equivalent)
+  for third-party API keys and secrets that are not covered by the sandbox
+  infrastructure vars above (e.g., `STRIPE_SECRET`, `AWS_ACCESS_KEY_ID`,
+  `SENDGRID_API_KEY`). Include each as a commented-out entry with a note
+  that the user must fill it in if the project requires it. Prefix the
+  section with a comment: `# Project secrets (fill in if needed by your app)`
 
 ## Prompt Appendices
 
