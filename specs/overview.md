@@ -19,7 +19,7 @@ Large Language Models have context window limitations that prevent them from mai
 
 Ralph operates in two primary modes within an iterative loop:
 
-1. **Plan Mode** - Agent analyzes specs and source code to create/update an implementation plan
+1. **Plan Mode** - Agent analyzes specs and source code to create/update an implementation plan. Supports gap-driven planning (from target-state specs) and sequence-constrained planning (from process specs). See `specs/plan-mode.md` and `specs/process-planning.md`.
 2. **Build Mode** - Agent selects one task from the plan, implements it, and commits
 
 Each iteration:
@@ -31,7 +31,7 @@ Each iteration:
 
 ### Key Components
 
-- **Specs** (`specs/`) - Source of truth for desired behavior; `specs/README.md` is the index
+- **Specs** (`specs/`) - Source of truth for desired behavior; `specs/README.md` is the index. Optional process specs (`PROCESS_DIR`) define phased, ordered work for sequence-constrained planning.
 - **Implementation Plan** (`implementation_plan.md`) - Ordered task list with status tracking
 - **Session Log** - Complete record of all iterations in a run
 - **Git Commits** - Audit trail of all changes

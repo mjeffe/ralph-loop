@@ -19,9 +19,12 @@ ralph <mode> [max_iterations]
 
 ### Modes
 
-- `plan [max_iterations]` - Run plan mode iterations
+- `plan [max_iterations]` - Run gap-driven plan mode iterations (from target-state specs)
+- `plan --process [max_iterations]` - Run sequence-constrained plan mode iterations (from process specs)
 - `build [max_iterations]` - Run build mode iterations
 - `prompt <file> [max_iterations]` - Run an ad-hoc prompt in the loop
+
+The `--process` flag is only valid with `plan`. See `specs/process-planning.md`.
 
 ### Examples
 

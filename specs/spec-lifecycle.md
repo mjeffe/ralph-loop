@@ -11,24 +11,29 @@ Specifications are the source of truth for desired project behavior. They define
 ## Target-State Specs vs. Process Specs
 
 Target-state specs and process specs serve different purposes and use different planning
-modes.
+mechanics.
 
 **Target-state specs** describe *what the system should be* — desired behavior, APIs,
-constraints. They live in `${SPECS_DIR}/` and drive `ralph plan`, which infers tasks by
-comparing specs to current code.
+constraints. You write what you want; the planner figures out what's missing. This is
+called **gap-driven planning** because the planner compares your spec (the target state)
+to the current code and generates tasks to close the gaps. You don't need to tell it what
+order to do things — it surveys the codebase and decides. Target-state specs live in
+`${SPECS_DIR}/` and drive `ralph plan`.
 
 **Process specs** describe *how to get there* — phased migrations, ordered refactors,
-incremental rollouts. They live in `${PROCESS_DIR}/` and drive `ralph plan --process`,
-which decomposes the human-defined phases into build-iteration-sized tasks while preserving
-the author's sequencing.
+incremental rollouts. You define the phases and their ordering; the planner decomposes
+each phase into build-iteration-sized tasks. This is called **sequence-constrained
+planning** because the planner works within your human-defined structure rather than
+inventing its own. Process specs live in `${PROCESS_DIR}/` and drive
+`ralph plan --process`.
 
 ### Choosing the Right Mode
 
-| Your work has... | Use |
-|---|---|
-| Phases with ordering constraints (migrations, multi-phase refactors, incremental rollouts) | Process spec → `ralph plan --process` |
-| No sequencing constraints (new features, independent improvements) | Target-state spec → `ralph plan` |
-| A single coherent job with no phasing (discovery, documentation, analysis) | Ad-hoc prompt → `ralph prompt` |
+| Your work has... | Planning mechanic | Command |
+|---|---|---|
+| No sequencing constraints (new features, independent improvements) | Gap-driven | `ralph plan` |
+| Phases with ordering constraints (migrations, multi-phase refactors, incremental rollouts) | Sequence-constrained | `ralph plan --process` |
+| A single coherent job with no phasing (discovery, documentation, analysis) | Ad-hoc | `ralph prompt` |
 
 Process specs are not target-state specs. Do not place them in `${SPECS_DIR}/`. See
 `specs/process-planning.md` for the full process planning specification.
@@ -278,16 +283,23 @@ Periodically review specs to ensure they:
 
 ## Plan Mode Integration
 
-Plan mode uses specs to:
+Gap-driven planning (`ralph plan`) uses target-state specs to:
 1. **Understand desired state** - Read all specs
 2. **Compare to current state** - Analyze code
 3. **Identify gaps** - Find missing or incorrect implementations
 4. **Generate tasks** - Create ordered work items to close gaps
 
+Sequence-constrained planning (`ralph plan --process`) uses process specs to:
+1. **Understand the phased strategy** - Read all process specs, with target-state specs as context
+2. **Survey the codebase** - Assess the scope of each phase
+3. **Decompose phases** - Break human-defined phases into build-iteration-sized tasks
+4. **Preserve ordering** - The phase structure from the process spec is authoritative
+
 ### Workflow
 
 ```
-Human updates spec → Plan mode detects change → Tasks generated → Build mode implements
+Gap-driven:           Human updates spec → Plan infers gaps → Tasks generated → Build implements
+Sequence-constrained: Human writes playbook → Plan decomposes phases → Tasks generated → Build implements
 ```
 
 ## Best Practices

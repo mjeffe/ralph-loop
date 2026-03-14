@@ -36,7 +36,7 @@ Prints: `Unknown help topic: foo` followed by the topic list (same as `ralph hel
 ```
 Ralph Help — run 'ralph help <topic>' for details.
 
-  plan      Planning modes: spec vs process vs prompt, when to use each
+  plan      Planning modes: gap-driven vs sequence-constrained vs prompt, when to use each
   specs     Writing specs: target-state vs process, lifecycle, best practices
   build     Build mode: task selection, signals, mid-implementation guidance
   sandbox   Sandbox lifecycle: setup, daily workflow, troubleshooting
@@ -51,23 +51,30 @@ to read the full specification.
 ### `ralph help plan`
 
 Cover:
-- The three planning modes and when to use each (spec, process, prompt)
-- `ralph plan` — target-state spec planning (gap analysis)
-- `ralph plan --process` — process planning (phase decomposition)
+- The three planning modes and when to use each
+- `ralph plan` — gap-driven planning (compares target-state specs to code, infers tasks)
+- `ralph plan --process` — sequence-constrained planning (decomposes human-defined phases into tasks)
 - `ralph prompt <file>` — ad-hoc single-job prompts
-- `--force` flag for overwriting mismatched plan types
-- Plan-type metadata and the type guard
 - How to regenerate: delete `implementation_plan.md` or re-run plan mode
+- Discovery/investigation tasks are valid in either planning mode
 
 ### `ralph help specs`
 
 Cover:
-- Target-state specs vs process specs: what each describes, where each lives
+- **Target-state specs** — describe what the system should be (behavior, APIs,
+  constraints). You write what you want; the planner figures out what's missing.
+  This drives **gap-driven planning** (`ralph plan`), where the planner compares
+  your spec to the current code and generates tasks to close the gaps.
+- **Process specs** — describe how to get there (phased migrations, ordered
+  refactors, incremental rollouts). You define the phases and their ordering; the
+  planner decomposes each phase into tasks. This drives **sequence-constrained
+  planning** (`ralph plan --process`), where the planner works within your
+  human-defined structure.
 - Decision table: phases with ordering → process spec; no sequencing → target-state
   spec; single coherent job → ad-hoc prompt
+- Target-state specs live in `SPECS_DIR`, process specs live in `PROCESS_DIR`
 - Process spec lifecycle: active specs in `PROCESS_DIR`, archive completed specs to
-  a subdirectory (e.g., `archive/`)
-- Only top-level `*.md` files in `PROCESS_DIR` are read (subdirectories ignored)
+  a subdirectory (e.g., `archive/`). Only top-level `*.md` files are read.
 - Brief spec-writing tips: be specific, one feature per spec, include test criteria
 
 ### `ralph help build`
@@ -75,10 +82,9 @@ Cover:
 Cover:
 - One task per iteration
 - Task selection: highest-priority `planned` task
-- Ordering differences: spec plans allow reordering, process plans preserve phase order
+- Build mode is plan-type agnostic — it respects the plan's structure regardless of how it was created
 - Exit signals: `COMPLETE` (all done), `REPLAN` (plan needs restructuring)
 - Mid-implementation discoveries: spec gaps, new work, blocked tasks
-- REPLAN message differs by plan type
 
 ### `ralph help sandbox`
 

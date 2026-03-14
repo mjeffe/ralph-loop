@@ -4,6 +4,8 @@
 
 Plan mode analyzes specifications and source code to create or regenerate an ordered implementation plan. It reconciles the desired state (specs) with the current state (code) and produces a task list for build mode.
 
+This spec covers **gap-driven planning** — comparing target-state specs to the current codebase to infer what work remains. For **sequence-constrained planning** from human-authored process specs (migrations, phased refactors, ordered rollouts), see `specs/process-planning.md`.
+
 ## Behavior
 
 ### Single or Multiple Iterations

@@ -2,13 +2,44 @@
 
 ## Purpose
 
-Process planning enables Ralph to work from human-authored migration playbooks, rewrite
-strategies, and other ordered process specs — documents that describe *how to get there*
-rather than *what the system should be*.
+Ralph's standard planning mode is **gap-driven**: it compares target-state specs to the
+current codebase and infers what work remains. This works well when the goal is a known end
+state and the agent can decide how to get there.
 
-Target-state specs define desired behavior. Process specs define phased, ordered work with
-explicit sequencing constraints. Both are valid inputs to Ralph's planning system, but they
-require different planning approaches.
+Some work is better described as an ordered sequence of steps — migrations, rewrites,
+staged rollouts, dependency upgrades with compatibility phases. These documents describe
+*how to get there* rather than *what the system should be*. Process planning enables Ralph
+to work from these human-authored playbooks by decomposing their phases into
+build-iteration-sized tasks while preserving the author's sequencing constraints.
+
+## Planning Mechanics: Why Two Modes
+
+Ralph supports exactly two planning modes because nearly all work falls into one of two
+fundamental planning mechanics:
+
+| Mechanic | Mode | How planning works |
+|---|---|---|
+| **Gap-driven** | `ralph plan` | Agent compares desired state (specs) to current state (code), infers the task list, and decides ordering. |
+| **Sequence-constrained** | `ralph plan --process` | Agent decomposes within a human-defined phase structure. Phase ordering is authoritative; the agent decides how to break each phase into tasks. |
+
+Other work types — incident response, performance tuning, compliance audits, documentation
+drives, dependency upgrades, testing campaigns — are not separate planning modes. They fit
+within one of these two mechanics depending on the nature of the input:
+
+- A **compliance audit** with a defined target state → gap-driven plan against a compliance spec
+- A **multi-phase migration** with explicit ordering → sequence-constrained plan
+- A **performance investigation** → gap-driven plan with discovery/investigation tasks
+- A **dependency upgrade** with compatibility phases → sequence-constrained plan
+- A **testing campaign** → gap-driven plan from a coverage spec
+
+Both planning prompts support **discovery and investigation tasks** — tasks whose output is
+knowledge rather than code (inventories, measurements, baselines, feasibility assessments).
+These are first-class plan items in either mode, enabling research-heavy work without a
+dedicated planning mode.
+
+If these two modes prove insufficient in practice, the next generalization step is
+metadata-driven strategy selection (e.g., document frontmatter declaring planning
+constraints), not additional CLI flags.
 
 ## Concepts
 
@@ -65,86 +96,38 @@ process specs.
 ## CLI Interface
 
 ```bash
-ralph plan                  # Plan from target-state specs (existing behavior)
-ralph plan --process        # Plan from process specs
-ralph plan --force          # Overwrite plan regardless of type mismatch
-ralph plan --process --force
+ralph plan                  # Gap-driven planning from target-state specs (existing behavior)
+ralph plan --process        # Sequence-constrained planning from process specs
 ```
 
-The `--process` and `--force` flags are only valid with `ralph plan`. If used with
-`build`, `prompt`, or other modes, ralph exits with an error:
-"--process and --force are only valid with 'ralph plan'."
+The `--process` flag is only valid with `ralph plan`. If used with `build`, `prompt`, or
+other modes, ralph exits with an error:
+"--process is only valid with 'ralph plan'."
 
 The `--process` flag selects the planning prompt and source directory. It does not change
 how the loop runs — plan mode still iterates with fresh context, uses the same logging,
 and exits on `<promise>COMPLETE</promise>`.
 
-## Plan-Type Metadata
-
-The implementation plan includes a visible metadata header that records how it was created:
-
-```markdown
-# Implementation Plan
-
-**Plan Type:** spec
-**Sources:** specs/overview.md, specs/loop-behavior.md
-```
-
-Or for process-derived plans:
-
-```markdown
-# Implementation Plan
-
-**Plan Type:** process
-**Sources:** specs/process/inertia-migration-plan.md, specs/process/phase-0-detail.md
-```
-
-| Field | Values | Purpose |
-|-------|--------|---------|
-| `Plan Type` | `spec` or `process` | How this plan was created |
-| `Sources` | Comma-separated file paths | Which specs produced it |
-
-The planning agent writes this metadata when creating or regenerating the plan.
-
-### Type Guard
-
-When `implementation_plan.md` exists and contains plan-type metadata, Ralph checks for
-type mismatches before planning:
-
-| Command | Existing plan type | Result |
-|---|---|---|
-| `ralph plan` | none or `spec` | ✅ proceeds |
-| `ralph plan --process` | none or `process` | ✅ proceeds |
-| `ralph plan` | `process` | ❌ refused |
-| `ralph plan --process` | `spec` | ❌ refused |
-| either + `--force` | any | ✅ proceeds |
-| delete plan + either | N/A | ✅ fresh start |
-
-Refusal message:
-```
-Current implementation plan is type '<type>'. Use --force to replace it,
-or delete implementation_plan.md to start fresh.
-```
-
-The guard is implemented in the ralph script before invoking the agent. It parses the
-`Plan Type:` line from the existing plan file.
+Running `ralph plan` when the current plan was created by `ralph plan --process` (or vice
+versa) simply overwrites the plan. The previous plan is recoverable from git history, and
+can be regenerated by re-running the original command.
 
 ## Planning Behavior
 
-### Spec Planning (existing, unchanged)
+### Gap-Driven Planning (existing, unchanged)
 
 `ralph plan` reads target-state specs, surveys the codebase, identifies gaps between
 desired and current behavior, and generates an ordered task list. The agent decides task
 ordering. See `specs/plan-mode.md` for full details.
 
-### Process Planning
+### Sequence-Constrained Planning
 
 `ralph plan --process` reads process specs and target-state specs, surveys the codebase,
 and decomposes process phases into build-iteration-sized tasks.
 
-The key difference from spec planning:
+The key difference from gap-driven planning:
 
-| Concern | Spec planning | Process planning |
+| Concern | Gap-driven | Sequence-constrained |
 |---|---|---|
 | **Primary source** | `${SPECS_DIR}` | `${PROCESS_DIR}` |
 | **Codebase survey** | Full | Full |
@@ -167,6 +150,20 @@ Target-state specs from `${SPECS_DIR}` are available as context — they help th
 understand what each process step is trying to achieve and how to size tasks — but they
 do not drive task creation.
 
+### Discovery and Investigation Tasks
+
+Both planning modes may emit tasks whose primary output is knowledge rather than code:
+
+- **Inventory tasks** — "Catalog all v1 API consumers and their usage patterns"
+- **Measurement tasks** — "Capture baseline p95 latency for the checkout flow"
+- **Feasibility tasks** — "Evaluate whether the ORM supports batch upserts"
+- **Audit tasks** — "Map current auth flows against the compliance control checklist"
+
+These are legitimate build-iteration tasks. The build agent completes them by producing
+documented findings (committed as markdown, plan notes, or code comments) rather than
+shipping feature code. They are especially useful for front-loading uncertainty reduction
+before committing to an implementation approach.
+
 ### Process Spec Lifecycle
 
 Only top-level `*.md` files in `PROCESS_DIR` are active process specs. Subdirectories
@@ -179,31 +176,21 @@ completed spec out of the active directory.
 
 ### Regeneration
 
-When `ralph plan --process` finds an existing process plan with completed tasks, it:
+When `ralph plan --process` finds an existing plan with completed tasks, it:
 - Keeps completed tasks as-is
 - Re-decomposes remaining phases from the source process specs
 - Preserves the phase ordering
 
-This differs from spec planning, which rebuilds the entire task list from scratch.
+This differs from gap-driven planning, which rebuilds the entire task list from scratch.
 
-## Build Mode Behavior
+## Build Mode
 
-Build mode works the same regardless of plan type, with one difference in how the agent
-treats task ordering:
+Build mode is plan-type agnostic. It works the same regardless of how the plan was
+created. The plan's own structure communicates its constraints — a sequence-constrained
+plan has visible phase groupings that the build agent naturally respects, while a
+gap-driven plan has a flat priority list where reordering is acceptable.
 
-- **`spec` plans:** Agent may reorder tasks if there's good reason (existing behavior)
-- **`process` plans:** Agent preserves source ordering — tasks derived from Phase 0 come
-  before Phase 1 tasks, 0a before 0b, etc.
-
-When a build agent discovers new work during a process plan:
-- Add discovered tasks in a clearly labeled section (e.g., "Discovered during Task X")
-- Note suggested placement relative to existing phases
-- Do not insert discovered tasks into the middle of the phase sequence
-
-The REPLAN signal semantics change based on plan type:
-- **`spec` plan:** "Run 'ralph plan' to regenerate the implementation plan."
-- **`process` plan:** "Review your process specs and run 'ralph plan --process' to
-  regenerate the implementation plan."
+No changes to `prompts/build.md` are required for process planning support.
 
 ## Prompt Template
 
@@ -238,8 +225,8 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 1. **Read inputs** — Study `AGENTS.md`, `${SPECS_DIR}/README.md`, all top-level `*.md` files in `${PROCESS_DIR}/` (not subdirectories), and target-state specs in `${SPECS_DIR}/` for context. If `${RALPH_HOME}/implementation_plan.md` exists, read it to understand prior progress.
 2. **Survey the codebase** — Understand the current state of the project, focusing on areas touched by the process specs. This is a full survey, not a cursory glance — you need to accurately size each phase.
 3. **Check for completed specs** — If your survey reveals that all work described by a process spec is already complete, do not generate tasks for it. Instead, note it at the top of the plan: "Process spec `<file>` appears complete — consider moving it to `${PROCESS_DIR}/archive/`."
-4. **Decompose phases** — For each active process spec, determine whether each phase and step fits in a single build iteration or needs splitting. Split based on independently testable concerns, but keep child tasks adjacent within their parent phase.
-5. **Write the plan** — Create or update `${RALPH_HOME}/implementation_plan.md`. Include the metadata header (see Plan Format below). If the plan already contains tasks marked `complete`, preserve them and re-decompose only the remaining phases.
+4. **Decompose phases** — For each active process spec, determine whether each phase and step fits in a single build iteration or needs splitting. Split based on independently testable concerns, but keep child tasks adjacent within their parent phase. You may emit **discovery/investigation tasks** (inventories, measurements, feasibility assessments) when a phase requires understanding before implementation.
+5. **Write the plan** — Create or update `${RALPH_HOME}/implementation_plan.md`. If the plan already contains tasks marked `complete`, preserve them and re-decompose only the remaining phases.
 6. **Commit** all changes with a descriptive commit message.
 7. **If planning is complete**, output the completion signal (see Exit Signal).
 8. **If planning is not yet complete**, stop without a signal — the loop will start another iteration.
@@ -249,15 +236,6 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 When planning is complete, output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it.
 
 ## Plan Format
-
-The plan must begin with:
-
-```
-# Implementation Plan
-
-**Plan Type:** process
-**Sources:** <comma-separated list of process spec files read>
-```
 
 Each task needs at minimum:
 - A short title
@@ -295,10 +273,9 @@ Begin planning now.
 
 ### `ralph` script
 
-1. Add `--process` and `--force` flag parsing for plan mode
-2. Add plan-type guard logic before invoking the agent
-3. Select `prompts/plan-process.md` when `--process` is set
-4. Export `PROCESS_DIR` as a template variable when set
+1. Add `--process` flag parsing for plan mode
+2. Select `prompts/plan-process.md` when `--process` is set
+3. Export `PROCESS_DIR` as a template variable when set
 
 ### `config`
 
@@ -306,34 +283,12 @@ Add `PROCESS_DIR=""` with a comment explaining it is optional.
 
 ### `prompts/plan.md`
 
-Add to the metadata section of generated plans:
-```
-**Plan Type:** spec
-**Sources:** <list of spec files>
-```
-
-No other changes to the existing plan prompt.
+Add a brief note in the planning prompt that discovery/investigation tasks (inventories,
+measurements, feasibility assessments) are valid plan items. No other changes.
 
 ### `prompts/build.md`
 
-> **TBD — single prompt vs. separate `build-process.md`**
->
-> The build-mode behavioral differences for process plans are small:
-> 1. Preserve source ordering — do not reorder tasks across phases
-> 2. Append discovered work in a separate section — do not insert into the phase sequence
-> 3. Adjust REPLAN message to reference process specs instead of target-state specs
->
-> **Option A: Conditional sections in `build.md`.** Three sentences of conditional
-> guidance added to the existing prompt. Avoids duplication, one file to maintain.
-> Risk: the build prompt has been carefully tuned — adding conditional branches may
-> introduce noise or confusion that degrades agent performance on the common (spec) path.
->
-> **Option B: Separate `build-process.md`.** Duplicates ~95% of `build.md` but keeps
-> each prompt clean and single-purpose (matching the plan/plan-process split). Downside:
-> two files to maintain; behavioral improvements to one must be mirrored in the other.
->
-> Decision deferred — revisit after evaluating how the conditional guidance affects
-> agent output quality on the existing build prompt.
+No changes. Build mode is plan-type agnostic.
 
 ### `specs/project-structure.md`
 
@@ -343,7 +298,7 @@ directory in the layout examples.
 ### `specs/plan-mode.md`
 
 Add a note that plan mode handles target-state specs only. Reference this spec for
-process planning.
+sequence-constrained planning.
 
 ### `specs/spec-lifecycle.md`
 
@@ -352,7 +307,7 @@ choosing the right planning mode.
 
 ### `specs/loop-behavior.md`
 
-Add `--process` and `--force` flags to the CLI interface section.
+Add `--process` flag to the CLI interface section.
 
 ### Installer and Updater
 
@@ -382,7 +337,7 @@ cat .ralph/implementation_plan.md
 # If process specs change, regenerate
 .ralph/ralph plan --process
 
-# To switch to spec-based planning instead
+# To switch to gap-driven planning instead
 rm .ralph/implementation_plan.md
 .ralph/ralph plan
 ```
