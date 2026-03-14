@@ -38,7 +38,7 @@ export `STACK_PLAYBOOK`, and pass it through `prepare_prompt` before invoking th
 
 ### Task 2: Create playbooks directory and initial playbook files
 
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-setup-prompt.md
 
 Create the `prompts/playbooks/` directory and write the initial set of stack playbook files.
