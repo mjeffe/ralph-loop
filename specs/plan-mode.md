@@ -51,7 +51,7 @@ The plan is a prioritized list of work to be done. At minimum, each task needs:
 - A short title
 - A brief description of what needs to be done
 - The **spec** that drives it (e.g., `specs/feature.md`)
-- A **status**: `planned` | `in-progress` | `blocked` | `complete`
+- A **status**: `planned` | `blocked` | `complete`
 - Enough detail for build mode to implement it without re-analyzing the project
 
 Tasks should be ordered by priority. Structure and format beyond that are up to the agent.
@@ -59,7 +59,6 @@ Tasks should be ordered by priority. Structure and format beyond that are up to 
 ### Task Status Values
 
 - `planned` - Ready to be worked on
-- `in-progress` - Currently being implemented (build mode)
 - `blocked` - Cannot proceed (dependency or issue)
 - `complete` - Finished and committed
 
@@ -127,7 +126,7 @@ concise and actionable. At minimum, each task needs:
 - A short title
 - A brief description of what needs to be done
 - The **spec** that drives it (e.g., `specs/feature.md`)
-- A **status**: `planned` | `in-progress` | `blocked` | `complete`
+- A **status**: `planned` | `blocked` | `complete`
 - Enough detail for build mode to implement it without re-analyzing the project
 
 Order tasks by priority. Structure and format beyond that are up to you.

@@ -48,7 +48,7 @@ To prevent plan staleness, build agents review remaining tasks after each implem
 
 ## Design Principles
 
-1. **Agent Autonomy** - Agents run in YOLO mode with full autonomy to implement
+1. **Agent Autonomy** - Agents have full autonomy in implementation decisions within the scope of a single task. Specs and the implementation plan define *what* to build; the agent decides *how*, unless the spec defines specific constraints, tooling, or architectural choices. When specs are silent on a detail the agent needs now, it makes the simplest safe choice and documents it. Scope control mechanisms (one task per iteration, plan-based discovery, REPLAN signal) prevent creep while preserving freedom.
 2. **Human Orchestration** - Humans control when and how the loop runs
 3. **Incremental Progress** - One task per build iteration
 4. **Durable Memory** - All state persists in files between iterations
