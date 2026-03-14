@@ -399,6 +399,70 @@ UPDATING AGENTS.md FOR SANDBOX COMMANDS
 EOF
 }
 
+detect_stack() {
+    # Framework-specific indicators first (most distinctive wins)
+
+    # PHP/Laravel — artisan file is the strongest Laravel signal
+    if [[ -f "artisan" ]] \
+        || { [[ -f "composer.json" ]] && grep -q '"laravel/framework"' composer.json 2>/dev/null; }; then
+        echo "php-laravel"
+        return
+    fi
+
+    # PHP (generic)
+    if [[ -f "composer.json" ]]; then
+        echo "php"
+        return
+    fi
+
+    # Ruby/Rails
+    if [[ -f "bin/rails" ]] \
+        || { [[ -f "Gemfile" ]] && grep -q "rails" Gemfile 2>/dev/null; }; then
+        echo "rails"
+        return
+    fi
+
+    # Ruby (generic)
+    if [[ -f "Gemfile" ]]; then
+        echo "ruby"
+        return
+    fi
+
+    # Python/Django
+    if [[ -f "manage.py" ]] && grep -q "django" manage.py 2>/dev/null; then
+        echo "python-django"
+        return
+    fi
+
+    # Python (generic)
+    if [[ -f "pyproject.toml" ]] || [[ -f "requirements.txt" ]] \
+        || [[ -f "Pipfile" ]] || [[ -f "setup.py" ]]; then
+        echo "python"
+        return
+    fi
+
+    # Go
+    if [[ -f "go.mod" ]]; then
+        echo "go"
+        return
+    fi
+
+    # Rust
+    if [[ -f "Cargo.toml" ]]; then
+        echo "rust"
+        return
+    fi
+
+    # Node.js — checked LAST because many non-Node projects have
+    # package.json for frontend tooling (Laravel, Rails, Django, etc.)
+    if [[ -f "package.json" ]]; then
+        echo "node"
+        return
+    fi
+
+    echo ""
+}
+
 sandbox_setup() {
     local sandbox_dir="$RALPH_DIR/sandbox"
     local prompt_template="$RALPH_DIR/prompts/sandbox-setup.md"
@@ -446,6 +510,16 @@ sandbox_setup() {
     fi
 
     mkdir -p "$sandbox_dir"
+
+    # Detect project stack and resolve playbook for prompt injection
+    local STACK
+    STACK=$(detect_stack)
+    local PLAYBOOK_FILE="$RALPH_DIR/prompts/playbooks/${STACK}.md"
+    if [[ -n "$STACK" && -f "$PLAYBOOK_FILE" ]]; then
+        export STACK_PLAYBOOK="$PLAYBOOK_FILE"
+    else
+        export STACK_PLAYBOOK=""
+    fi
 
     local tmp_prompt
     tmp_prompt=$(mktemp)

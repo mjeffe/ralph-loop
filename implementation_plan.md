@@ -10,7 +10,7 @@ installer/updater awareness of the new playbook files.
 
 ### Task 1: Add detect_stack() and STACK_PLAYBOOK injection to ralph script
 
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-setup-prompt.md
 
 Add the `detect_stack()` function to the `ralph` script and update `sandbox_setup()` to call it,

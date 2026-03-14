@@ -360,6 +360,91 @@ test_managed_files_in_sync() {
     assert_eq "MANAGED_FILES arrays match" "$installer_files" "$updater_files"
 }
 
+test_detect_stack() {
+    echo "--- Stack detection ---"
+
+    # Source detect_stack from ralph (extract it as a function)
+    source <(sed -n '/^detect_stack()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local proj="$TMP_DIR/detect_stack_project"
+
+    # PHP/Laravel via artisan
+    mkdir -p "$proj" && touch "$proj/artisan"
+    assert_eq "artisan -> php-laravel" "php-laravel" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # PHP/Laravel via composer.json
+    mkdir -p "$proj"
+    echo '{"require":{"laravel/framework":"^11.0"}}' > "$proj/composer.json"
+    assert_eq "composer laravel -> php-laravel" "php-laravel" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # PHP generic
+    mkdir -p "$proj"
+    echo '{"require":{"slim/slim":"^4.0"}}' > "$proj/composer.json"
+    assert_eq "composer non-laravel -> php" "php" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # Rails via bin/rails
+    mkdir -p "$proj/bin" && touch "$proj/bin/rails"
+    assert_eq "bin/rails -> rails" "rails" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # Rails via Gemfile
+    mkdir -p "$proj"
+    echo "gem 'rails', '~> 7.0'" > "$proj/Gemfile"
+    assert_eq "Gemfile with rails -> rails" "rails" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # Ruby generic
+    mkdir -p "$proj"
+    echo "gem 'sinatra'" > "$proj/Gemfile"
+    assert_eq "Gemfile without rails -> ruby" "ruby" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # Python/Django
+    mkdir -p "$proj"
+    echo 'import django; django.setup()' > "$proj/manage.py"
+    assert_eq "manage.py with django -> python-django" "python-django" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # Python generic (requirements.txt)
+    mkdir -p "$proj" && touch "$proj/requirements.txt"
+    assert_eq "requirements.txt -> python" "python" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # Python generic (pyproject.toml)
+    mkdir -p "$proj" && touch "$proj/pyproject.toml"
+    assert_eq "pyproject.toml -> python" "python" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # Go
+    mkdir -p "$proj" && touch "$proj/go.mod"
+    assert_eq "go.mod -> go" "go" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # Rust
+    mkdir -p "$proj" && touch "$proj/Cargo.toml"
+    assert_eq "Cargo.toml -> rust" "rust" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # Node.js
+    mkdir -p "$proj" && touch "$proj/package.json"
+    assert_eq "package.json alone -> node" "node" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # Laravel with package.json — should detect php-laravel, not node
+    mkdir -p "$proj"
+    touch "$proj/artisan" "$proj/package.json"
+    assert_eq "artisan + package.json -> php-laravel" "php-laravel" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+
+    # Empty project
+    mkdir -p "$proj"
+    assert_eq "empty project -> empty string" "" "$(cd "$proj" && detect_stack)"
+    rm -rf "$proj"
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -392,6 +477,7 @@ main() {
     test_sandbox_bad_subcommand_exits_nonzero
     test_sandbox_guard_inside_sandbox
     test_managed_files_in_sync
+    test_detect_stack
 
     teardown
 
