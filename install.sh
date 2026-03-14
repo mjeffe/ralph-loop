@@ -13,6 +13,41 @@ set -euo pipefail
 RALPH_REPO="https://raw.githubusercontent.com/mjeffe/ralph-loop/main"
 RALPH_DIR=".ralph"
 
+# Files managed by the installer/updater (relative to .ralph/)
+# Keep in sync with update.sh — validated by tests/test_ralph.sh
+MANAGED_FILES=(
+    ralph
+    config
+    dependencies
+    sandbox-preferences.md
+    agents/amp.sh
+    agents/claude.sh
+    agents/cline.sh
+    agents/codex.sh
+    prompts/plan.md
+    prompts/build.md
+    prompts/sandbox-setup.md
+    README.md
+    .gitignore
+)
+
+# Source paths in the ralph-loop repo for each managed file
+declare -A SOURCE_PATHS=(
+    [ralph]="ralph"
+    [config]="config"
+    [dependencies]="dependencies"
+    [sandbox-preferences.md]="sandbox-preferences.md"
+    [agents/amp.sh]="agents/amp.sh"
+    [agents/claude.sh]="agents/claude.sh"
+    [agents/cline.sh]="agents/cline.sh"
+    [agents/codex.sh]="agents/codex.sh"
+    [prompts/plan.md]="prompts/plan.md"
+    [prompts/build.md]="prompts/build.md"
+    [prompts/sandbox-setup.md]="prompts/sandbox-setup.md"
+    [README.md]="specs/overview.md"
+    [.gitignore]=".gitignore"
+)
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -96,23 +131,7 @@ get_upstream_version() {
 # Generate manifest with SHA256 checksums of managed files
 # ---------------------------------------------------------------------------
 generate_manifest() {
-    local managed_files=(
-        ralph
-        config
-        dependencies
-        sandbox-preferences.md
-        agents/amp.sh
-        agents/claude.sh
-        agents/cline.sh
-        agents/codex.sh
-        prompts/plan.md
-        prompts/build.md
-        prompts/sandbox-setup.md
-        README.md
-        .gitignore
-    )
-
-    for file in "${managed_files[@]}"; do
+    for file in "${MANAGED_FILES[@]}"; do
         local filepath="$RALPH_DIR/$file"
         if [[ -f "$filepath" ]]; then
             sha256sum "$filepath" | awk -v f="$file" '{print $1 "  " f}'
@@ -131,47 +150,19 @@ install_ralph_dir() {
     mkdir -p "$RALPH_DIR/logs"
     mkdir -p "$RALPH_DIR/sandbox"
 
-    # Copy ralph executable
-    fetch_file "ralph" "$RALPH_DIR/ralph"
+    # Copy all managed files using SOURCE_PATHS for repo-to-install mapping
+    for file in "${MANAGED_FILES[@]}"; do
+        local src_path="${SOURCE_PATHS[$file]}"
+        local dest_dir
+        dest_dir="$(dirname "$RALPH_DIR/$file")"
+        mkdir -p "$dest_dir"
+        fetch_file "$src_path" "$RALPH_DIR/$file"
+    done
     chmod +x "$RALPH_DIR/ralph"
-
-    # Copy config, dependencies, and sandbox preferences
-    fetch_file "config" "$RALPH_DIR/config"
-    fetch_file "dependencies" "$RALPH_DIR/dependencies"
-    fetch_file "sandbox-preferences.md" "$RALPH_DIR/sandbox-preferences.md"
-
-    # Copy agent scripts
-    fetch_file "agents/amp.sh" "$RALPH_DIR/agents/amp.sh"
-    fetch_file "agents/claude.sh" "$RALPH_DIR/agents/claude.sh"
-    fetch_file "agents/cline.sh" "$RALPH_DIR/agents/cline.sh"
-    fetch_file "agents/codex.sh" "$RALPH_DIR/agents/codex.sh"
-
-    # Copy prompt templates
-    fetch_file "prompts/plan.md" "$RALPH_DIR/prompts/plan.md"
-    fetch_file "prompts/build.md" "$RALPH_DIR/prompts/build.md"
-    fetch_file "prompts/sandbox-setup.md" "$RALPH_DIR/prompts/sandbox-setup.md"
-
-    # Copy overview as README
-    fetch_file "specs/overview.md" "$RALPH_DIR/README.md"
 
     # Create implementation_plan.md template
     cat > "$RALPH_DIR/implementation_plan.md" <<'EOF'
 # Implementation Plan
-EOF
-
-    # Create .gitignore
-    cat > "$RALPH_DIR/.gitignore" <<'EOF'
-# Ralph session logs (generated, not committed)
-logs/
-
-# Generated each iteration by the loop
-last_agent_output
-
-# Upstream review files from ralph update
-*.upstream
-
-# Sandbox environment file (contains tokens)
-sandbox/.env
 EOF
 
     # Generate version and manifest for update tracking

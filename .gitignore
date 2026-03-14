@@ -6,3 +6,6 @@ last_agent_output
 
 # Upstream review files from ralph update
 *.upstream
+
+# Sandbox environment file (contains tokens)
+sandbox/.env

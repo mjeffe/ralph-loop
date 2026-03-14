@@ -348,6 +348,18 @@ test_sandbox_guard_inside_sandbox() {
     assert_contains "error message mentions already inside" "already inside the sandbox" "$output"
 }
 
+extract_managed_files() {
+    sed -n '/^MANAGED_FILES=(/,/^)/p' "$1" | grep -v '^MANAGED_FILES=\|^)' | tr -d ' ' | sort
+}
+
+test_managed_files_in_sync() {
+    echo "--- Managed files: install.sh and update.sh in sync ---"
+    local installer_files updater_files
+    installer_files=$(extract_managed_files "$RALPH_DIR/install.sh")
+    updater_files=$(extract_managed_files "$RALPH_DIR/update.sh")
+    assert_eq "MANAGED_FILES arrays match" "$installer_files" "$updater_files"
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -379,6 +391,7 @@ main() {
     test_sandbox_no_subcommand_exits_nonzero
     test_sandbox_bad_subcommand_exits_nonzero
     test_sandbox_guard_inside_sandbox
+    test_managed_files_in_sync
 
     teardown
 
