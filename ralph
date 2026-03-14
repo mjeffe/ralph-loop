@@ -540,7 +540,7 @@ sandbox_reset() {
 sandbox_shell() {
     local container_name
     container_name=$(sandbox_container_name)
-    docker exec -it -u ralph -w /var/www/html "$container_name" bash
+    docker exec -it -u ralph "$container_name" bash
 }
 
 sandbox_status() {

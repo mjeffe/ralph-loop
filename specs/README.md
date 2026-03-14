@@ -15,4 +15,4 @@ Specs are the source of truth for desired behavior. When adding or removing a sp
 | [agent-scripts.md](agent-scripts.md) | Agent script contract, required/optional functions, and adding new agents |
 | [updater.md](updater.md) | Update mechanism, manifest tracking, and preserving user customizations |
 | [sandbox-cli.md](sandbox-cli.md) | Sandbox lifecycle commands (`up`, `down`, `reset`, `shell`, `status`, `setup`) — implement first |
-| [sandbox-setup-prompt.md](sandbox-setup-prompt.md) | Prompt template for agent-generated sandbox files — implement after sandbox-cli |
+| [sandbox-setup-prompt.md](sandbox-setup-prompt.md) | Prompt template structure, stack playbooks, and agent instructions for sandbox generation — implement after sandbox-cli |

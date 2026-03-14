@@ -2,16 +2,10 @@
 
 ## Implementation Order
 
-This spec **must be implemented after** `sandbox-cli.md`. It creates a new file
-(`prompts/sandbox-setup.md`) and does not modify the `ralph` script. The CLI
-plumbing that invokes this prompt already exists after `sandbox-cli.md` is
-implemented — this spec only provides the content the agent receives.
-
-The split exists because `sandbox-cli.md` modifies the `ralph` script, which is
-the script ralph-loop uses to run itself. Those changes must land and stabilize
-before this session adds new content. This spec is safe to implement in a
-subsequent session because it only creates a new prompt file with zero risk to
-the running ralph script.
+This spec **must be implemented after** `sandbox-cli.md`. It creates/modifies
+files in `prompts/` and adds stack detection logic to `sandbox_setup()` in the
+`ralph` script. The CLI plumbing that invokes this prompt already exists after
+`sandbox-cli.md` is implemented.
 
 ## Overview
 
@@ -22,14 +16,55 @@ project and generate four sandbox files: `Dockerfile`, `entrypoint.sh`,
 
 This is a managed file (tracked in `.manifest`, updated by `ralph update`).
 
+## Prompt Structure
+
+The prompt is organized around outcomes and decision rules rather than
+prescriptive shell commands. This structure gives the agent enough guidance to
+succeed without micromanaging implementation details.
+
+### Sections (in order)
+
+1. **Definition of Done** — concrete success criteria the agent must satisfy
+   before declaring completion. This is the most important section.
+2. **Priority Order** — explicit trade-off hierarchy so the agent knows what
+   matters most when it can't do everything perfectly:
+   1. Container boots reliably
+   2. Repo clones and credentials work
+   3. Dependencies install
+   4. Required services run
+   5. Migrations and bootstrap
+   6. Developer ergonomics
+3. **Project Analysis** — what to read, what conclusions to extract, and
+   decision rules for ambiguous cases.
+4. **Hard Constraints** — non-negotiable architectural rules (single container,
+   named volumes, non-root user, etc.).
+5. **Generated Files** — responsibility-based descriptions of each file the
+   agent must create. Lists what each file must accomplish, not exact commands.
+6. **Self-Validation Checklist** — cross-checks the agent must perform before
+   finishing (ports match services, env vars are documented, etc.).
+7. **Appendices** — battle-tested shell snippets and known gotchas for specific
+   failure modes (git credential handling, YAML syntax pitfalls, idempotency
+   patterns). Separated from the main body so they inform without dominating.
+
+### Design Rationale
+
+Previous iterations of this prompt mixed goal definition, discovery logic,
+architectural constraints, and bug-workaround snippets at the same priority
+level. Agents would optimize for local compliance (reproducing exact snippets)
+instead of building a coherent sandbox. The restructured prompt puts outcomes
+first, keeps hard requirements short, and moves implementation-level details to
+appendices where agents can reference them without fixating on them.
+
 ## What the Setup Agent Analyzes
 
-The prompt instructs the agent to examine:
+The prompt instructs the agent to build a **project profile** by examining:
 
 - **Package manifests:** `composer.json`, `package.json`, `Gemfile`, `go.mod`,
   `requirements.txt`, `Cargo.toml`, `pyproject.toml`, `pom.xml`, etc.
 - **Existing containerization:** `Dockerfile`, `docker-compose.yml`,
-  `.devcontainer/`, `docker/`, or similar directories.
+  `.devcontainer/`, `docker/`, or similar directories — for reference only.
+  Do not copy them, but reuse authoritative details like runtime versions,
+  package names, and startup commands.
 - **Environment configuration:** `.env.example`, `config/database.yml`, or
   equivalent files that reveal database engine, cache driver, mail service, etc.
 - **CI configuration:** `.github/workflows/`, `.gitlab-ci.yml` — often reveals
@@ -45,623 +80,325 @@ The prompt instructs the agent to examine:
   additional packages, configuration choices). The agent incorporates these into
   the generated files. This is a managed file (installed/updated like `config`).
 
+The agent must extract these conclusions from the sources above:
+
+- Primary runtime(s) and version(s)
+- Package manager(s) — prefer lockfiles over manifests for tool choice
+- Required services for tests and dev (DB, cache, search, mail, etc.)
+- Long-running processes the project needs (web server, queue worker,
+  Vite/HMR dev server, scheduler, etc.)
+- Primary workdir path
+- Bootstrap/install command(s)
+- Likely test command
+- Git hosting provider (GitHub vs other)
+
+### Decision Rules
+
+- Always provision the project's primary database engine — agents need to run
+  the full app, not just tests. Use .env.example, config files, and
+  docker-compose.yml to determine the primary engine.
+- If tests use a different DB (e.g., SQLite for speed), configure that as the
+  test database, but still provision the primary server DB.
+- Include only *additional* services (cache, search, queue) that AGENTS.md, CI,
+  test config, or env/config actually require.
+- Include Mailpit only when mail is used by the project or implied by framework.
+- For ambiguous cases (monorepos, multiple runtimes), optimize for the primary
+  app; note limitations in comments.
+
+## Stack Playbooks
+
+### Problem
+
+Different project stacks require different setup decisions: package manager
+commands, runtime installation, framework-specific bootstrap steps (key
+generation, migrations, asset compilation), service configuration, and workdir
+conventions. A single universal prompt cannot encode all of these without
+becoming unwieldy, and leaving them to agent inference leads to inconsistent
+results.
+
+### Solution
+
+Stack playbooks are short, supplementary prompt files that provide stack-specific
+guidance. They live in `prompts/playbooks/` and are injected into the setup
+prompt by ralph's `sandbox_setup()` function based on deterministic stack
+detection.
+
+### Directory Structure
+
+```
+prompts/
+├── sandbox-setup.md           # Core prompt (stack-agnostic)
+└── playbooks/
+    ├── php-laravel.md         # PHP/Laravel-specific guidance
+    ├── php.md                 # Generic PHP
+    ├── node.md                # Node.js
+    ├── python-django.md       # Python/Django
+    ├── python.md              # Generic Python
+    ├── rails.md               # Ruby on Rails
+    └── ...                    # Added as needed
+```
+
+Playbooks are managed upstream files (tracked in `.manifest`, updated by
+`ralph update`). Not every stack needs a playbook — the core prompt handles
+unknown stacks on its own.
+
+### Stack Detection
+
+The `sandbox_setup()` function detects the project's primary stack before
+invoking the agent. Detection is deterministic (bash, not LLM) to avoid
+adding a failure point where the agent misidentifies or skips the playbook.
+
+```bash
+detect_stack() {
+    # Framework-specific indicators first (most distinctive wins)
+
+    # PHP/Laravel — artisan file is the strongest Laravel signal
+    if [[ -f "artisan" ]] \
+        || { [[ -f "composer.json" ]] && grep -q '"laravel/framework"' composer.json 2>/dev/null; }; then
+        echo "php-laravel"
+        return
+    fi
+
+    # PHP (generic)
+    if [[ -f "composer.json" ]]; then
+        echo "php"
+        return
+    fi
+
+    # Ruby/Rails
+    if [[ -f "bin/rails" ]] \
+        || { [[ -f "Gemfile" ]] && grep -q "rails" Gemfile 2>/dev/null; }; then
+        echo "rails"
+        return
+    fi
+
+    # Ruby (generic)
+    if [[ -f "Gemfile" ]]; then
+        echo "ruby"
+        return
+    fi
+
+    # Python/Django
+    if [[ -f "manage.py" ]] && grep -q "django" manage.py 2>/dev/null; then
+        echo "python-django"
+        return
+    fi
+
+    # Python (generic)
+    if [[ -f "pyproject.toml" ]] || [[ -f "requirements.txt" ]] \
+        || [[ -f "Pipfile" ]] || [[ -f "setup.py" ]]; then
+        echo "python"
+        return
+    fi
+
+    # Go
+    if [[ -f "go.mod" ]]; then
+        echo "go"
+        return
+    fi
+
+    # Rust
+    if [[ -f "Cargo.toml" ]]; then
+        echo "rust"
+        return
+    fi
+
+    # Node.js — checked LAST because many non-Node projects have
+    # package.json for frontend tooling (Laravel, Rails, Django, etc.)
+    if [[ -f "package.json" ]]; then
+        echo "node"
+        return
+    fi
+
+    echo ""
+}
+```
+
+**Key design decisions:**
+
+- **`package.json` is checked last.** Almost every web project has one for
+  frontend assets — its presence alone does not indicate a Node project.
+- **Framework before runtime.** `php-laravel` before `php`, `rails` before
+  `ruby`, `python-django` before `python`. Framework-specific playbooks carry
+  more targeted guidance than generic runtime playbooks.
+- **Grep for framework markers.** Checking `composer.json` for
+  `laravel/framework`, `Gemfile` for `rails`, `manage.py` for `django` — these
+  are strong, reliable signals.
+- **Graceful fallback.** If nothing matches, no playbook is injected. The core
+  prompt handles it alone.
+
+### Injection into the Prompt
+
+The `sandbox_setup()` function detects the stack, resolves the playbook path,
+and exports it as a template variable for `envsubst`:
+
+```bash
+STACK=$(detect_stack)
+PLAYBOOK_FILE="$RALPH_DIR/prompts/playbooks/${STACK}.md"
+if [[ -n "$STACK" && -f "$PLAYBOOK_FILE" ]]; then
+    export STACK_PLAYBOOK="$PLAYBOOK_FILE"
+else
+    export STACK_PLAYBOOK=""
+fi
+```
+
+The core prompt (`sandbox-setup.md`) references the playbook via a conditional
+instruction:
+
+```markdown
+If a stack playbook is provided, read and follow it: ${STACK_PLAYBOOK}
+```
+
+When `STACK_PLAYBOOK` is empty, the line resolves to inert text and the agent
+proceeds with the core prompt alone.
+
+### Playbook Content Guidelines
+
+Each playbook should be short (under 50 lines) and cover only stack-specific
+decisions that the core prompt cannot make generically:
+
+- **Runtime installation:** specific apt packages, PPA/repository setup, version
+  pinning (e.g., `ondrej/php` PPA for PHP 8.x, `nodesource` for Node LTS)
+- **Package manager:** which tool to use and install commands
+  (e.g., `composer install --no-interaction`, `npm ci`, `poetry install`)
+- **Framework bootstrap:** key generation, asset compilation, etc.
+  (e.g., `php artisan key:generate`, `npm run build`)
+- **Migrations:** framework-specific migration command
+  (e.g., `php artisan migrate --force`, `python manage.py migrate`)
+- **Common extensions/packages:** frequently needed system packages or runtime
+  extensions (e.g., PHP extensions `pdo_pgsql`, `redis`, `gd`)
+- **Workdir convention:** `/var/www/html` for PHP, `/app` for others
+- **Sandbox env overrides:** framework-specific `.env` adjustments
+  (e.g., `QUEUE_CONNECTION=sync`, `CACHE_STORE=file` for Laravel)
+- **Long-running processes:** which services to run under supervisord
+  (e.g., `php artisan serve` or php-fpm for Laravel web, `npm run dev` for Vite)
+
+Playbooks should **not** repeat information from the core prompt (hard
+constraints, credential handling, idempotency patterns, etc.).
+
+### Adding New Playbooks
+
+1. Create `prompts/playbooks/{stack-name}.md` following the content guidelines.
+2. Add the stack detection case to `detect_stack()` in the `ralph` script.
+3. Add the playbook to the `MANAGED_FILES` array in `update.sh`.
+4. Update `specs/project-structure.md` to include the new file.
+
+Playbooks can be added incrementally — start with the stacks you use most.
+
 ## What the Setup Agent Generates
 
 The agent creates four files in `.ralph/sandbox/`:
 
 ### 1. `Dockerfile`
 
-An all-in-one container image. Key requirements the prompt enforces:
-
-- **Base image:** Use `ubuntu:24.04` (or the latest LTS) for consistency.
-- **All services in one container.** Database server, mail catcher, application
-   runtime, package managers — everything the project needs to run and test.
-- **Include `tini`.** Install `tini` as a proper PID 1 init process. Set it as
-   `ENTRYPOINT` with `entrypoint.sh` as its argument (see below).
-- **Include `supervisord`.** Install `supervisor` to manage long-running services
-   (database, mail catcher, etc.). The entrypoint handles one-time setup, then
-   hands off to `supervisord` which starts and restarts services as needed.
-- **Include the agent CLI.** Install `@sourcegraph/amp` via npm (or whichever agent
-   the project uses). The agent must be runnable inside the container.
-- **Include `gh` CLI (GitHub projects only).** Install `gh` for git authentication
-   via `gh auth setup-git`. For non-GitHub projects, `gh` is not needed — git's
-   native credential store handles authentication instead.
-- **Create a non-root user.** Use `ralph` with passwordless sudo.
-- **Copy `entrypoint.sh`** into the image.
+Responsibilities:
+- Install the project's language runtime and version
+- Install all required extensions and system packages
+- Install service packages natively (database server, etc.) — only those
+  identified as required during project analysis
+- Install package managers (composer, npm/yarn/pnpm, pip, etc.)
+- Install GitHub CLI (gh) — only for GitHub-hosted projects
+- Install Amp CLI (`npm install -g @sourcegraph/amp`), tini, supervisord,
+  and ralph dependencies
+- Handle UID 1000 conflicts: the base image may have a user with UID 1000
+  (e.g., "ubuntu") — delete it with `userdel --remove` before creating "ralph"
+- Create a non-root user named "ralph" (UID 1000, GID 1000) with passwordless
+  sudo
+- Copy entrypoint.sh to a location in PATH (e.g., `/usr/local/bin/`)
+- ENTRYPOINT `["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]`
+- WORKDIR: `/var/www/html` for PHP projects, `/app` for others
+- EXPOSE only ports for services that are actually provisioned
 
 ### 2. `entrypoint.sh`
 
-The container entrypoint script. Key requirements:
+An idempotent entrypoint that must begin with:
 
-- **Git credential setup:** The entrypoint supports two credential strategies,
-  selected by which environment variables are set:
-  1. **GitHub path (`GITHUB_TOKEN`):** Use `gh auth login --with-token` and
-     `gh auth setup-git`. The prompt provides an exact code block using
-     `env -u GITHUB_TOKEN` to unset the env var before calling `gh auth login`,
-     because gh CLI refuses `--with-token` when `GITHUB_TOKEN` is already set
-     (exiting non-zero under `set -euo pipefail`). The token is written to a
-     temp file and piped via stdin redirection to avoid exposing it in process
-     listings (`/proc/*/cmdline`).
-  2. **Generic path (`GIT_CRED_USER` + `GIT_CRED_PASS`):** For non-GitHub
-     hosting (GitLab, Bitbucket, AWS CodeCommit, self-hosted, etc.), write a
-     `.git-credentials` file for the `ralph` user and configure `git config
-     --global credential.helper store`. The host is derived from `GIT_REPO`.
-     **Credentials must be URL-encoded** — some providers (notably CodeCommit)
-     generate passwords containing `/`, `+`, and `=` that break the credential
-     URL format if written raw. Use `python3 -c "import urllib.parse;
-     print(urllib.parse.quote(sys.argv[1], safe=''))"` or equivalent.
-     The credential file must be owned by `ralph` with mode `600`.
-  If neither is set, git operations proceed without explicit credentials
-  (useful for public repos).
-- **Clone on first run:** If the codebase directory is empty (fresh volume), clone
-  `GIT_REPO`. Skip on subsequent starts.
-- **Generate `.env` on first run:** Copy the project's `.env.example` and apply
-  sandbox-specific overrides (e.g., `DB_HOST=127.0.0.1`, `MAIL_HOST=127.0.0.1`,
-  `QUEUE_CONNECTION=sync`).
-- **Install dependencies on first run:** Run the project's package manager install
-  commands (e.g., `composer install`, `npm install`).
-- **Start services via supervisord:** After one-time setup completes, hand off to
-  `supervisord` by ending with `exec supervisord -n -c /etc/supervisor/supervisord.conf`.
-  Supervisord manages all long-running services (database, mail catcher, etc.) and
-  restarts them if they crash. `tini` (PID 1) handles signal forwarding and zombie
-  reaping above supervisord.
-- **Run migrations:** Apply database migrations on first run.
-- **Generate supervisord config:** Create a `/etc/supervisor/conf.d/*.conf` file
-  for each service. Each program block should set `autorestart=true`,
-  `startsecs=5`, and appropriate `stdout_logfile`/`stderr_logfile` paths.
-- **Sentinel files for idempotency:** Multi-step operations (dependency install,
-  migrations) must use a sentinel file to track completion. For example, touch
-  `/var/www/html/.sandbox-deps-installed` after a successful `composer install`.
-  Check for the sentinel — not the output directory — so that a partial run
-  (interrupted `composer install` that created `vendor/` but didn't finish) gets
-  retried on next start. Simple existence checks (e.g., `.git/HEAD` for clone,
-  `.env` for env generation) are fine for single-command steps.
-  **Sentinel directories must be created after the clone step** — the workdir
-  must be empty for `git clone` to succeed into it, so `mkdir` before clone
-  will cause a fatal error on first run.
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >&2' ERR
+```
+
+Responsibilities (in order):
+1. Configure git credentials (GitHub path via `gh auth`, or generic path via
+   git credential store — see Appendix A in the prompt)
+2. Clone GIT_REPO into workdir if `.git/HEAD` is missing (fresh volume)
+3. Create sentinel directory (after clone — workdir must be empty for clone)
+4. Copy `.env.example` → `.env` if missing, with sandbox-appropriate overrides
+   (e.g., `DB_HOST=127.0.0.1`, `MAIL_HOST=127.0.0.1`, `QUEUE_CONNECTION=sync`,
+   `CACHE_STORE=file` — adjusted based on provisioned services)
+5. Install dependencies idempotently (sentinel file pattern)
+6. Generate app secret/key if framework requires it (after deps install)
+7. Initialize and bootstrap database if applicable (init data directory, start
+   DB temporarily, create user/databases, run migrations with sentinel, stop DB)
+8. Generate supervisord config files for each required long-running process
+   (database server, web server, queue worker, Vite dev server, mail catcher,
+   etc. — only processes the project actually uses)
+9. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
+
+Multi-step operations must use **sentinel files** for idempotency. Check the
+sentinel, not the output directory, so partial installs get retried. Simple
+existence checks (`.git/HEAD`, `.env`) are fine for single-command steps.
+Sentinel directories must be created after the clone step — the workdir must
+be empty for `git clone` to succeed into it.
 
 ### 3. `docker-compose.yml`
 
-Compose configuration. Key requirements:
-
-- **Project name:** Use `{project-name}-sandbox` (derived from the git repo name or
-  directory name) to avoid collisions with the project's own compose setup.
-- **Container name:** Use `{project-name}-sandbox` for predictable `docker exec`.
-- **Environment variables:** Pass through `GIT_REPO`, `AMP_API_KEY`, and
-  credential variables (`GITHUB_TOKEN` for GitHub, or `GIT_CRED_USER` +
-  `GIT_CRED_PASS` for other providers) from `.env`. Set `SANDBOX=1`. Use list
-  syntax (`- KEY=value`) not map syntax (`KEY: value`). **Quote any entry whose
-  value contains a colon** — a trailing colon causes YAML to parse the line as
-  a mapping key instead of a string.
-- **Git SSH-to-HTTPS rewrite:** Include `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_0`, and
-  `GIT_CONFIG_VALUE_0` to rewrite SSH URLs to HTTPS. Derive the host from
-  `GIT_REPO` (e.g., if `GIT_REPO` points to `https://gitlab.example.com/...`,
-  rewrite `git@gitlab.example.com:` to `https://gitlab.example.com/`). Do not
-  hardcode `github.com`.
-- **Volumes:** Named volumes for the codebase and database data (not bind mounts).
-- **Ports:** Expose application port, database port, mail UI port, etc. Source
-  host-side ports from `.env` variables (e.g., `${SANDBOX_HTTP_PORT:-80}:80`) so
-  users can remap them to avoid collisions with host services.
-- **Healthcheck:** Include a `healthcheck` that verifies all supervisord-managed
-  services are in RUNNING state. Use a generous `start_period` (60s+) to allow
-  for first-run setup.
-- **`tty: true` and `stdin_open: true`** to keep the container running.
-- **Resource limits:** Include `deploy.resources.limits` with memory and CPU
-  limits sourced from `.env` (e.g., `SANDBOX_MEMORY_LIMIT`, `SANDBOX_CPU_LIMIT`)
-  with sensible defaults (4g memory, 2 CPUs). This prevents runaway agent
-  processes from consuming all host resources.
-- **Build context:** Point to `.ralph/sandbox/` (i.e., `context: .`).
-- **env_file:** Reference `.env` (the gitignored secrets file).
+- **Project name:** `{project-name}-sandbox` (derived from git repo or directory)
+- **Container name:** `{project-name}-sandbox`
+- **Build context:** `.` (the sandbox directory)
+- **Environment:** Use list syntax (`- KEY=value`), never map syntax. Quote any
+  entry whose value contains a colon. Required vars: `SANDBOX=1`, `GIT_REPO`,
+  `AMP_API_KEY`, credential vars, `GIT_CONFIG` vars to rewrite SSH URLs to HTTPS
+  (derive host from `GIT_REPO`, do not hardcode)
+- **Volumes:** Named volumes for codebase and database data (not bind mounts)
+- **Ports:** Use env vars with defaults (e.g., `${SANDBOX_HTTP_PORT:-80}:80`)
+  so users can remap; only map ports for provisioned services
+- **Healthcheck:** `supervisorctl status` to verify all services are RUNNING
+  (start_period: 60s to allow for first-run setup)
+- **tty: true, stdin_open: true**
+- **Resource limits:** `deploy.resources.limits` with memory and CPU from env
+  vars (defaults: 4g memory, 2 CPUs)
+- **env_file:** `.env`
 
 ### 4. `.env.example`
 
-Template for the secrets file. Always includes:
-
-```env
-# Repository to clone (HTTPS URL, pre-filled from git remote)
-GIT_REPO=https://example.com/{owner}/{repo}.git
-
-# --- Git credentials (choose ONE option) ---
-
-# Option A: GitHub — use a fine-grained PAT scoped to this repo
-GITHUB_TOKEN=
-
-# Option B: Other providers (GitLab, Bitbucket, CodeCommit, etc.)
-# GIT_CRED_USER=    (HTTPS username or token name)
-# GIT_CRED_PASS=    (HTTPS password or token value)
-
-# Amp API key (https://ampcode.com)
-AMP_API_KEY=
-
-# Resource limits (optional — defaults shown)
-SANDBOX_MEMORY_LIMIT=4g
-SANDBOX_CPU_LIMIT=2
-
-# Port mappings (optional — change to avoid collisions with host services)
-SANDBOX_HTTP_PORT=80
-SANDBOX_VITE_PORT=5173
-SANDBOX_DB_PORT=5432
-SANDBOX_SMTP_PORT=1025
-SANDBOX_MAIL_UI_PORT=8025
-```
-
-The agent pre-fills `GIT_REPO` based on the project's git remote. For GitHub
-remotes, `GITHUB_TOKEN` is uncommented by default. For non-GitHub remotes,
-`GIT_CRED_USER` and `GIT_CRED_PASS` are uncommented instead.
-
-## Prompt Template Content
-
-The `prompts/sandbox-setup.md` file uses `envsubst` variables like other ralph
-prompts.
-
-```markdown
-You are an expert DevOps engineer. Your task is to generate an isolated,
-all-in-one Docker sandbox for this project so that AI coding agents can work
-in a safe, disposable environment.
-
-## Context
-
-- **Ralph home:** ${RALPH_HOME}
-- **Sandbox directory:** ${RALPH_HOME}/sandbox
-
-## What to analyze
-
-Scan the project to determine the full runtime stack:
-
-1. Read package manifests (composer.json, package.json, Gemfile, go.mod,
-   requirements.txt, Cargo.toml, pyproject.toml, etc.)
-2. Read existing Docker/container files (Dockerfile, docker-compose.yml,
-   .devcontainer/, docker/, etc.) for reference — do not reuse them directly,
-   build the sandbox independently
-3. Read .env.example or equivalent for database engine, cache, mail, queue config
-4. Read AGENTS.md for project-specific run instructions
-5. Read CI config (.github/workflows/, .gitlab-ci.yml) for service dependencies
-6. Read test config (phpunit.xml, jest.config.*, pytest.ini) for test database needs
-7. Identify the git remote URL for GIT_REPO default
-8. Read ${RALPH_HOME}/dependencies for ralph's own system package requirements
-   and ensure ALL listed packages are installed in the Dockerfile
-9. Read ${RALPH_HOME}/sandbox-preferences.md for user-defined sandbox environment
-   preferences and incorporate them into the generated files
-
-## What to generate
-
-Create these four files in ${RALPH_HOME}/sandbox/:
-
-### 1. Dockerfile
-
-Build an all-in-one container based on ubuntu:24.04 that includes:
-- The project's language runtime and version (e.g., PHP 8.4, Node 22, Python 3.12)
-- All required extensions and system packages
-- Database server (PostgreSQL, MySQL, SQLite — whatever the project uses)
-- Mail catcher (Mailpit) for local SMTP
-- Package managers (composer, npm/yarn/pnpm, pip, etc.)
-- GitHub CLI (gh) — only if the project is hosted on GitHub
-- Amp CLI: npm install -g @sourcegraph/amp
-- tini (apt-get install -y tini) as PID 1 init process
-- supervisord (apt-get install -y supervisor) to manage long-running services
-- A non-root user named "ralph" with passwordless sudo
-- Copy entrypoint.sh into the image
-- ENTRYPOINT ["/usr/bin/tini", "--", "entrypoint.sh"]
-- Expose relevant ports (app, database, mail UI, Vite/HMR if applicable)
-- WORKDIR set to /var/www/html for PHP projects, /app for others
-
-### 2. entrypoint.sh
-
-Write an idempotent entrypoint. It MUST begin with these exact lines:
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >&2' ERR
-```
-
-The ERR trap ensures failures are diagnosable in container logs.
-
-The entrypoint must:
-- Configure git credentials securely. Support two strategies depending on which
-  environment variables are set:
-
-  **GitHub path** — if `GITHUB_TOKEN` is set:
-  ```bash
-  if [ -n "${GITHUB_TOKEN:-}" ]; then
-      TMPFILE=$(mktemp)
-      printf '%s' "$GITHUB_TOKEN" > "$TMPFILE"
-      env -u GITHUB_TOKEN gh auth login --with-token < "$TMPFILE"
-      gh auth setup-git
-      rm -f "$TMPFILE"
-  fi
-  ```
-  **Why `env -u`:** gh CLI refuses `--with-token` when GITHUB_TOKEN is already
-  set as an env var, exiting non-zero and silently killing the entrypoint under
-  `set -euo pipefail`. The token is written to a temp file and piped via
-  stdin redirection (not passed as a command-line argument) to avoid exposing
-  it in process listings (`/proc/*/cmdline`).
-
-  **Generic path** — if `GIT_CRED_USER` and `GIT_CRED_PASS` are set (for
-  GitLab, Bitbucket, AWS CodeCommit, self-hosted git, etc.):
-  ```bash
-  elif [ -n "${GIT_CRED_USER:-}" ] && [ -n "${GIT_CRED_PASS:-}" ]; then
-      REPO_HOST=$(echo "${GIT_REPO}" | sed -E 's|https?://([^/]+).*|\1|')
-      ENCODED_USER=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_USER}")
-      ENCODED_PASS=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_PASS}")
-      printf 'https://%s:%s@%s\n' "${ENCODED_USER}" "${ENCODED_PASS}" "${REPO_HOST}" \
-          > /home/ralph/.git-credentials
-      chmod 600 /home/ralph/.git-credentials
-      chown ralph:ralph /home/ralph/.git-credentials
-      su - ralph -c "git config --global credential.helper 'store --file=/home/ralph/.git-credentials'"
-  fi
-  ```
-  Credentials are URL-encoded because some providers (notably AWS CodeCommit)
-  generate passwords containing `/`, `+`, and `=` that break the credential
-  URL format if written raw.
-- Clones GIT_REPO into the workdir if .git/HEAD is missing (fresh volume)
-- Copies .env.example to .env if missing, with sandbox overrides (DB_HOST=127.0.0.1,
-  MAIL_HOST=127.0.0.1, QUEUE_CONNECTION=sync, CACHE_STORE=file)
-- Generates app secret/key if the framework requires it
-- Installs dependencies and tracks completion with a sentinel file (e.g., touch
-  .sandbox-deps-installed after successful install). Check the sentinel, not the
-  output directory, so partial installs get retried.
-- Initializes the database cluster/data directory if needed
-- Creates database user and databases
-- Starts the database temporarily, runs migrations (tracked with sentinel file),
-  then stops it — supervisord will manage the database process going forward
-- Ends with: exec supervisord -n -c /etc/supervisor/supervisord.conf
-  (tini handles signal forwarding as PID 1 above supervisord)
-- Generates supervisord config files in /etc/supervisor/conf.d/ for each service
-  (database, mail catcher, etc.) with autorestart=true and startsecs=5
-
-Simple existence checks (.git/HEAD, .env) are fine for single-command steps.
-Multi-step operations must use sentinel files for reliable idempotency.
-**Create sentinel directories after the clone step** — the workdir must be
-empty for `git clone` to succeed into it.
-
-### 3. docker-compose.yml
-
-- name: {project-name}-sandbox (derive from git remote or directory name)
-- container_name: {project-name}-sandbox
-- Build context: . (the sandbox directory)
-- Environment (use list syntax `- KEY=value`, not map syntax). **Quote every
-  entry whose value contains a colon** — a trailing colon makes YAML interpret
-  the line as a mapping key instead of a string.
-  Required vars: SANDBOX=1, GIT_REPO, AMP_API_KEY, plus credential vars
-  (GITHUB_TOKEN for GitHub, or GIT_CRED_USER + GIT_CRED_PASS for other
-  providers), plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS (derive the
-  host from GIT_REPO, do not hardcode github.com)
-- Named volumes: sandbox-codebase (for workdir), sandbox-db (for database data)
-- Ports: map standard ports using env vars with defaults
-  (e.g., ${SANDBOX_HTTP_PORT:-80}:80) so users can remap to avoid collisions
-- healthcheck using supervisorctl status to verify all services are RUNNING
-  (start_period: 60s to allow for first-run setup)
-- tty: true, stdin_open: true
-- deploy.resources.limits: memory ${SANDBOX_MEMORY_LIMIT:-4g}, cpus ${SANDBOX_CPU_LIMIT:-2}
-- env_file: .env
-
-### 4. .env.example
-
 Template with:
-- GIT_REPO= (pre-filled from git remote)
-- GITHUB_TOKEN= (with comment: for GitHub repos — fine-grained PAT)
-- GIT_CRED_USER= (with comment: for non-GitHub repos — HTTPS username or token)
-- GIT_CRED_PASS= (with comment: for non-GitHub repos — HTTPS password or token)
-- AMP_API_KEY= (with comment: https://ampcode.com)
-- SANDBOX_MEMORY_LIMIT=4g (with comment: optional resource limits)
-- SANDBOX_CPU_LIMIT=2
-- SANDBOX_HTTP_PORT=80 (with comment: optional port mappings)
-- SANDBOX_VITE_PORT=5173
-- SANDBOX_DB_PORT=5432
-- SANDBOX_SMTP_PORT=1025
-- SANDBOX_MAIL_UI_PORT=8025
+- `GIT_REPO=` (pre-filled from git remote)
+- Credential vars: `GITHUB_TOKEN` uncommented for GitHub repos, or
+  `GIT_CRED_USER` + `GIT_CRED_PASS` uncommented for non-GitHub repos
+- `AMP_API_KEY=`
+- `SANDBOX_MEMORY_LIMIT=4g`
+- `SANDBOX_CPU_LIMIT=2`
+- Port mappings with defaults matching provisioned services (e.g.,
+  `SANDBOX_HTTP_PORT=80`, `SANDBOX_DB_PORT=5432` or `3306`,
+  `SANDBOX_SMTP_PORT=1025`, `SANDBOX_MAIL_UI_PORT=8025`,
+  `SANDBOX_VITE_PORT=5173` if applicable)
+- Every env var used in `docker-compose.yml` or `entrypoint.sh` must be
+  documented here
 
-For GitHub remotes, uncomment GITHUB_TOKEN by default. For non-GitHub remotes,
-uncomment GIT_CRED_USER and GIT_CRED_PASS instead.
+## Prompt Appendices
 
-## Rules
+The prompt includes appendices with battle-tested solutions for known failure
+modes. These are separated from the main body so the agent can reference them
+without fixating on them at the expense of higher-priority concerns.
 
-- Do NOT reuse the project's existing Dockerfile or docker-compose.yml. Build
-  from scratch for the sandbox — existing files are reference only.
-- The container must be fully self-contained. No Docker-in-Docker, no sidecar
-  containers, no host mounts for the codebase.
-- Use named Docker volumes, not bind mounts, for the codebase and database.
-- Install services natively in the container (apt-get), not as separate containers.
-- The sandbox must support running the project's full test suite.
-- Add comments in generated files explaining non-obvious choices.
-- Commit all generated files with message: "chore: generate sandbox environment"
+- **Appendix A: Git Credential Configuration** — exact shell snippets for
+  GitHub (`gh auth login` with `env -u` workaround) and generic credential
+  store (URL-encoded credentials for providers like AWS CodeCommit).
+- **Appendix B: YAML Environment Variable Syntax** — examples of correct list
+  syntax and the colon-quoting pitfall in docker-compose.yml.
+- **Appendix C: Idempotency Patterns** — sentinel file pattern, empty workdir
+  requirement before clone, and when simple existence checks suffice.
 
-When complete, output: <promise>COMPLETE</promise>
-```
+## Template Variables
 
-## Example: Generated Output for a Laravel Project
+The prompt uses `envsubst` variables like other ralph prompts:
 
-For a Laravel project using PHP 8.4, PostgreSQL 17, Node 22, these files would be
-generated by the setup agent:
-
-### `Dockerfile` (example)
-
-```dockerfile
-FROM ubuntu:24.04
-
-LABEL description="All-in-one development sandbox for AI coding agents"
-
-ARG NODE_VERSION=22
-ARG POSTGRES_VERSION=17
-
-WORKDIR /var/www/html
-
-ENV DEBIAN_FRONTEND=noninteractive
-ENV TZ=UTC
-
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-
-# System packages
-RUN apt-get update && apt-get upgrade -y \
-    && mkdir -p /etc/apt/keyrings \
-    && apt-get install -y \
-       gnupg gosu curl ca-certificates zip unzip git tini sqlite3 \
-       libcap2-bin libpng-dev python3 dnsutils librsvg2-bin nano \
-       sudo lsb-release wget supervisor
-
-# PHP 8.4
-RUN curl -sS 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xb8dc7e53946656efbce4c1dd71daeaab4ad4cab6' \
-        | gpg --dearmor | tee /etc/apt/keyrings/ppa_ondrej_php.gpg > /dev/null \
-    && echo "deb [signed-by=/etc/apt/keyrings/ppa_ondrej_php.gpg] https://ppa.launchpadcontent.net/ondrej/php/ubuntu noble main" \
-        > /etc/apt/sources.list.d/ppa_ondrej_php.list \
-    && apt-get update \
-    && apt-get install -y php8.4-cli php8.4-dev \
-       php8.4-pgsql php8.4-sqlite3 php8.4-gd php8.4-curl \
-       php8.4-mbstring php8.4-xml php8.4-zip php8.4-bcmath \
-       php8.4-intl php8.4-readline php8.4-redis php8.4-pcov
-
-# Composer
-RUN curl -sLS https://getcomposer.org/installer | php -- --install-dir=/usr/bin/ --filename=composer
-
-# Node.js
-RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-        | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
-    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_VERSION.x nodistro main" \
-        > /etc/apt/sources.list.d/nodesource.list \
-    && apt-get update && apt-get install -y nodejs \
-    && npm install -g npm
-
-# PostgreSQL
-RUN curl -sS https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-        | gpg --dearmor | tee /etc/apt/keyrings/pgdg.gpg >/dev/null \
-    && echo "deb [signed-by=/etc/apt/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt noble-pgdg main" \
-        > /etc/apt/sources.list.d/pgdg.list \
-    && apt-get update \
-    && apt-get install -y postgresql-$POSTGRES_VERSION postgresql-client-$POSTGRES_VERSION
-
-# Mailpit
-RUN curl -sL https://raw.githubusercontent.com/axllent/mailpit/develop/install.sh | bash
-
-# GitHub CLI (only needed for GitHub-hosted repos)
-# For non-GitHub repos, remove this block — git credential store is used instead
-RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-        | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-        > /etc/apt/sources.list.d/github-cli.list \
-    && apt-get update && apt-get install -y gh
-
-# Amp CLI
-RUN npm install -g @sourcegraph/amp
-
-# Cleanup
-RUN apt-get -y autoremove && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Non-root user
-RUN useradd -ms /bin/bash ralph \
-    && echo "ralph ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/ralph
-
-# PostgreSQL log directory
-RUN mkdir -p /var/log/postgresql && chown postgres:postgres /var/log/postgresql
-
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
-EXPOSE 80 5173 5432 1025 8025
-
-ENTRYPOINT ["/usr/bin/tini", "--", "entrypoint.sh"]
-```
-
-### `entrypoint.sh` (example)
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >&2' ERR
-
-# Git credentials — supports GitHub (gh CLI) or generic (git credential store)
-if [ -n "${GITHUB_TOKEN:-}" ]; then
-    # GitHub path — env -u is required because gh CLI refuses --with-token
-    # when GITHUB_TOKEN is already set as an env var (exits non-zero).
-    TMPFILE=$(mktemp)
-    printf '%s' "$GITHUB_TOKEN" > "$TMPFILE"
-    env -u GITHUB_TOKEN gh auth login --with-token < "$TMPFILE"
-    gh auth setup-git
-    rm -f "$TMPFILE"
-elif [ -n "${GIT_CRED_USER:-}" ] && [ -n "${GIT_CRED_PASS:-}" ]; then
-    # Generic path — GitLab, Bitbucket, CodeCommit, self-hosted, etc.
-    REPO_HOST=$(echo "${GIT_REPO}" | sed -E 's|https?://([^/]+).*|\1|')
-    ENCODED_USER=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_USER}")
-    ENCODED_PASS=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_PASS}")
-    printf 'https://%s:%s@%s\n' "${ENCODED_USER}" "${ENCODED_PASS}" "${REPO_HOST}" \
-        > /home/ralph/.git-credentials
-    chmod 600 /home/ralph/.git-credentials
-    chown ralph:ralph /home/ralph/.git-credentials
-    su - ralph -c "git config --global credential.helper 'store --file=/home/ralph/.git-credentials'"
-fi
-
-# Clone on fresh volume
-if [ ! -f /var/www/html/.git/HEAD ]; then
-    echo "[sandbox] Cloning $GIT_REPO..."
-    su - ralph -c "git clone $GIT_REPO /var/www/html"
-else
-    echo "[sandbox] Codebase present, skipping clone."
-fi
-
-# Generate .env
-if [ ! -f /var/www/html/.env ]; then
-    echo "[sandbox] Generating .env..."
-    cp /var/www/html/.env.example /var/www/html/.env
-    sed -i 's|^DB_HOST=.*|DB_HOST=127.0.0.1|' /var/www/html/.env
-    sed -i 's|^MAIL_HOST=.*|MAIL_HOST=127.0.0.1|' /var/www/html/.env
-    sed -i 's|^QUEUE_CONNECTION=.*|QUEUE_CONNECTION=sync|' /var/www/html/.env
-    sed -i 's|^CACHE_STORE=.*|CACHE_STORE=file|' /var/www/html/.env
-    chown ralph:ralph /var/www/html/.env
-    su - ralph -c "cd /var/www/html && php artisan key:generate"
-fi
-
-# Dependencies (sentinel file ensures partial installs get retried)
-if [ ! -f /var/www/html/.sandbox-deps-installed ]; then
-    su - ralph -c "cd /var/www/html && composer install --no-interaction"
-    su - ralph -c "cd /var/www/html && npm install"
-    su - ralph -c "touch /var/www/html/.sandbox-deps-installed"
-fi
-
-# PostgreSQL — initialize cluster and create role/database
-PG_DATA="/var/lib/postgresql/17/main"
-if [ ! -d "$PG_DATA" ] || [ ! -f "$PG_DATA/PG_VERSION" ]; then
-    pg_createcluster 17 main
-fi
-PG_HBA="$PG_DATA/pg_hba.conf"
-if ! grep -q "host all all 127.0.0.1/32" "$PG_HBA" 2>/dev/null; then
-    echo "host all all 127.0.0.1/32 scram-sha-256" >> "$PG_HBA"
-fi
-
-# Start PostgreSQL temporarily for migrations and role setup
-pg_ctlcluster 17 main start || true
-until su - postgres -c "pg_isready" > /dev/null 2>&1; do sleep 0.5; done
-
-su - postgres -c "psql -tc \"SELECT 1 FROM pg_roles WHERE rolname='ralph'\" | grep -q 1" 2>/dev/null \
-    || su - postgres -c "psql -c \"CREATE ROLE ralph WITH LOGIN PASSWORD 'password' CREATEDB;\""
-su - postgres -c "psql -lqt | cut -d '|' -f 1 | grep -qw laravel" 2>/dev/null \
-    || su - postgres -c "createdb -O ralph laravel"
-
-# Migrations (sentinel ensures partial migrations get retried)
-if [ ! -f /var/www/html/.sandbox-migrated ]; then
-    su - ralph -c "cd /var/www/html && php artisan migrate --force" || true
-    su - ralph -c "touch /var/www/html/.sandbox-migrated"
-fi
-
-# Stop PostgreSQL — supervisord will manage it from here
-pg_ctlcluster 17 main stop || true
-
-echo "[sandbox] Setup complete. Starting services via supervisord..."
-exec supervisord -n -c /etc/supervisor/supervisord.conf
-```
-
-### `docker-compose.yml` (example)
-
-```yaml
-name: myapp-sandbox
-
-services:
-  sandbox:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: myapp-sandbox:latest
-    container_name: myapp-sandbox
-    env_file: .env
-    environment:
-      - SANDBOX=1
-      - GIT_REPO=${GIT_REPO:-https://github.com/owner/myapp.git}
-      - AMP_API_KEY=${AMP_API_KEY}
-      # GitHub credentials (comment out if using GIT_CRED_USER/GIT_CRED_PASS)
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
-      # Generic credentials (uncomment for non-GitHub repos)
-      # - GIT_CRED_USER=${GIT_CRED_USER}
-      # - GIT_CRED_PASS=${GIT_CRED_PASS}
-      - GIT_CONFIG_COUNT=1
-      # Derive host from GIT_REPO — example below is for github.com
-      - GIT_CONFIG_KEY_0=url.https://github.com/.insteadOf
-      - "GIT_CONFIG_VALUE_0=git@github.com:"
-    volumes:
-      - sandbox-codebase:/var/www/html
-      - sandbox-pgsql:/var/lib/postgresql
-    ports:
-      - '${SANDBOX_HTTP_PORT:-80}:80'
-      - '${SANDBOX_VITE_PORT:-5173}:5173'
-      - '${SANDBOX_DB_PORT:-5432}:5432'
-      - '${SANDBOX_SMTP_PORT:-1025}:1025'
-      - '${SANDBOX_MAIL_UI_PORT:-8025}:8025'
-    healthcheck:
-      test: ['CMD-SHELL', 'supervisorctl status | grep -v RUNNING && exit 1 || exit 0']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: '${SANDBOX_MEMORY_LIMIT:-4g}'
-          cpus: '${SANDBOX_CPU_LIMIT:-2}'
-    tty: true
-    stdin_open: true
-
-volumes:
-  sandbox-codebase:
-    driver: local
-  sandbox-pgsql:
-    driver: local
-```
-
-### `.env.example` (example)
-
-```env
-# Repository to clone (HTTPS URL, pre-filled from git remote)
-GIT_REPO=https://github.com/owner/myapp.git
-
-# --- Git credentials (choose ONE option) ---
-
-# Option A: GitHub — use a fine-grained PAT scoped to this repo
-GITHUB_TOKEN=
-
-# Option B: Other providers (GitLab, Bitbucket, CodeCommit, etc.)
-# GIT_CRED_USER=    (HTTPS username or token name)
-# GIT_CRED_PASS=    (HTTPS password or token value)
-
-# Amp API key (https://ampcode.com)
-AMP_API_KEY=
-
-# Resource limits (optional — defaults shown)
-SANDBOX_MEMORY_LIMIT=4g
-SANDBOX_CPU_LIMIT=2
-
-# Port mappings (optional — change to avoid collisions with host services)
-SANDBOX_HTTP_PORT=80
-SANDBOX_VITE_PORT=5173
-SANDBOX_DB_PORT=5432
-SANDBOX_SMTP_PORT=1025
-SANDBOX_MAIL_UI_PORT=8025
-```
-
-## Example: Generated Output for a Node.js/Express Project
-
-For a Node.js project using MongoDB, the setup agent would generate a container
-with Node, MongoDB server, and Mailpit — no PHP, no PostgreSQL. The Dockerfile
-and entrypoint follow the same structural pattern but with different packages:
-
-```dockerfile
-# Key differences from the Laravel example:
-# - No PHP, no Composer
-# - MongoDB server instead of PostgreSQL
-# - WORKDIR /app instead of /var/www/html
-# - entrypoint runs: mongod --fork, npm install, npm run migrate (or equivalent)
-```
-
-## Example: Generated Output for a Python/Django Project
-
-```dockerfile
-# Key differences:
-# - Python 3.12, pip, virtualenv
-# - PostgreSQL or MySQL depending on settings.py
-# - WORKDIR /app
-# - entrypoint runs: pip install -r requirements.txt, python manage.py migrate
-```
-
-The point is that `prompts/sandbox-setup.md` provides the structural requirements
-while the agent adapts the specifics to whatever stack it discovers.
+| Variable | Source | Description |
+|----------|--------|-------------|
+| `${RALPH_HOME}` | runtime | Relative path from project root to Ralph's directory |
+| `${STACK_PLAYBOOK}` | `sandbox_setup()` | Path to stack-specific playbook file, or empty |
 
 ## Edge Cases
 
@@ -669,21 +406,89 @@ while the agent adapts the specifics to whatever stack it discovers.
 
 If the project has no Dockerfile, docker-compose.yml, or .devcontainer, the agent
 must infer the stack entirely from package manifests and config files. The prompt
-handles this — containerization files are "reference only" and not required.
+handles this — containerization files are reference material, not required.
 
 ### Multiple database engines
 
 Some projects use PostgreSQL for the app and Redis for caching. The agent should
-install both in the container and start both in the entrypoint.
+install both in the container and manage both under supervisord.
 
 ### Tests use SQLite in-memory
 
 Many projects use SQLite for tests regardless of production database. The agent
-should still install the production database (for manual testing and development)
-but note in entrypoint comments that the test suite may not require it.
+should still provision the production database (for development and manual
+testing) but may note in comments that the test suite uses SQLite.
+
+### No playbook for detected stack
+
+If `detect_stack()` identifies a stack but no playbook file exists for it, the
+agent proceeds with the core prompt alone. The core prompt is designed to be
+sufficient — playbooks are an enhancement, not a requirement.
 
 ### First build is slow
 
 The generated Dockerfile will produce large images (1-3GB). `ralph sandbox up`
 should print a message: "First build may take several minutes." Subsequent starts
 reuse the cached image and are fast.
+
+## Changes to `ralph` Script
+
+Add `detect_stack()` function and update `sandbox_setup()` to call it:
+
+```bash
+detect_stack() {
+    if [[ -f "artisan" ]] \
+        || { [[ -f "composer.json" ]] && grep -q '"laravel/framework"' composer.json 2>/dev/null; }; then
+        echo "php-laravel"; return
+    fi
+    if [[ -f "composer.json" ]]; then echo "php"; return; fi
+    if [[ -f "bin/rails" ]] \
+        || { [[ -f "Gemfile" ]] && grep -q "rails" Gemfile 2>/dev/null; }; then
+        echo "rails"; return
+    fi
+    if [[ -f "Gemfile" ]]; then echo "ruby"; return; fi
+    if [[ -f "manage.py" ]] && grep -q "django" manage.py 2>/dev/null; then
+        echo "python-django"; return
+    fi
+    if [[ -f "pyproject.toml" ]] || [[ -f "requirements.txt" ]] \
+        || [[ -f "Pipfile" ]] || [[ -f "setup.py" ]]; then
+        echo "python"; return
+    fi
+    if [[ -f "go.mod" ]]; then echo "go"; return; fi
+    if [[ -f "Cargo.toml" ]]; then echo "rust"; return; fi
+    if [[ -f "package.json" ]]; then echo "node"; return; fi
+    echo ""
+}
+```
+
+In `sandbox_setup()`, before `prepare_prompt`:
+
+```bash
+STACK=$(detect_stack)
+PLAYBOOK_FILE="$RALPH_DIR/prompts/playbooks/${STACK}.md"
+if [[ -n "$STACK" && -f "$PLAYBOOK_FILE" ]]; then
+    export STACK_PLAYBOOK="$PLAYBOOK_FILE"
+else
+    export STACK_PLAYBOOK=""
+fi
+```
+
+## Changes to Installer and Updater
+
+- Add `prompts/playbooks/` directory to installer
+- Add each playbook file to `MANAGED_FILES` in `update.sh`
+- Add `prompts/sandbox-setup.md` to `MANAGED_FILES` (already specified)
+
+## Changes to Project Structure
+
+Add `prompts/playbooks/` to the directory layouts in `specs/project-structure.md`:
+
+```
+prompts/
+├── plan.md
+├── build.md
+├── sandbox-setup.md
+└── playbooks/
+    ├── php-laravel.md
+    └── ...
+```

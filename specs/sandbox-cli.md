@@ -227,16 +227,16 @@ sandbox_reset() {
 sandbox_shell() {
     local container_name
     container_name=$(sandbox_container_name)
-    docker exec -it -u ralph -w /var/www/html "$container_name" bash
+    docker exec -it -u ralph "$container_name" bash
 }
 ```
 
 The `sandbox_container_name` helper reads `container_name` from the compose file
 or derives it from the project name.
 
-Note: the workdir (`/var/www/html`) should match the `WORKDIR` in the generated
-Dockerfile. The setup agent should use a conventional path — `/var/www/html` for
-PHP projects, `/app` for most others.
+The shell inherits the container's `WORKDIR` (set in the generated Dockerfile),
+so it works correctly regardless of project type — `/var/www/html` for PHP
+projects, `/app` for others.
 
 ## `ralph sandbox status`
 
