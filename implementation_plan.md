@@ -58,7 +58,7 @@ the most fleshed out in the spec examples.
 
 ### Task 3: Add playbook files to installer and updater MANAGED_FILES
 
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-setup-prompt.md
 
 Add the playbook files to `MANAGED_FILES` and `SOURCE_PATHS` in both `install.sh` and `update.sh`

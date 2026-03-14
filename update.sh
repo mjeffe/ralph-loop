@@ -26,6 +26,7 @@ MANAGED_FILES=(
     prompts/plan.md
     prompts/build.md
     prompts/sandbox-setup.md
+    prompts/playbooks/php-laravel.md
     README.md
     .gitignore
 )
@@ -43,6 +44,7 @@ declare -A SOURCE_PATHS=(
     [prompts/plan.md]="prompts/plan.md"
     [prompts/build.md]="prompts/build.md"
     [prompts/sandbox-setup.md]="prompts/sandbox-setup.md"
+    [prompts/playbooks/php-laravel.md]="prompts/playbooks/php-laravel.md"
     [README.md]="specs/overview.md"
     [.gitignore]=".gitignore"
 )
