@@ -1,12 +1,8 @@
 # Agent Configuration
 
-- You are an expert software developer
-- You always strive for simple and elegant solutions using SOLID programming principles and good object oriented design
-- You prioritize pragmatic simplicity over theoretical purity, unless the distinction provides significant practical benefits
-- DO NOT over-engineer
-- Follow SOLID programming principles
-- Keep solutions simple and direct
-- Prefer boring, readable code
+- Prioritize pragmatic simplicity over theoretical purity — prefer boring, readable code
+- Follow SOLID principles but don't over-engineer; only add abstraction when it provides clear, immediate benefit
+- Use subagents for self-contained subtasks (searches, independent edits, exploratory analysis) so their verbose output doesn't consume your main context window
 
 ## Project Overview
 
@@ -22,30 +18,25 @@ Run the test suite:
 ```
 
 Running ralph itself can be expensive and time consuming. If you need to run it for testing
-purposes, **only** run it after temporarily inserting debug statements or bypasses, or swap
-out the default prompts with something very simple.
+purposes, ONLY run it after temporarily inserting debug statements or bypasses to
+short-circuit expensive operations.
 
 ## Project-Specific Guidelines
 
-- **Specs are the source of truth.** When changing behavior, update the relevant spec first.
+- **Specs are the source of truth.** When changing behavior, update the relevant spec first — then update the corresponding prompt template in `prompts/` to match.
 - **Keep `specs/README.md` current.** If you add or remove a spec file, update the index.
 - **Keep the root `README.md` in sync** with any significant structural or behavioral changes.
-- **The ralph script lives at the project root** (`./ralph`), not in a subdirectory.
-- **No `ralph/` directory exists in this project** — ralph runs from its own root.
-  (When installed into a target project, ralph lives under `.ralph/`.)
-- When modifying prompt templates in `prompts/`, also update the canonical template
-  definitions: `specs/plan-mode.md` (plan prompt) and `specs/build-mode.md` (build prompt).
+- The `ralph` script lives at the project root — there is no `ralph/` subdirectory.
 
 ## Commit Messages
 
-- NO agent attribution
-- NO "Generated with" footers
+- No agent attribution or "Generated with" footers
 - Use conventional commits (feat:, fix:, etc.)
 - First line under 72 characters followed by a blank line.
 
 ## Code Style
 
--**Formatting**: indent with 4 spaces, 120 max char line length
--**Naming**: favor snake_case in shell and python, and follow Laravel conventions for PHP
--**Comments**: Only add comments when code is complex and requires context for future developers
+- Indent with 4 spaces, 120 max line length
+- Use snake_case for variables and functions
+- Only add comments when code is complex and requires context for future developers
 
