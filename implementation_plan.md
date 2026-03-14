@@ -1,121 +1,91 @@
 # Implementation Plan
 
-## Learnings & Gotchas
+### Task 1: Add detect_stack() and playbook injection to sandbox_setup()
+**Status:** planned
+**Spec:** specs/sandbox-setup-prompt.md
 
-- The ralph-loop repo is self-hosting: RALPH_DIR resolves to the project root, so `last_agent_output`, `implementation_plan.md`, etc. all live at root level.
-- The canonical prompt templates live in the specs (plan-mode.md, build-mode.md). The actual prompt files (prompts/plan.md, prompts/build.md) must match them.
-- The installer spec (installer.md) lists agent scripts `claude.sh`, `cline.sh`, `codex.sh` and the project-structure spec shows them in the directory tree, but they don't exist yet. The installer currently only copies `amp.sh`.
-- The installer spec's `.gitignore` template only has `logs/`, but the actual installed `.gitignore` also has `last_agent_output` and `*.upstream` — the spec is out of date, the code is correct. The spec should be updated to match.
-- The iteration log header/footer format in loop-behavior.md uses a structured multi-line format with separators. The actual `ralph` script uses a more compact format. This is cosmetic and acceptable as-is — the spec describes an ideal; the code captures the essential info.
-- Sandbox specs (`sandbox-cli.md`, `sandbox-setup-prompt.md`) are entirely new features — no code exists yet.
-- The `sandbox-cli.md` spec explicitly says it must be implemented before `sandbox-setup-prompt.md`.
+The `sandbox-setup-prompt.md` spec requires `detect_stack()` — a deterministic bash function
+that identifies the project's primary stack (php-laravel, php, rails, ruby, python-django,
+python, go, rust, node). It also requires `sandbox_setup()` to call `detect_stack()`, resolve
+the playbook path, and export `STACK_PLAYBOOK` for `envsubst` before `prepare_prompt`.
 
----
+**What to do:**
+1. Add the `detect_stack()` function to `ralph` (place it in the sandbox lifecycle section,
+   before `sandbox_setup()`). Use the exact detection logic from the spec.
+2. Update `sandbox_setup()` to call `detect_stack()` and export `STACK_PLAYBOOK` before
+   `prepare_prompt`.
+3. Add the `${STACK_PLAYBOOK}` reference to `prompts/sandbox-setup.md` (e.g.,
+   "If a stack playbook is provided, read and follow it: ${STACK_PLAYBOOK}").
+4. Add tests for `detect_stack()` to `tests/test_ralph.sh` — create temp projects with
+   marker files (composer.json, artisan, package.json, etc.) and verify correct stack output.
 
-## Completed Tasks (Previous Plan)
+### Task 2: Create playbooks directory and initial playbook(s)
+**Status:** planned
+**Spec:** specs/sandbox-setup-prompt.md
+**Dependencies:** Task 1
 
-### Task 1: Fix prompt mode max_iterations parsing
-**Status:** complete
+Create `prompts/playbooks/` directory with at least one initial playbook (e.g.,
+`php-laravel.md`) as a reference implementation. The spec provides content guidelines:
+under 50 lines, covering runtime installation, package manager, framework bootstrap,
+migrations, extensions, workdir, env overrides, and long-running processes.
+
+**What to do:**
+1. Create `prompts/playbooks/` directory.
+2. Write `prompts/playbooks/php-laravel.md` following the content guidelines in the spec.
+3. Add playbook files to `MANAGED_FILES` in `install.sh` and `update.sh`, and to `SOURCE_PATHS`
+   in `update.sh`.
+4. Add `mkdir -p "$RALPH_DIR/prompts/playbooks"` to `install_ralph_dir()` in `install.sh`.
+5. Update `specs/project-structure.md` directory layouts to include `prompts/playbooks/`.
+
+### Task 3: Consolidate sandbox-setup prompt (v1 → v2)
+**Status:** planned
+**Spec:** specs/sandbox-setup-prompt.md
+
+The `prompts/sandbox-setup-v2.md` file implements the restructured prompt format described in
+the spec (Definition of Done → Priority Order → Project Analysis → Hard Constraints →
+Generated Files → Self-Validation Checklist → Appendices). The current active file
+`prompts/sandbox-setup.md` uses the older flat format. The spec says the prompt should follow
+the restructured layout.
+
+**What to do:**
+1. Replace `prompts/sandbox-setup.md` content with `prompts/sandbox-setup-v2.md` content
+   (incorporating the `${STACK_PLAYBOOK}` reference from Task 1 if not already present).
+2. Delete `prompts/sandbox-setup-v2.md`.
+3. Verify the `${RALPH_HOME}` and other template variables are correct in the merged file.
+
+### Task 4: Align iteration logging with spec format
+**Status:** planned
 **Spec:** specs/loop-behavior.md
 
-### Task 3: Resolve `text` agent type spec inconsistency
-**Status:** complete
-**Spec:** specs/overview.md, specs/project-structure.md, specs/loop-behavior.md
+The `loop-behavior.md` spec defines a detailed iteration header/footer format with
+Mode, Start Time, End Time, Duration, Status, and optional cost/balance fields. The current
+`run_iteration()` and `run_loop()` in `ralph` use a simplified format that doesn't match
+the spec.
 
-### Task 4: Clean up .gitignore and add generated file exclusions
-**Status:** complete
-**Spec:** specs/project-structure.md, specs/loop-behavior.md
+**What to do:**
+1. Update `run_iteration()` header to match the spec format:
+   ```
+   ================================================================================
+   ITERATION ${ITERATION}
+   ================================================================================
+   Mode: ${MODE}
+   Start Time: ${TIMESTAMP}
+   --------------------------------------------------------------------------------
+   ```
+2. Update `run_iteration()` footer to match the spec format:
+   ```
+   --------------------------------------------------------------------------------
+   ITERATION ${ITERATION} COMPLETE
+   End Time: ${TIMESTAMP}
+   Duration: ${DURATION}
+   Status: ${STATUS}
+   ================================================================================
+   ```
+3. The cost/balance lines in the footer come from `agent_post_iteration()` which already
+   logs via `log` — ensure they appear in the right place (between Duration and Status,
+   or after the footer as they do now).
+4. Update tests if any assert on log output format.
 
-### Task 5: Update installer to generate .version and .manifest
-**Status:** complete
-**Spec:** specs/updater.md
-
-### Task 6: Add `update` mode to ralph script
-**Status:** complete
-**Spec:** specs/updater.md
-
-### Task 7: Create update.sh
-**Status:** complete
-**Spec:** specs/updater.md
-
-### Task 8: Sync README.md with current project state
-**Status:** complete
-**Spec:** specs/overview.md, specs/project-structure.md
-
----
-
-## New Tasks
-
-### Task 9: Update installer spec `.gitignore` template
-**Status:** complete
-**Spec:** specs/installer.md
-**Priority:** low (spec housekeeping)
-
-The installer spec (installer.md, section "File Templates → .ralph/.gitignore") shows only `logs/` in the `.gitignore` template. The actual installer code already writes `last_agent_output` and `*.upstream` entries too. Update the spec to match the implemented code so they stay in sync.
-
-Also, `sandbox-cli.md` requires adding `sandbox/.env` to the `.gitignore` template — this should be included when the sandbox CLI is implemented (Task 10), but the base `.gitignore` spec should be corrected now.
-
----
-
-### Task 10: Implement sandbox CLI lifecycle commands
-**Status:** complete
-**Spec:** specs/sandbox-cli.md
-**Priority:** high (implement before Task 11)
-
-Add the `sandbox` subcommand to the `ralph` script with all lifecycle functions:
-
-1. **Argument parsing:** Add `sandbox` to the mode case statement. Parse subcommands: `setup`, `up`, `down`, `reset`, `shell`, `status`.
-2. **SANDBOX=1 guard:** If `SANDBOX=1` is set in the environment, print error and exit.
-3. **Lifecycle functions:** Implement `sandbox_up`, `sandbox_down`, `sandbox_reset`, `sandbox_shell`, `sandbox_status`, `sandbox_setup` as specified.
-4. **sandbox_setup:** Use `agent_invoke` with the `prompts/sandbox-setup.md` template. Check for existing sandbox files. Create `.ralph/sandbox/` directory.
-5. **sandbox_container_name helper:** Read container name from compose file or derive from project name.
-6. **Installer changes:** Add `prompts/sandbox-setup.md` to managed files list in `install.sh`. Create `.ralph/sandbox/` directory. Add `sandbox/.env` to `.ralph/.gitignore`.
-7. **Updater changes:** Add `prompts/sandbox-setup.md` to `MANAGED_FILES` and `SOURCE_PATHS` in `update.sh`.
-8. **Usage text:** Update `usage()` to include `sandbox` subcommands.
-9. **Prerequisite validation:** Sandbox mode should skip agent CLI validation (Docker is needed instead, but per spec ralph doesn't validate Docker — compose commands will fail with their own error messages).
-10. **Update tests:** Add tests for sandbox argument parsing, SANDBOX=1 guard.
-
-**Notes:**
-- The `sandbox setup` command is a single agent invocation (no loop). It calls `prepare_prompt` + `agent_invoke` + `agent_format_display` directly, so it does need the agent script loaded.
-- The `read -p` in `sandbox_reset` means it requires an interactive terminal.
-- The sandbox subcommand should not enter `run_loop` — it's a direct command.
-
----
-
-### Task 11: Create sandbox setup prompt template
-**Status:** complete
-**Spec:** specs/sandbox-setup-prompt.md
-**Depends on:** Task 10
-
-Create `prompts/sandbox-setup.md` with the canonical prompt template from the spec. This is the prompt that `ralph sandbox setup` sends to the agent.
-
-The prompt template content is fully specified in `specs/sandbox-setup-prompt.md` under "Prompt Template Content". Copy it into `prompts/sandbox-setup.md`.
-
----
-
-### Task 12: Add placeholder agent scripts for claude, cline, codex
-**Status:** complete
-**Spec:** specs/agent-scripts.md, specs/project-structure.md, specs/installer.md
-
-The project-structure spec and installer spec list `claude.sh`, `cline.sh`, and `codex.sh` as agent scripts that should exist. Currently only `amp.sh` exists.
-
-Options:
-1. Create stub scripts that set `AGENT_CLI` and define the required functions with placeholder implementations that echo a "not yet implemented" message.
-2. Remove references from specs if we don't want to support them yet.
-
-Recommend option 1 — create minimal stubs so the directory structure matches specs and the installer can copy them. Each stub should set `AGENT_CLI` to the expected binary name and have the three required functions print a "not yet implemented" error and exit 1.
-
-Also update `install.sh` to copy these scripts during installation, and update `update.sh` `MANAGED_FILES`/`SOURCE_PATHS` to include them.
-
----
-
-### Task 13: Sync README.md with sandbox feature
-**Status:** complete
-**Spec:** specs/overview.md, specs/project-structure.md
-**Depends on:** Tasks 10-11
-
-After sandbox implementation:
-- Update README.md to document sandbox commands in the Usage section
-- Update the project structure diagram to include `sandbox/` directory and `prompts/sandbox-setup.md`
-- Update the "Future Enhancements" section — containerization is no longer future
-- Add sandbox-related specs to the Documentation section
+**Gotcha:** The spec says "Iteration Cost" and "Balance" lines appear in the footer only
+"if usage tracking configured" — the current agent_post_iteration hook already handles
+this conditionally. Just need to ensure the header/footer framing matches the spec.
