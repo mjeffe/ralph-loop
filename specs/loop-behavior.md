@@ -20,11 +20,12 @@ ralph <mode> [max_iterations]
 ### Modes
 
 - `plan [max_iterations]` - Run gap-driven plan mode iterations (from target-state specs)
-- `plan --process [max_iterations]` - Run sequence-constrained plan mode iterations (from process specs)
+- `plan --process [max_iterations]` - Run sequence-constrained plan mode iterations (from process specs). Requires `PROCESS_DIR` in config. See `specs/process-planning.md`.
 - `build [max_iterations]` - Run build mode iterations
 - `prompt <file> [max_iterations]` - Run an ad-hoc prompt in the loop
 
-The `--process` flag is only valid with `plan`. See `specs/process-planning.md`.
+The `--process` flag is only valid with `plan`. If used with `build`, `prompt`, or other
+modes, ralph exits with an error: "--process is only valid with 'ralph plan'."
 
 ### Examples
 
@@ -160,7 +161,9 @@ The loop also scans for:
 When detected:
 - Current iteration completes normally
 - Loop exits with code 3
-- Message displayed: "Agent requested re-planning. Run 'ralph plan' to regenerate the implementation plan."
+- Ralph reads the `Plan Command:` line from `${RALPH_HOME}/implementation_plan.md` if present
+- Message displayed: "Agent requested re-planning. Run '`<Plan Command>`' to regenerate the implementation plan."
+- If no `Plan Command:` line is found, fall back to: "Agent requested re-planning. Run 'ralph plan' to regenerate the implementation plan."
 
 ### Git Operations
 

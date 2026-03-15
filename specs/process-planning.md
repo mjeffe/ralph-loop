@@ -133,8 +133,8 @@ The key difference from gap-driven planning:
 | **Codebase survey** | Full | Full |
 | **Task discovery** | Infer from spec-vs-code gaps | Decompose within human-defined phases |
 | **Ordering authority** | Agent decides | Human's phase structure is authoritative |
-| **Target-state specs** | Primary input | Read-only context |
-| **Adding work** | Expected | Only within or between existing phases |
+| **Target-state specs** | Primary input | Validation context (see below) |
+| **Adding work** | Expected | Discovered prerequisites may be inserted before the affected phase; ancillary work goes in an appendix |
 
 Process specs define the strategy, phases, and sequencing constraints. The agent surveys
 the codebase to understand the actual scope of each phase and step, then decomposes them
@@ -142,13 +142,43 @@ into tasks that can each be completed in a single build iteration. The agent has
 autonomy in *how* it breaks down each step, but the phase ordering from the process spec
 is authoritative.
 
-When multiple process specs cover the same phase or step at different levels of detail,
-the most detailed spec is authoritative for decomposition. Higher-level specs provide
-context and define phases not covered elsewhere.
+### Authority Scope
 
-Target-state specs from `${SPECS_DIR}` are available as context — they help the agent
-understand what each process step is trying to achieve and how to size tasks — but they
-do not drive task creation.
+- **Phase order** is always authoritative.
+- **Step order within a phase** is authoritative when the process spec makes it explicit
+  (numbered sequence, "before/after", "then", "must precede", dependency language, or
+  equivalent).
+- When step order is not explicit, the agent may regroup or reorder within the phase for
+  buildable task sizing, as long as it does not violate stated dependencies or phase intent.
+- The agent may split a step into multiple tasks or combine adjacent steps within the same
+  phase, but must not cross phase boundaries or violate explicit sequencing.
+- If it is unclear whether a step sequence is mandatory and the ambiguity affects safe
+  execution, the agent preserves written order and adds a `Process gap:` note.
+
+### Multiple Process Specs
+
+When multiple process specs are present:
+
+- Build one merged plan.
+- Any spec that explicitly defines end-to-end phase order controls ordering for those phases.
+- A more detailed spec may split or refine a phase from a higher-level spec, but may not
+  reorder it.
+- If two specs describe disjoint work with no explicit ordering relationship, preserve each
+  spec's internal order and keep the phases grouped unless a true prerequisite requires linkage.
+- If cross-spec ordering cannot be reconciled, add a `Conflict:` note rather than inventing
+  an order.
+
+### Target-State Spec Interaction
+
+Target-state specs from `${SPECS_DIR}` are **validation context**. Use them to:
+
+- Understand the intended end state of each process step
+- Confirm whether authored process work is already satisfied in the codebase
+- Surface contradictions, missing outcomes, or sequencing risks
+
+They do not create standalone tasks by themselves. Only create work from them when the
+missing work is necessary to execute or verify an existing process phase/step; in that
+case, classify it as a discovered prerequisite (see Discovered Work below).
 
 ### Discovery and Investigation Tasks
 
@@ -176,21 +206,40 @@ completed spec out of the active directory.
 
 ### Regeneration
 
-When `ralph plan --process` finds an existing plan with completed tasks, it:
-- Keeps completed tasks as-is
-- Re-decomposes remaining phases from the source process specs
-- Preserves the phase ordering
+When `ralph plan --process` finds an existing plan with build progress, it does not
+preserve incomplete work blindly:
+
+- **Revalidate** each `complete` task against the current codebase and current specs.
+  Preserve a completed task only if its outcome is still present and still aligned with
+  current process/target-state context.
+- **Re-evaluate** each `blocked` task. If the blocker has cleared, return it to `planned`.
+  If it still stands, keep it `blocked` with an updated reason.
+- **Re-decompose** all remaining incomplete phases from the current process specs rather
+  than trusting stale task wording.
+- **Add corrective follow-up tasks** when prior completed work is now incomplete,
+  invalidated, or contradicted by current reality. Keep the historical record but add a
+  new task labeled `Corrective follow-up for Task N` in the earliest valid phase that
+  restores the intended state.
+- **Preserve the phase ordering** from the process specs.
 
 This differs from gap-driven planning, which rebuilds the entire task list from scratch.
 
 ## Build Mode
 
-Build mode is plan-type agnostic. It works the same regardless of how the plan was
-created. The plan's own structure communicates its constraints — a sequence-constrained
-plan has visible phase groupings that the build agent naturally respects, while a
-gap-driven plan has a flat priority list where reordering is acceptable.
+Build mode reads the `Plan Type:` header from the implementation plan and adjusts task
+selection accordingly:
 
-No changes to `prompts/build.md` are required for process planning support.
+- `Plan Type: gap-driven` — treat the plan as a priority list. The agent may choose a
+  different ready task when there is a clear reason, but must document why.
+- `Plan Type: process` — treat phase headings as authoritative ordering constraints. The
+  agent selects work from the earliest incomplete phase with a ready `planned` task.
+  Within that phase, explicit sequencing and `Depends on:` fields are authoritative.
+
+The plan also records `Plan Command:` so that REPLAN signals direct the human to the
+correct regeneration command.
+
+This requires small additions to `prompts/build.md` and `specs/build-mode.md` — see the
+"Changes to Existing Specs and Files" section below.
 
 ## Prompt Template
 
@@ -205,11 +254,14 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 
 ## Operating Contract
 
-- Process specs define the strategy, phases, and sequencing. Their phase ordering is **authoritative** — you must not reorder phases.
+- Process specs define the strategy, phases, and sequencing. You must not reorder phases.
+- **Phase order** is always authoritative.
+- **Step order within a phase** is authoritative when the process spec makes it explicit (numbered sequence, "before/after", "then", "must precede", dependency language, or equivalent). When step order is not explicit, you may regroup or reorder within the phase for buildable task sizing, as long as you do not violate stated dependencies or phase intent.
+- You may split a step into multiple tasks or combine adjacent steps within the same phase, but must not cross phase boundaries or violate explicit sequencing.
+- If it is unclear whether a step sequence is mandatory and the ambiguity affects safe execution, preserve written order and add a `Process gap:` note.
 - You have full autonomy in how you decompose each phase into build-iteration-sized tasks.
-- Target-state specs in `${SPECS_DIR}/` are **read-only context** — they help you understand what each step achieves, but they do not drive task creation.
 - When multiple process specs cover the same phase or step at different levels of detail, the most detailed spec is authoritative for decomposition. Higher-level specs provide context and define phases not covered elsewhere.
-- **Do not implement product code** — process planning produces only the implementation plan, and commits.
+- **Do not implement product code** — process planning produces only the implementation plan and commits.
 - Commit your plan updates at the end of each iteration with a descriptive commit message.
 
 ## Context
@@ -223,10 +275,10 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 ## Workflow
 
 1. **Read inputs** — Study `AGENTS.md`, `${SPECS_DIR}/README.md`, all top-level `*.md` files in `${PROCESS_DIR}/` (not subdirectories), and target-state specs in `${SPECS_DIR}/` for context. If `${RALPH_HOME}/implementation_plan.md` exists, read it to understand prior progress.
-2. **Survey the codebase** — Understand the current state of the project, focusing on areas touched by the process specs. This is a full survey, not a cursory glance — you need to accurately size each phase.
+2. **Survey the codebase** — Understand the current state of the project, focusing on areas touched by the process specs. Survey enough of the codebase to accurately size remaining phases and identify sequencing-relevant constraints.
 3. **Check for completed specs** — If your survey reveals that all work described by a process spec is already complete, do not generate tasks for it. Instead, note it at the top of the plan: "Process spec `<file>` appears complete — consider moving it to `${PROCESS_DIR}/archive/`."
 4. **Decompose phases** — For each active process spec, determine whether each phase and step fits in a single build iteration or needs splitting. Split based on independently testable concerns, but keep child tasks adjacent within their parent phase. You may emit **discovery/investigation tasks** (inventories, measurements, feasibility assessments) when a phase requires understanding before implementation.
-5. **Write the plan** — Create or update `${RALPH_HOME}/implementation_plan.md`. If the plan already contains tasks marked `complete`, preserve them and re-decompose only the remaining phases.
+5. **Write the plan** — Create or update `${RALPH_HOME}/implementation_plan.md`. If the plan already contains build progress, apply the Regeneration Rules below before writing the updated plan.
 6. **Commit** all changes with a descriptive commit message.
 7. **If planning is complete**, output the completion signal (see Exit Signal).
 8. **If planning is not yet complete**, stop without a signal — the loop will start another iteration.
@@ -235,7 +287,22 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 
 When planning is complete, output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it.
 
+Planning is complete when:
+- Every active top-level process spec has been reviewed
+- Every authored phase is either decomposed into build-sized tasks, noted as already complete, or represented by an explicit blocked/manual gate
+- Discovered work has been classified as either `Discovered prerequisite` or `Ancillary / Follow-up Work`
+- Phase order and explicit dependencies are clear enough for build mode to choose the next task safely
+- Unresolved conflicts and process gaps are called out explicitly
+- Previously completed tasks have been revalidated against the current codebase and current specs
+
 ## Plan Format
+
+At the top of the plan, include:
+- `Plan Type: process`
+- `Plan Command: ralph plan --process`
+- `Primary Process Specs:` comma-separated list of active process spec files
+
+Structure the main body using phase headings (e.g., `## Phase 0 — Inventory and safety rails`). Each phase should include its source process spec traceability and an optional `Depends on:` line when helpful.
 
 Each task needs at minimum:
 - A short title
@@ -243,6 +310,7 @@ Each task needs at minimum:
 - The **process spec and phase/step** it traces to (e.g., `specs/process/migration-plan.md — Phase 0a, Step 1`)
 - A **status**: `planned` | `blocked` | `complete`
 - Enough context for a build agent to start work without re-reading the full process spec
+- An optional `Depends on:` line when the dependency is not obvious from placement
 
 Order tasks to match the phase ordering from the process specs.
 
@@ -255,10 +323,75 @@ Order tasks to match the phase ordering from the process specs.
 
 ## Discovered Work
 
-If you discover work not covered by the process specs:
-- Note it in a clearly labeled section at the end of the plan
-- Suggest where it fits relative to existing phases
-- Do not insert it into the phase sequence
+If you discover work not explicitly written in the process specs, classify it before adding it to the plan:
+
+1. **Discovered prerequisite** — work that must happen for an existing phase/step to be executable, safe, or verifiable. Examples: missing compatibility tests, required adapters, data backfill prerequisites, inventories, baselines, or rollout safety checks.
+   - Insert it into the main plan immediately before the earliest affected phase or step.
+   - Label it `Discovered prerequisite`.
+   - Explain why it is required and what authored phase/step it unblocks.
+
+2. **Ancillary / follow-up work** — cleanup, opportunistic refactors, nice-to-have improvements, or post-migration polish that is not required to execute the authored phase sequence.
+   - Do **not** insert it into the main phase sequence.
+   - Put it in a clearly labeled `Ancillary / Follow-up Work` section at the end of the plan.
+   - Note the suggested placement or trigger for later consideration.
+
+Do not silently expand the process spec. Every discovered item must be clearly classified.
+
+## Target-State Validation
+
+Use `${SPECS_DIR}/` to validate process planning, not to originate it:
+
+- Confirm whether an authored phase is already satisfied
+- Confirm that the decomposed tasks would actually reach the intended end state
+- Surface contradictions or missing outcomes as `Target-state validation:` or `Conflict:` notes
+
+Do not create standalone tasks from a target-state spec unless the work is necessary to execute or verify an existing process phase/step; if so, classify it as a discovered prerequisite.
+
+## Conflicts and Process Gaps
+
+### Conflicts
+If process specs, target-state specs, code, or tests disagree:
+
+1. Preserve explicit phase ordering from the process spec that defines the sequence.
+2. Use the more detailed process spec to refine decomposition, not to silently reorder higher-level phases.
+3. If two sources impose incompatible ordering or incompatible required outcomes, do not guess. Add a `Conflict:` note naming the files/sections in conflict.
+4. If the conflict prevents safe decomposition, mark the affected work `blocked`. Continue planning unaffected phases.
+
+### Process gaps
+If a process spec omits detail you need:
+
+- If the missing detail only affects task sizing or local breakdown, choose the simplest decomposition and note `Process gap:` in the relevant task or phase.
+- If it affects sequencing, rollout safety, migration/data semantics, human/manual responsibility, or public/shared interfaces, do not invent it. Add a `Process gap:` note and, if needed, create a blocked prerequisite or manual gate task.
+
+## Manual / Human-Gated Steps
+
+If a process step requires a human decision, external approval, production cutover, or manual verification:
+
+- Represent it as its own task with `Status: blocked`
+- Label it `Manual gate — requires human action`
+- Put any preparatory automation work before the gate
+- Make downstream tasks explicitly depend on that gate task or phase
+- Do not rewrite a human decision into autonomous implementation work
+
+## Multiple Process Specs
+
+When multiple process specs are present:
+
+- Build one merged plan.
+- Any spec that explicitly defines end-to-end phase order controls ordering for those phases.
+- A more detailed spec may split or refine a phase from a higher-level spec, but may not reorder it.
+- If two specs describe disjoint work with no explicit ordering relationship, preserve each spec's internal order and keep the phases grouped unless a true prerequisite requires linkage.
+- If cross-spec ordering cannot be reconciled, add a `Conflict:` note rather than inventing an order.
+
+## Regeneration Rules
+
+If `${RALPH_HOME}/implementation_plan.md` already exists and contains build progress:
+
+- Revalidate each `complete` task against the current codebase and current specs before preserving it.
+- Keep a `complete` task only if its intended outcome still exists and is still correct.
+- If previously completed work is no longer satisfied, do not silently trust it. Keep the historical record, and add a new task labeled `Corrective follow-up for Task N` in the earliest valid phase that restores the intended state.
+- Re-evaluate each `blocked` task. If the blocker is gone, return it to `planned`. If the blocker still stands, keep it `blocked` with an updated reason. If the blocker was based on an outdated assumption, replace it with the correct prerequisite or manual gate.
+- Re-decompose all remaining incomplete phases from the current process specs rather than trusting stale task wording.
 
 ## Task Status Values
 
@@ -271,48 +404,125 @@ Begin planning now.
 
 ## Changes to Existing Specs and Files
 
-### `ralph` script
+### Spec changes (done)
 
-1. Add `--process` flag parsing for plan mode
-2. Select `prompts/plan-process.md` when `--process` is set
-3. Export `PROCESS_DIR` as a template variable when set
+- ✅ `specs/build-mode.md` — plan-type-aware task selection, all-blocked → REPLAN, updated prompt template
+- ✅ `specs/loop-behavior.md` — `--process` flag docs, REPLAN reads `Plan Command:` from plan header
+- ✅ `specs/plan-mode.md` — `Plan Type: gap-driven` / `Plan Command: ralph plan` in format, prompt, and example
+- ✅ `specs/spec-lifecycle.md` — "Target-State Specs vs. Process Specs" section with decision table
 
-### `config`
+### Implementation changes (not yet done)
 
-Add `PROCESS_DIR=""` with a comment explaining it is optional.
+- `ralph` script — add `--process` flag parsing, select `prompts/plan-process.md`, export `PROCESS_DIR`, read `Plan Command:` for REPLAN message
+- `config` — add `PROCESS_DIR=""` with comment
+- `prompts/plan.md` — add plan metadata header, note that discovery/investigation tasks are valid
+- `prompts/build.md` — sync with canonical template in `specs/build-mode.md`
+- `prompts/plan-process.md` — create from canonical template in this spec
+- `specs/project-structure.md` — add `PROCESS_DIR` to config table, `specs/process/` to layout examples
+- Installer and Updater — add `prompts/plan-process.md` to managed files
 
-### `prompts/plan.md`
+## Example Process Spec
 
-Add a brief note in the planning prompt that discovery/investigation tasks (inventories,
-measurements, feasibility assessments) are valid plan items. No other changes.
+Process specs describe *how to get there* — phased, ordered playbooks. They range from
+high-level phase outlines to detailed step-by-step instructions. Here is a condensed
+example based on a real framework migration:
 
-### `prompts/build.md`
+~~~markdown
+# Inertia Migration Plan
 
-No changes. Build mode is plan-type agnostic.
+Migrate from a separate Laravel API + Vue 2 SPA to a Laravel monolith with Inertia.js
++ Vue 3. Evolve the repo in-place — the Laravel backend (models, services, state machine,
+events, migrations) is the valuable part. The frontend is a full rewrite.
 
-### `specs/project-structure.md`
+---
 
-Add `PROCESS_DIR` to the configuration table. Add `specs/process/` as an optional
-directory in the layout examples.
+## Phase 0 — Prep (before introducing the new stack)
 
-### `specs/plan-mode.md`
+Each step is independently shippable. Complete all before starting Phase 1.
 
-Add a note that plan mode handles target-state specs only. Reference this spec for
-sequence-constrained planning.
+### 0a. Remove Dead Code
 
-### `specs/spec-lifecycle.md`
+1. Drop 5 unused tables via migration
+2. Delete associated models, seeders, and factories
+3. Clean up store — remove dead getters
+4. Simplify affected Vue components
 
-✅ Done — added "Target-State Specs vs. Process Specs" section with decision table for
-choosing the right planning mode.
+### 0b. Remove Realms Abstraction
 
-### `specs/loop-behavior.md`
+The `realm_id` concept appears on 15+ tables but only one realm has ever existed.
 
-Add `--process` flag to the CLI interface section.
+1. Restructure `ApiService.currentRealm()` to read config directly
+2. Drop `realm_id` FK from central auth table, remove from all persona logic
+3. Remove realm filtering from permission system
+4. Simplify factory classes that dynamically resolve by realm
+5. Drop `realm_id` columns from ~15 tables, drop `realms` table
+6. Clean up frontend: remove realm selection page, clean auth store
+7. Remove realm-specific test data providers
 
-### Installer and Updater
+### 0c. Consolidate Directory Structure
 
-Add `prompts/plan-process.md` to managed files. No other changes — `PROCESS_DIR` defaults
-to empty, so process planning is opt-in.
+Merge the `api/` directory into standard Laravel project root layout. The `clients/`
+directory stays intact until Phase 2 is done.
+
+---
+
+## Phase 1 — Install New Stack Alongside Old
+
+Both systems coexist: old Vue 2 SPA serves all routes while Inertia is available for
+new pages.
+
+### 1a. Install Dependencies
+
+- Inertia server-side + client-side, Vue 3, Vite, CSS framework
+
+### 1b. Configure Inertia
+
+- Add middleware, create root Blade template, create Vue 3 entry point, configure Vite
+
+### 1c. Build Shared Layout Components
+
+- Navigation, sidebar, common UI components, flash messaging
+
+### 1d. Build Auth Flow
+
+- Login page, session-based auth, persona switching
+
+### 1e. Verify Coexistence
+
+- Old SPA still works, new Inertia pages accessible, both usable simultaneously
+
+---
+
+## Phase 2 — Migrate Resource by Resource
+
+Convert one resource at a time. For each: convert controllers to return
+`Inertia::render()`, build Vue 3 pages, fix bugs inline, delete old SPA code.
+
+Migration order (simplest → most complex):
+1. Announcements — simple CRUD warm-up
+2. Admin / Users — wires up auth/persona in Inertia
+3. EYPR Narrative — simplest lifecycle resource
+4. Local Application — 21 modules, two-tier review
+5. Activities + Costs — core complexity: budgets, post-approval editing
+6. Inbox — cross-cutting aggregator, convert last
+
+---
+
+## Phase 3 — Cleanup
+
+After all resources are migrated:
+
+1. Delete `clients/` directory entirely
+2. Remove API-only JSON routes replaced by Inertia
+3. Remove API infrastructure (resource classes, token auth)
+4. Consolidate Docker setup to single app container
+5. Update CI/CD for Vite
+~~~
+
+Note how this spec defines phases with explicit ordering, steps within phases that are
+sometimes explicitly sequential (Phase 0b) and sometimes not (Phase 1), and enough
+context for a planner to decompose each step into build-iteration-sized tasks. Target-state
+specs elsewhere would describe what each resource *should* look like after migration.
 
 ## Example Workflow
 

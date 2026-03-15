@@ -16,14 +16,19 @@ Implementation plan not found. Run 'ralph plan' first.
 ### Task Selection
 
 The agent should:
-1. Read `implementation_plan.md`
+1. Read `implementation_plan.md`, including the `Plan Type:` header
 2. Review tasks and their status/dependencies
-3. Select the most important task to work on
+3. Select the next task according to the plan type
 
-**Guidance:**
-- Tasks are ordered by the plan, but agent has freedom to choose
-- Prefer tasks with status `planned` and no blocking dependencies
-- May choose out of order if there's good reason (document why)
+**Plan-type-aware selection:**
+- `Plan Type: gap-driven` — treat the plan as a priority list. Prefer the highest-priority
+  `planned` task with no blocking dependencies. May choose out of order if there's a clear
+  reason (document why).
+- `Plan Type: process` — treat phase headings as authoritative ordering constraints. Select
+  a ready `planned` task from the earliest incomplete phase. Do not skip to a later phase
+  while an earlier phase has ready work. Within a phase, obey explicit sequencing and any
+  `Depends on:` fields.
+- If `Plan Type:` is absent, treat the plan as gap-driven (backward compatibility).
 
 ### Single Task Focus
 
@@ -148,28 +153,33 @@ The next iteration can select a different task or address the blocker.
 
 ### Completion Signal
 
-When the agent determines all tasks are complete:
+When the agent determines all tasks are `complete` and none remain `planned` or `blocked`:
 ```
 <promise>COMPLETE</promise>
 ```
 
 This signals the loop to exit successfully.
 
+Do not emit `COMPLETE` if any tasks remain `blocked` — blocked work means the plan is
+incomplete, not done. If only `blocked` tasks remain, emit the replan signal instead.
+
 ### Replan Signal
 
-When the agent determines the implementation plan is materially wrong (not just incomplete):
+When the agent determines the implementation plan is materially wrong (not just incomplete),
+or when only `blocked` tasks remain and no forward progress is possible:
 ```
 <promise>REPLAN</promise>
 ```
 
-This signals the loop to exit build mode so the user can re-run `ralph plan`. The agent should
-use this when:
+This signals the loop to exit build mode so the user can re-run the planning command
+recorded in `Plan Command:` at the top of the plan. The agent should use this when:
 - A discovery would change shared/public interfaces or core data models
 - A discovery reveals foundational work the plan missed, affecting multiple tasks
 - Multiple remaining tasks need reworking or redefining
 - Completed work is wrong or likely throwaway due to changed assumptions
 - The spec, code, tests, or plan conflict and correct intent is ambiguous
 - The plan's structure no longer reflects the project's actual needs
+- Only `blocked` tasks remain and no `planned` work is available
 
 ## Agent Responsibilities
 
@@ -202,6 +212,9 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 ## Operating Contract
 
 - You have full autonomy in implementation decisions unless the spec defines specific constraints, tooling, or architectural choices — those take precedence.
+- Read the `Plan Type:` header from `${RALPH_HOME}/implementation_plan.md` before selecting work.
+- If `Plan Type: process`, phase headings are authoritative. Do not select a task from a later phase while an earlier phase has a ready task. Within a phase, obey explicit sequencing and any `Depends on:` fields.
+- If `Plan Type: gap-driven` (or absent), treat the plan as a priority list. You may choose a different ready task when there is a clear reason, but document why in the plan.
 - Complete **exactly one task** this iteration.
 - Before editing, inspect the current code and tests — do not assume the task is unimplemented.
 - All project validation (tests, lint, build — see AGENTS.md) must pass before you commit.
@@ -218,8 +231,10 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 
 ## Workflow
 
-1. Read `AGENTS.md`, `${SPECS_DIR}/README.md`, and `${RALPH_HOME}/implementation_plan.md`.
-2. Select the highest-priority `planned` task whose dependencies are satisfied. Only go out of order if there is a clear reason — document why in the plan.
+1. Read `AGENTS.md`, `${SPECS_DIR}/README.md`, and `${RALPH_HOME}/implementation_plan.md` (including the `Plan Type:` header).
+2. Select the next task according to the plan type:
+   - `gap-driven` (or absent): select the highest-priority ready `planned` task; only go out of order with a documented reason.
+   - `process`: select a ready `planned` task from the earliest incomplete phase. Do not skip to a later phase while earlier ready work exists.
 3. Read the referenced spec and inspect relevant code and tests.
 4. Implement the task.
 5. Add or update targeted tests when appropriate — especially for bug fixes and user-visible behavior changes. Use judgment: skip brittle or high-setup tests for pure refactors or trivial wiring; if you skip meaningful coverage, note it in the plan.
@@ -230,13 +245,14 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
    - Add any newly discovered tasks (note which task surfaced them)
    - Adjust any remaining tasks that are now obsolete, incorrect, or mis-ordered
 8. Commit all changes with a descriptive commit message.
-9. If no `planned` tasks remain, output the completion signal (see Exit Signals).
-10. If the plan needs major restructuring, output the replan signal (see Exit Signals).
+9. If all tasks are `complete` (none `planned` or `blocked`), output the completion signal (see Exit Signals).
+10. If only `blocked` tasks remain (no `planned` work available), output the replan signal (see Exit Signals).
+11. If the plan needs major restructuring, output the replan signal (see Exit Signals).
 
 ## Exit Signals
 
-- **All tasks done:** output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it.
-- **Plan needs restructuring:** output exactly `<promise>REPLAN</promise>` to trigger re-planning.
+- **All tasks done:** output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it. Do not emit this if any tasks remain `blocked`.
+- **Plan needs restructuring or only blocked tasks remain:** output exactly `<promise>REPLAN</promise>` to trigger re-planning.
 
 ## Mid-Implementation Discoveries
 
@@ -363,15 +379,15 @@ originally broken out as separate task.
 - Continue to next iteration (different task)
 
 ### Complete
-- All tasks done
+- All tasks `complete`, none `planned` or `blocked`
 - `<promise>COMPLETE</promise>` output
 - Loop exits with code 0
 
 ### Replan
-- Agent determines plan needs restructuring
+- Agent determines plan needs restructuring, or only `blocked` tasks remain
 - `<promise>REPLAN</promise>` output
 - Loop exits with code 3
-- Human runs `ralph plan` to regenerate
+- Human reruns the command recorded in `Plan Command:` at the top of the plan
 
 ### Failure
 - Agent crashes or times out after retries

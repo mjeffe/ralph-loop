@@ -47,7 +47,11 @@ The `implementation_plan.md` file lives at the root of the ralph script director
 `.ralph/implementation_plan.md` in a parent project, or `implementation_plan.md` in the
 ralph-loop repo itself).
 
-The plan is a prioritized list of work to be done. At minimum, each task needs:
+The plan begins with a metadata header:
+- `Plan Type: gap-driven`
+- `Plan Command: ralph plan`
+
+The rest is a prioritized list of work to be done. At minimum, each task needs:
 - A short title
 - A brief description of what needs to be done
 - The **spec** that drives it (e.g., `specs/feature.md`)
@@ -121,7 +125,11 @@ When planning is complete, output exactly `<promise>COMPLETE</promise>` — the 
 
 ## Task Format
 
-Each task in `${RALPH_HOME}/implementation_plan.md` needs at minimum:
+At the top of `${RALPH_HOME}/implementation_plan.md`, include:
+- `Plan Type: gap-driven`
+- `Plan Command: ralph plan`
+
+Each task needs at minimum:
 - A short title
 - A brief description of what needs to be done
 - The **spec** that drives it (e.g., `specs/feature.md`)
@@ -203,6 +211,9 @@ When the existing plan contains completed tasks from prior build iterations, it 
 
 ```markdown
 # Implementation Plan
+
+Plan Type: gap-driven
+Plan Command: ralph plan
 
 ### Task 1: Set up Express server
 **Status:** complete
