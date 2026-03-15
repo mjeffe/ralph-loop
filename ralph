@@ -217,7 +217,8 @@ run_iteration() {
         iter_start=$(date +%s)
 
         log "================================================================================"
-        log "ITERATION ${iteration}  (${MODE})  $(date '+%Y-%m-%d %H:%M:%S')"
+        log "ITERATION ${iteration}  $(date '+%Y-%m-%d %H:%M:%S')"
+        log "mode: ${MODE}  prompt: ${prompt_template}"
         log "================================================================================"
 
         local tmp_prompt
