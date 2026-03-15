@@ -48,18 +48,13 @@ Changes made:
 
 ### Task 2: Sync `prompts/plan.md` with canonical template in spec
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/plan-mode.md`
 
-The current `prompts/plan.md` is missing the plan metadata header (`Plan Type: gap-driven`, `Plan Command: ralph plan`) that the canonical template in `specs/plan-mode.md` requires.
+The current `prompts/plan.md` was missing the plan metadata header (`Plan Type: gap-driven`, `Plan Command: ralph plan`) that the canonical template in `specs/plan-mode.md` requires.
 
-Changes needed:
-- **`prompts/plan.md`**: Add the `Plan Type:` and `Plan Command:` instructions to the Task Format section, matching the canonical template in `specs/plan-mode.md` lines 128-131:
-  ```
-  At the top of `${RALPH_HOME}/implementation_plan.md`, include:
-  - `Plan Type: gap-driven`
-  - `Plan Command: ralph plan`
-  ```
+Changes made:
+- **`prompts/plan.md`**: Added `Plan Type:` and `Plan Command:` instructions to the Task Format section, matching the canonical template in the spec.
 
 ---
 
