@@ -152,14 +152,14 @@ Note: `--process` flag tests were already added in Task 1. MANAGED_FILES sync te
 
 ### Task 9: Update `README.md` to document process planning and help
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/overview.md`, `specs/process-planning.md`, `specs/help-system.md`
 
 Update the root README to reflect the new features.
 
-Changes needed:
+Changes made:
 - **`README.md`**:
-  - Add `ralph plan --process` to the Usage section
-  - Add `ralph help [topic]` to the Usage section
-  - Add `prompts/plan-process.md` to the Project Structure tree
-  - Add process-planning.md and help-system.md to the Documentation section (they're already listed in the specs index but not in README)
+  - Added `ralph plan --process` to the Usage section with descriptive comment
+  - Added `ralph help [topic]` block to the Usage section with all four topics
+  - Added `prompts/plan-process.md` to the Project Structure tree
+  - Added `process-planning.md` and `help-system.md` to the Documentation section
