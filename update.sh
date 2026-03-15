@@ -24,6 +24,7 @@ MANAGED_FILES=(
     agents/cline.sh
     agents/codex.sh
     prompts/plan.md
+    prompts/plan-process.md
     prompts/build.md
     prompts/sandbox-setup.md
     prompts/playbooks/php-laravel.md
@@ -42,6 +43,7 @@ declare -A SOURCE_PATHS=(
     [agents/cline.sh]="agents/cline.sh"
     [agents/codex.sh]="agents/codex.sh"
     [prompts/plan.md]="prompts/plan.md"
+    [prompts/plan-process.md]="prompts/plan-process.md"
     [prompts/build.md]="prompts/build.md"
     [prompts/sandbox-setup.md]="prompts/sandbox-setup.md"
     [prompts/playbooks/php-laravel.md]="prompts/playbooks/php-laravel.md"

@@ -32,7 +32,7 @@ assert_eq() {
 assert_contains() {
     local label="$1" needle="$2" haystack="$3"
     TESTS=$(( TESTS + 1 ))
-    if echo "$haystack" | grep -qF "$needle"; then
+    if echo "$haystack" | grep -qF -- "$needle"; then
         echo "  PASS: $label"
         PASS=$(( PASS + 1 ))
     else
@@ -352,6 +352,87 @@ extract_managed_files() {
     sed -n '/^MANAGED_FILES=(/,/^)/p' "$1" | grep -v '^MANAGED_FILES=\|^)' | tr -d ' ' | sort
 }
 
+test_process_flag_rejected_with_non_plan_modes() {
+    echo "--- --process flag rejected with non-plan modes ---"
+    assert_exit_code "--process with build exits 1" 1 "$RALPH_DIR/ralph" build --process
+    assert_exit_code "--process with prompt exits 1" 1 "$RALPH_DIR/ralph" prompt --process
+}
+
+test_process_requires_process_dir() {
+    echo "--- --process requires PROCESS_DIR ---"
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" plan --process 2>&1) || rc=$?
+    assert_eq "--process without PROCESS_DIR exits 1" "1" "$rc"
+    assert_contains "error mentions PROCESS_DIR" "No PROCESS_DIR configured" "$output"
+}
+
+test_process_dir_must_exist() {
+    echo "--- --process validates PROCESS_DIR exists ---"
+    local config_backup
+    config_backup=$(cat "$RALPH_DIR/config")
+    echo 'PROCESS_DIR="/nonexistent/dir"' >> "$RALPH_DIR/config"
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" plan --process 2>&1) || rc=$?
+    echo "$config_backup" > "$RALPH_DIR/config"
+    assert_eq "--process with missing dir exits 1" "1" "$rc"
+    assert_contains "error mentions dir not found" "not found" "$output"
+}
+
+test_process_dir_must_have_md_files() {
+    echo "--- --process validates *.md files in PROCESS_DIR ---"
+    local empty_dir="$TMP_DIR/empty_process"
+    mkdir -p "$empty_dir"
+    local config_backup
+    config_backup=$(cat "$RALPH_DIR/config")
+    echo "PROCESS_DIR=\"$empty_dir\"" >> "$RALPH_DIR/config"
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" plan --process 2>&1) || rc=$?
+    echo "$config_backup" > "$RALPH_DIR/config"
+    assert_eq "--process with empty dir exits 1" "1" "$rc"
+    assert_contains "error mentions no process specs" "No process specs found" "$output"
+}
+
+test_usage_shows_process() {
+    echo "--- Usage output includes --process ---"
+    local output
+    output=$("$RALPH_DIR/ralph" --help 2>&1)
+    assert_contains "shows --process flag" "--process" "$output"
+}
+
+test_usage_shows_help() {
+    echo "--- Usage output includes help ---"
+    local output
+    output=$("$RALPH_DIR/ralph" --help 2>&1)
+    assert_contains "shows help mode" "help" "$output"
+}
+
+test_help_shows_topic_index() {
+    echo "--- ralph help shows topic index ---"
+    local output
+    output=$("$RALPH_DIR/ralph" help 2>&1)
+    assert_contains "index shows plan topic" "plan" "$output"
+    assert_contains "index shows specs topic" "specs" "$output"
+    assert_contains "index shows build topic" "build" "$output"
+    assert_contains "index shows sandbox topic" "sandbox" "$output"
+}
+
+test_help_plan_shows_content() {
+    echo "--- ralph help plan shows plan content ---"
+    local output
+    output=$("$RALPH_DIR/ralph" help plan 2>&1)
+    assert_contains "plan help shows gap-driven" "Gap-driven" "$output"
+    assert_contains "plan help shows --process" "--process" "$output"
+}
+
+test_help_unknown_topic_exits_zero() {
+    echo "--- ralph help bogus shows error and index ---"
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" help bogus 2>&1) || rc=$?
+    assert_eq "help bogus exits 0" "0" "$rc"
+    assert_contains "error mentions unknown topic" "Unknown help topic" "$output"
+    assert_contains "falls back to index" "ralph help <topic>" "$output"
+}
+
 test_managed_files_in_sync() {
     echo "--- Managed files: install.sh and update.sh in sync ---"
     local installer_files updater_files
@@ -476,6 +557,15 @@ main() {
     test_sandbox_no_subcommand_exits_nonzero
     test_sandbox_bad_subcommand_exits_nonzero
     test_sandbox_guard_inside_sandbox
+    test_process_flag_rejected_with_non_plan_modes
+    test_process_requires_process_dir
+    test_process_dir_must_exist
+    test_process_dir_must_have_md_files
+    test_usage_shows_process
+    test_usage_shows_help
+    test_help_shows_topic_index
+    test_help_plan_shows_content
+    test_help_unknown_topic_exits_zero
     test_managed_files_in_sync
     test_detect_stack
 

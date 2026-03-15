@@ -30,17 +30,20 @@ MODE=""
 MAX_ITERATIONS=""
 PROMPT_FILE=""
 SANDBOX_ARGS=()
+PROCESS_FLAG=0
+HELP_TOPIC=""
 
 usage() {
     cat <<EOF
 Usage: ralph <mode> [max_iterations]
 
 Modes:
-  plan   [max_iterations]              Run plan mode iterations
+  plan   [max_iterations]              Run gap-driven plan mode iterations
+  plan   --process [max_iterations]    Run process plan mode iterations
   build  [max_iterations]              Run build mode iterations
   prompt <file> [max_iterations]       Run an ad-hoc prompt from file in the loop
   update                               Update ralph to the latest upstream version
-  sandbox help                         Show detailed sandbox usage guide
+  help   [topic]                       Show operational guidance (topics: plan, specs, build, sandbox)
   sandbox setup [--force]              Generate sandbox files by prompting the agent
   sandbox up                           Start the sandbox container
   sandbox down                         Stop the sandbox container
@@ -52,14 +55,24 @@ Examples:
   ralph plan
   ralph build 20
   ralph prompt prompts/my-prompt.md
+  ralph help plan
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        plan|build|prompt|update|sandbox)
-            MODE="$1"
+        plan|build|prompt|update|sandbox|help)
+            if [[ "$MODE" == "help" ]]; then
+                HELP_TOPIC="$1"
+            else
+                MODE="$1"
+            fi
             shift
+            ;;
+        --process)
+            PROCESS_FLAG=1
+            shift
+            continue
             ;;
         --help|-h)
             usage
@@ -71,7 +84,9 @@ while [[ $# -gt 0 ]]; do
                 usage >&2
                 exit 1
             fi
-            if [[ "$MODE" == "sandbox" ]]; then
+            if [[ "$MODE" == "help" ]]; then
+                HELP_TOPIC="$1"
+            elif [[ "$MODE" == "sandbox" ]]; then
                 SANDBOX_ARGS+=("$1")
             elif [[ "$MODE" == "prompt" && -z "$PROMPT_FILE" ]]; then
                 PROMPT_FILE="$1"
@@ -85,6 +100,11 @@ done
 
 if [[ -z "$MODE" ]]; then
     usage
+    exit 1
+fi
+
+if [[ "$PROCESS_FLAG" -eq 1 && "$MODE" != "plan" ]]; then
+    echo "Error: --process is only valid with 'ralph plan'." >&2
     exit 1
 fi
 
@@ -106,7 +126,7 @@ source "$CONFIG_FILE"
 # ---------------------------------------------------------------------------
 # Load agent script
 # ---------------------------------------------------------------------------
-if [[ "$MODE" != "update" && "$MODE" != "sandbox" ]]; then
+if [[ "$MODE" != "update" && "$MODE" != "sandbox" && "$MODE" != "help" ]]; then
     AGENT_SCRIPT="$RALPH_DIR/agents/${AGENT}.sh"
     if [[ ! -f "$AGENT_SCRIPT" ]]; then
         echo "Error: agent script not found: $AGENT_SCRIPT" >&2
@@ -120,7 +140,7 @@ fi
 # Prerequisite validation
 # ---------------------------------------------------------------------------
 validate_prerequisites() {
-    [[ "$MODE" == "sandbox" ]] && return
+    [[ "$MODE" == "sandbox" || "$MODE" == "help" ]] && return
 
     if [[ ! -d ".git" ]]; then
         echo "Error: not a git repository (no .git directory found)" >&2
@@ -259,7 +279,11 @@ run_loop() {
             0) success=$(( success + 1 )) ;;
             2) success=$(( success + 1 )); exit_reason="completion signal"; break ;;
             3) success=$(( success + 1 )); exit_reason="replan signal"; exit_code=3
-               log "Agent requested re-planning. Run 'ralph plan' to regenerate."
+               local plan_cmd
+               plan_cmd=$(grep -m1 '^Plan Command:' "${RALPH_HOME}/implementation_plan.md" 2>/dev/null \
+                   | sed 's/^Plan Command:[[:space:]]*//')
+               [[ -z "$plan_cmd" ]] && plan_cmd="ralph plan"
+               log "Agent requested re-planning. Run '${plan_cmd}' to regenerate the implementation plan."
                break ;;
             *) failures=$(( failures + 1 )); exit_reason="agent failure exceeded retries"; exit_code=4
                break ;;
@@ -298,7 +322,149 @@ sandbox_container_name() {
     echo "$name"
 }
 
-sandbox_help() {
+# ---------------------------------------------------------------------------
+# Help system
+# ---------------------------------------------------------------------------
+help_index() {
+    cat <<'EOF'
+Ralph Help — run 'ralph help <topic>' for details.
+
+  plan      Planning modes: gap-driven vs sequence-constrained vs prompt, when to use each
+  specs     Writing specs: target-state vs process, lifecycle, best practices
+  build     Build mode: task selection, signals, mid-implementation guidance
+  sandbox   Sandbox lifecycle: setup, daily workflow, troubleshooting
+EOF
+}
+
+help_plan() {
+    cat <<'EOF'
+PLANNING MODES
+==============
+
+Ralph supports three ways to drive work:
+
+  ralph plan                Gap-driven planning
+  ralph plan --process      Sequence-constrained planning
+  ralph prompt <file>       Ad-hoc single-job prompt
+
+GAP-DRIVEN PLANNING (ralph plan)
+---------------------------------
+Compares target-state specs in your specs directory to the current codebase
+and infers what work remains. The planner decides task ordering. Use this
+when you know what the system should look like but not the exact steps.
+
+  - Reads specs from SPECS_DIR (default: specs/)
+  - Generates implementation_plan.md with Plan Type: gap-driven
+  - Discovery and investigation tasks are valid plan items
+
+SEQUENCE-CONSTRAINED PLANNING (ralph plan --process)
+-----------------------------------------------------
+Decomposes human-defined phases into build-iteration-sized tasks. Phase
+ordering from your process specs is authoritative — the planner works
+within your structure, not around it. Use this for migrations, phased
+refactors, ordered rollouts, or any work with explicit sequencing.
+
+  - Reads process specs from PROCESS_DIR (set in config)
+  - Generates implementation_plan.md with Plan Type: process
+  - Discovery and investigation tasks are valid plan items
+
+AD-HOC PROMPTS (ralph prompt <file>)
+-------------------------------------
+Runs a single prompt file in the loop — no planning phase, no specs
+comparison. Use for one-off jobs: documentation, analysis, discovery.
+
+REGENERATING A PLAN
+-------------------
+Delete implementation_plan.md and re-run the planning command, or simply
+re-run it — the planner rebuilds the task list from scratch (preserving
+useful notes from completed tasks).
+EOF
+}
+
+help_specs() {
+    cat <<'EOF'
+WRITING SPECIFICATIONS
+======================
+
+TARGET-STATE SPECS
+------------------
+Describe what the system should be — behavior, APIs, constraints. You write
+what you want; the planner figures out what's missing. This drives gap-driven
+planning (ralph plan), where the planner compares your spec to the current
+code and generates tasks to close the gaps.
+
+  - Live in SPECS_DIR (default: specs/)
+  - One feature per spec file
+  - Include test criteria
+
+PROCESS SPECS
+-------------
+Describe how to get there — phased migrations, ordered refactors, incremental
+rollouts. You define the phases and their ordering; the planner decomposes
+each phase into tasks. This drives sequence-constrained planning
+(ralph plan --process), where the planner works within your human-defined
+structure.
+
+  - Live in PROCESS_DIR (set in config)
+  - Only top-level *.md files are read (subdirectories ignored)
+  - Archive completed specs to a subdirectory (e.g., archive/)
+
+WHICH TYPE DO I NEED?
+---------------------
+  Phases with ordering constraints  →  process spec  →  ralph plan --process
+  No sequencing constraints         →  target-state spec  →  ralph plan
+  Single coherent job               →  ad-hoc prompt  →  ralph prompt <file>
+
+TIPS
+----
+  - Be specific: concrete examples, explicit constraints, clear error cases
+  - One feature per spec: easier to understand, update, and implement
+  - Include test criteria: define how to verify the feature works
+  - Don't mix spec types: keep target-state specs in SPECS_DIR, process specs
+    in PROCESS_DIR
+EOF
+}
+
+help_build() {
+    cat <<'EOF'
+BUILD MODE
+==========
+
+Build mode implements one task per iteration from the implementation plan.
+
+TASK SELECTION
+--------------
+Build mode is plan-type agnostic — it respects the plan's structure regardless
+of how it was created:
+
+  Plan Type: gap-driven   Tasks are a priority list; highest-priority planned
+                          task is selected. Out-of-order selection requires a
+                          documented reason.
+
+  Plan Type: process      Phase headings are authoritative ordering constraints.
+                          Work is selected from the earliest incomplete phase.
+
+EXIT SIGNALS
+------------
+  <promise>COMPLETE</promise>   All tasks are complete (none planned or blocked).
+                                The loop exits successfully.
+
+  <promise>REPLAN</promise>     The plan needs restructuring, or only blocked tasks
+                                remain. The loop exits so you can re-run the
+                                planning command shown in Plan Command: at the
+                                top of the plan.
+
+MID-IMPLEMENTATION DISCOVERIES
+-------------------------------
+  Spec gaps:      Resolve via spec → code → conventions. Document assumptions.
+  New work:       Add a task to the plan. Fix trivially if adjacent; else defer.
+  Blocked:        Mark the task blocked, document why, stop the iteration.
+  Architecture:   If it affects shared interfaces or multiple tasks → REPLAN.
+                  If local → make the call and document it.
+EOF
+}
+
+help_sandbox() {
     cat <<'EOF'
 SANDBOX USAGE GUIDE
 ===================
@@ -397,6 +563,18 @@ UPDATING AGENTS.md FOR SANDBOX COMMANDS
     How to detect: check the SANDBOX environment variable.
     If SANDBOX=1, run commands directly. Otherwise, use the host prefix.
 EOF
+}
+
+ralph_help() {
+    local topic="${1:-}"
+    case "$topic" in
+        "")       help_index ;;
+        plan)     help_plan ;;
+        specs)    help_specs ;;
+        build)    help_build ;;
+        sandbox)  help_sandbox ;;
+        *)        echo "Unknown help topic: $topic" >&2; echo; help_index ;;
+    esac
 }
 
 detect_stack() {
@@ -546,7 +724,7 @@ sandbox_setup() {
     fi
     echo ""
     echo "Note: If your AGENTS.md has environment-specific commands, you may need"
-    echo "to add sandbox variants. Run 'ralph sandbox help' for details."
+    echo "to add sandbox variants. Run 'ralph help sandbox' for details."
 }
 
 sandbox_up() {
@@ -630,11 +808,34 @@ sandbox_status() {
 # Entry point
 # ---------------------------------------------------------------------------
 validate_prerequisites
+
+if [[ "$MODE" == "help" ]]; then
+    ralph_help "$HELP_TOPIC"
+    exit 0
+fi
+
 init_session_log
 
 case "$MODE" in
     plan)
-        PROMPT_TEMPLATE="$RALPH_DIR/prompts/plan.md"
+        if [[ "$PROCESS_FLAG" -eq 1 ]]; then
+            if [[ -z "${PROCESS_DIR:-}" ]]; then
+                echo "Error: No PROCESS_DIR configured. Set PROCESS_DIR in config." >&2
+                exit 1
+            fi
+            if [[ ! -d "$PROCESS_DIR" ]]; then
+                echo "Error: PROCESS_DIR '${PROCESS_DIR}' not found." >&2
+                exit 1
+            fi
+            if ! ls "$PROCESS_DIR"/*.md &>/dev/null; then
+                echo "Error: No process specs found in '${PROCESS_DIR}/'." >&2
+                exit 1
+            fi
+            export PROCESS_DIR
+            PROMPT_TEMPLATE="$RALPH_DIR/prompts/plan-process.md"
+        else
+            PROMPT_TEMPLATE="$RALPH_DIR/prompts/plan.md"
+        fi
         if [[ ! -f "$PROMPT_TEMPLATE" ]]; then
             echo "Error: plan prompt template not found: $PROMPT_TEMPLATE" >&2
             exit 1
@@ -686,7 +887,6 @@ case "$MODE" in
         sandbox_extra=()
         [[ ${#SANDBOX_ARGS[@]} -gt 1 ]] && sandbox_extra=("${SANDBOX_ARGS[@]:1}")
         case "$sandbox_sub" in
-            help)   sandbox_help ;;
             setup)  sandbox_setup "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             up)     sandbox_up "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             down)   sandbox_down "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
@@ -694,7 +894,7 @@ case "$MODE" in
             shell)  sandbox_shell "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             status) sandbox_status "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             *)
-                echo "Usage: ralph sandbox <help|setup|up|down|reset|shell|status>"
+                echo "Usage: ralph sandbox <setup|up|down|reset|shell|status>"
                 exit 1
                 ;;
         esac

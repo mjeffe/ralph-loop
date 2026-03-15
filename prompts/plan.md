@@ -37,7 +37,11 @@ When planning is complete, output exactly `<promise>COMPLETE</promise>` — the 
 
 ## Task Format
 
-Each task in `${RALPH_HOME}/implementation_plan.md` needs at minimum:
+At the top of `${RALPH_HOME}/implementation_plan.md`, include:
+- `Plan Type: gap-driven`
+- `Plan Command: ralph plan`
+
+Each task needs at minimum:
 - A short title
 - A brief description of what needs to be done
 - The **spec** that drives it (e.g., `specs/feature.md`)

@@ -5,6 +5,9 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 ## Operating Contract
 
 - You have full autonomy in implementation decisions unless the spec defines specific constraints, tooling, or architectural choices — those take precedence.
+- Read the `Plan Type:` header from `${RALPH_HOME}/implementation_plan.md` before selecting work.
+- If `Plan Type: process`, phase headings are authoritative. Do not select a task from a later phase while an earlier phase has a ready task. Within a phase, obey explicit sequencing and any `Depends on:` fields.
+- If `Plan Type: gap-driven` (or absent), treat the plan as a priority list. You may choose a different ready task when there is a clear reason, but document why in the plan.
 - Complete **exactly one task** this iteration.
 - Before editing, inspect the current code and tests — do not assume the task is unimplemented.
 - All project validation (tests, lint, build — see AGENTS.md) must pass before you commit.
@@ -21,8 +24,10 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 
 ## Workflow
 
-1. Read `AGENTS.md`, `${SPECS_DIR}/README.md`, and `${RALPH_HOME}/implementation_plan.md`.
-2. Select the highest-priority `planned` task whose dependencies are satisfied. Only go out of order if there is a clear reason — document why in the plan.
+1. Read `AGENTS.md`, `${SPECS_DIR}/README.md`, and `${RALPH_HOME}/implementation_plan.md` (including the `Plan Type:` header).
+2. Select the next task according to the plan type:
+   - `gap-driven` (or absent): select the highest-priority ready `planned` task; only go out of order with a documented reason.
+   - `process`: select a ready `planned` task from the earliest incomplete phase. Do not skip to a later phase while earlier ready work exists.
 3. Read the referenced spec and inspect relevant code and tests.
 4. Implement the task.
 5. Add or update targeted tests when appropriate — especially for bug fixes and user-visible behavior changes. Use judgment: skip brittle or high-setup tests for pure refactors or trivial wiring; if you skip meaningful coverage, note it in the plan.
@@ -33,13 +38,14 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
    - Add any newly discovered tasks (note which task surfaced them)
    - Adjust any remaining tasks that are now obsolete, incorrect, or mis-ordered
 8. Commit all changes with a descriptive commit message.
-9. If no `planned` tasks remain, output the completion signal (see Exit Signals).
-10. If the plan needs major restructuring, output the replan signal (see Exit Signals).
+9. If all tasks are `complete` (none `planned` or `blocked`), output the completion signal (see Exit Signals).
+10. If only `blocked` tasks remain (no `planned` work available), output the replan signal (see Exit Signals).
+11. If the plan needs major restructuring, output the replan signal (see Exit Signals).
 
 ## Exit Signals
 
-- **All tasks done:** output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it.
-- **Plan needs restructuring:** output exactly `<promise>REPLAN</promise>` to trigger re-planning.
+- **All tasks done:** output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it. Do not emit this if any tasks remain `blocked`.
+- **Plan needs restructuring or only blocked tasks remain:** output exactly `<promise>REPLAN</promise>` to trigger re-planning.
 
 ## Mid-Implementation Discoveries
 

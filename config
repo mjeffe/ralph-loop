@@ -2,6 +2,7 @@
 
 # Project directories
 SPECS_DIR="specs"
+PROCESS_DIR=""    # Path to process specs directory (empty = not used)
 
 # Loop configuration
 DEFAULT_MAX_ITERATIONS=10
