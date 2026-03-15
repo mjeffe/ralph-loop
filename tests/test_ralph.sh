@@ -399,6 +399,40 @@ test_usage_shows_process() {
     assert_contains "shows --process flag" "--process" "$output"
 }
 
+test_usage_shows_help() {
+    echo "--- Usage output includes help ---"
+    local output
+    output=$("$RALPH_DIR/ralph" --help 2>&1)
+    assert_contains "shows help mode" "help" "$output"
+}
+
+test_help_shows_topic_index() {
+    echo "--- ralph help shows topic index ---"
+    local output
+    output=$("$RALPH_DIR/ralph" help 2>&1)
+    assert_contains "index shows plan topic" "plan" "$output"
+    assert_contains "index shows specs topic" "specs" "$output"
+    assert_contains "index shows build topic" "build" "$output"
+    assert_contains "index shows sandbox topic" "sandbox" "$output"
+}
+
+test_help_plan_shows_content() {
+    echo "--- ralph help plan shows plan content ---"
+    local output
+    output=$("$RALPH_DIR/ralph" help plan 2>&1)
+    assert_contains "plan help shows gap-driven" "Gap-driven" "$output"
+    assert_contains "plan help shows --process" "--process" "$output"
+}
+
+test_help_unknown_topic_exits_zero() {
+    echo "--- ralph help bogus shows error and index ---"
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" help bogus 2>&1) || rc=$?
+    assert_eq "help bogus exits 0" "0" "$rc"
+    assert_contains "error mentions unknown topic" "Unknown help topic" "$output"
+    assert_contains "falls back to index" "ralph help <topic>" "$output"
+}
+
 test_managed_files_in_sync() {
     echo "--- Managed files: install.sh and update.sh in sync ---"
     local installer_files updater_files
@@ -528,6 +562,10 @@ main() {
     test_process_dir_must_exist
     test_process_dir_must_have_md_files
     test_usage_shows_process
+    test_usage_shows_help
+    test_help_shows_topic_index
+    test_help_plan_shows_content
+    test_help_unknown_topic_exits_zero
     test_managed_files_in_sync
     test_detect_stack
 

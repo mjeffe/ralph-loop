@@ -134,20 +134,19 @@ Changes made:
 
 ### Task 8: Update tests for new features
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/process-planning.md`, `specs/help-system.md`, `specs/loop-behavior.md`
 
 Add tests for the new functionality.
 
-Changes needed:
-- **`tests/test_ralph.sh`**:
-  - Test `ralph help` shows topic index
-  - Test `ralph help plan` shows plan help content
-  - Test `ralph help bogus` shows unknown topic error
-  - Test `usage()` output includes `help`
-  - Test `MANAGED_FILES` still in sync between install.sh and update.sh (existing test covers this automatically)
+Changes made:
+- **`tests/test_ralph.sh`**: Added 4 new test functions (10 new assertions, 77 total):
+  - `test_usage_shows_help` — verifies `--help` output includes `help`
+  - `test_help_shows_topic_index` — verifies `ralph help` lists all 4 topics
+  - `test_help_plan_shows_content` — verifies `ralph help plan` shows gap-driven and --process content
+  - `test_help_unknown_topic_exits_zero` — verifies `ralph help bogus` shows error, falls back to index, exits 0
 
-Note: `--process` flag tests were already added in Task 1. `--process` usage test already exists.
+Note: `--process` flag tests were already added in Task 1. MANAGED_FILES sync test already existed.
 
 ---
 
