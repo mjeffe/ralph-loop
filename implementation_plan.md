@@ -74,13 +74,14 @@ Replaced `prompts/build.md` with the canonical template from `specs/build-mode.m
 
 ### Task 4: Add REPLAN `Plan Command:` reading to ralph script
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/loop-behavior.md`
 
-When the REPLAN signal is detected, the ralph script currently hardcodes "Run 'ralph plan' to regenerate." The spec says it should read the `Plan Command:` line from the implementation plan and use that in the message.
+When the REPLAN signal is detected, the ralph script now reads the `Plan Command:` line from the implementation plan instead of hardcoding `ralph plan`.
 
-Changes needed:
-- **`ralph` script, `run_loop()` function**: When REPLAN is detected (case 3), read `Plan Command:` from `${RALPH_HOME}/implementation_plan.md` and use it in the log message. Fall back to `ralph plan` if not found.
+Changes made:
+- **`ralph` script, `run_loop()` function**: REPLAN case (rc=3) now greps `Plan Command:` from `${RALPH_HOME}/implementation_plan.md`, strips the prefix, and uses it in the log message. Falls back to `ralph plan` if not found or file is missing. Message also updated to match spec wording: "...to regenerate the implementation plan."
+- Testing note: This logic is inside `run_loop` which requires full agent invocation to exercise. Unit-level testing deferred to Task 8.
 
 ---
 

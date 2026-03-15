@@ -271,7 +271,11 @@ run_loop() {
             0) success=$(( success + 1 )) ;;
             2) success=$(( success + 1 )); exit_reason="completion signal"; break ;;
             3) success=$(( success + 1 )); exit_reason="replan signal"; exit_code=3
-               log "Agent requested re-planning. Run 'ralph plan' to regenerate."
+               local plan_cmd
+               plan_cmd=$(grep -m1 '^Plan Command:' "${RALPH_HOME}/implementation_plan.md" 2>/dev/null \
+                   | sed 's/^Plan Command:[[:space:]]*//')
+               [[ -z "$plan_cmd" ]] && plan_cmd="ralph plan"
+               log "Agent requested re-planning. Run '${plan_cmd}' to regenerate the implementation plan."
                break ;;
             *) failures=$(( failures + 1 )); exit_reason="agent failure exceeded retries"; exit_code=4
                break ;;
