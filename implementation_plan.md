@@ -87,20 +87,22 @@ Changes made:
 
 ### Task 5: Add help system to `ralph` script
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/help-system.md`
 
 Add `ralph help [topic]` CLI mode with topic functions for plan, specs, build, and sandbox.
 
-Changes needed:
+Changes made:
 - **`ralph` script**:
-  - Add `help` to the recognized modes in argument parsing
-  - Add `ralph_help()` dispatcher function
-  - Add topic functions: `help_index()`, `help_plan()`, `help_specs()`, `help_build()`, `help_sandbox()`
-  - Move existing `sandbox_help()` content to `help_sandbox()`
-  - Replace `sandbox help` subcommand to call `help_sandbox()` (or redirect to `ralph help sandbox`)
-  - Update `usage()` to include `help [topic]`
-- Content for each topic should be condensed operational summaries as described in the spec (not full spec copies)
+  - Added `help` to recognized modes in argument parsing, with `HELP_TOPIC` capture that handles topic names that overlap mode names (e.g., `ralph help plan`)
+  - Added `ralph_help()` dispatcher and topic functions: `help_index()`, `help_plan()`, `help_specs()`, `help_build()`, `help_sandbox()`
+  - Moved existing `sandbox_help()` content to `help_sandbox()`
+  - Removed `sandbox help` subcommand — sandbox help is now `ralph help sandbox`
+  - Updated `usage()` to include `help [topic]` and remove `sandbox help`
+  - Help mode skips agent script loading, prerequisite validation, and session log init
+  - Unknown topics print error to stderr then show the topic index
+  - Updated `sandbox_setup` message to reference `ralph help sandbox` instead of `ralph sandbox help`
+  - Each topic contains condensed operational summaries as described in the spec
 
 ---
 
@@ -139,13 +141,13 @@ Add tests for the new functionality.
 
 Changes needed:
 - **`tests/test_ralph.sh`**:
-  - Test `--process` flag is rejected with non-plan modes
-  - Test `--process` requires `PROCESS_DIR` to be configured
   - Test `ralph help` shows topic index
   - Test `ralph help plan` shows plan help content
   - Test `ralph help bogus` shows unknown topic error
-  - Test `usage()` output includes `help` and `plan --process`
+  - Test `usage()` output includes `help`
   - Test `MANAGED_FILES` still in sync between install.sh and update.sh (existing test covers this automatically)
+
+Note: `--process` flag tests were already added in Task 1. `--process` usage test already exists.
 
 ---
 
