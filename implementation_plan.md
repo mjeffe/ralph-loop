@@ -60,17 +60,15 @@ Changes made:
 
 ### Task 3: Sync `prompts/build.md` with canonical template in spec
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/build-mode.md`
 
-The current `prompts/build.md` is missing plan-type-aware task selection. The canonical template in `specs/build-mode.md` includes:
-- Reading `Plan Type:` header from the implementation plan
-- Different selection rules for `gap-driven` vs `process` plan types
-- REPLAN signal for when only blocked tasks remain
-- Guidance that blocked-only → REPLAN (not COMPLETE)
-
-Changes needed:
-- **`prompts/build.md`**: Replace with the canonical template from `specs/build-mode.md` (lines 207-303)
+Replaced `prompts/build.md` with the canonical template from `specs/build-mode.md`. Key additions:
+- Plan-type-aware task selection in Operating Contract (`gap-driven` vs `process`)
+- Updated Workflow step 1 to read `Plan Type:` header
+- Updated Workflow step 2 with plan-type-specific selection rules
+- Updated Workflow steps 9-11 with blocked-only → REPLAN logic
+- Updated Exit Signals to clarify blocked tasks should not trigger COMPLETE
 
 ---
 
