@@ -122,13 +122,13 @@ Changes made:
 
 ### Task 7: Add `help` mode to `specs/loop-behavior.md`
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/help-system.md`, `specs/loop-behavior.md`
 
 The help-system spec says to add `help [topic]` to the CLI interface modes section of `specs/loop-behavior.md`.
 
-Changes needed:
-- **`specs/loop-behavior.md`**: Add `help [topic]` to the Modes section
+Changes made:
+- **`specs/loop-behavior.md`**: Added `help [topic]` to the Modes section with description matching help-system spec
 
 ---
 
