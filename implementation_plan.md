@@ -26,22 +26,23 @@ Remaining gaps are concentrated in: process planning mode, help system, plan-typ
 
 ### Task 1: Add process planning support to `ralph` script and `config`
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/process-planning.md`, `specs/loop-behavior.md`
 
 Add `--process` flag parsing to the `ralph` script and `PROCESS_DIR` config variable.
 
-Changes needed:
-- **`config`**: Add `PROCESS_DIR=""` with comment
+Changes made:
+- **`config`**: Added `PROCESS_DIR=""` with comment
 - **`ralph` script**:
-  - Parse `--process` flag (only valid with `plan` mode; error if used with other modes)
-  - Validate `PROCESS_DIR` when `--process` is used: must be set, directory must exist, must contain `*.md` files
-  - Export `PROCESS_DIR` for envsubst
-  - Select `prompts/plan-process.md` as the prompt template when `--process` is used
-  - Update `usage()` to include `plan --process`
-- **`prompts/plan-process.md`**: Create from the canonical template in `specs/process-planning.md` (lines 250-403)
-
-**Notes:** The `--process` flag only changes which prompt template is used and validates `PROCESS_DIR`. The loop execution itself is unchanged.
+  - Added `PROCESS_FLAG` variable and `--process` parsing in argument loop
+  - Validates `--process` is only used with `plan` mode (error otherwise)
+  - Validates `PROCESS_DIR` when `--process` is used: must be set, directory must exist, must contain `*.md` files
+  - Exports `PROCESS_DIR` for envsubst
+  - Selects `prompts/plan-process.md` as the prompt template when `--process` is used
+  - Updated `usage()` to include `plan --process`
+- **`prompts/plan-process.md`**: Created from the canonical template in `specs/process-planning.md`
+- **`tests/test_ralph.sh`**: Added 5 tests for `--process` flag validation; fixed `assert_contains` to handle `--` prefixed needles
+- **`tests/test_ralph.sh`**: Fixed `assert_contains` grep to use `--` separator (prevents flags like `--process` being interpreted as grep options)
 
 ---
 
