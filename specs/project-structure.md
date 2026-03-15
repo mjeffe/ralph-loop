@@ -26,6 +26,7 @@ ralph-loop/                         # Project root = Ralph's home
 │   └── codex.sh
 ├── prompts/                        # Agent prompt templates (source of truth)
 │   ├── plan.md
+│   ├── plan-process.md
 │   ├── build.md
 │   ├── sandbox-setup.md
 │   └── playbooks/                  # Stack-specific sandbox setup playbooks
@@ -37,7 +38,8 @@ ralph-loop/                         # Project root = Ralph's home
 │   └── session-YYYYMMDD-HHMMSS.log
 ├── specs/                          # Ralph's own specifications
 │   ├── README.md                   # Specs index
-│   └── *.md
+│   ├── *.md
+│   └── process/                    # Process specs (optional, see PROCESS_DIR)
 ├── AGENTS.md                       # Agent configuration for this project
 ├── README.md                       # Project readme
 └── .git/
@@ -59,6 +61,7 @@ parent-project/
 │   │   └── ...
 │   ├── prompts/                    # Agent prompt templates (customizable)
 │   │   ├── plan.md
+│   │   ├── plan-process.md
 │   │   ├── build.md
 │   │   ├── sandbox-setup.md
 │   │   └── playbooks/             # Stack-specific sandbox setup playbooks
@@ -71,7 +74,8 @@ parent-project/
 │   └── .gitignore                  # Excludes logs/ from parent project's git
 ├── specs/                          # Parent project's specifications
 │   ├── README.md                   # Specs index
-│   └── *.md
+│   ├── *.md
+│   └── process/                    # Process specs (optional, see PROCESS_DIR)
 ├── AGENTS.md                       # Agent configuration for parent project
 ├── src/                            # Parent project source code (varies)
 └── .git/
@@ -115,6 +119,7 @@ Ralph uses a configuration file (`config`) located in the same directory as the 
 ```bash
 # Project-specific configuration
 SPECS_DIR="specs"                   # Specifications directory (relative to project root)
+PROCESS_DIR=""                      # Path to process specs directory (empty = not used)
 
 # Loop configuration
 DEFAULT_MAX_ITERATIONS=10
@@ -139,6 +144,7 @@ Default variables available in all prompts:
 | Variable | Source | Description |
 |----------|--------|-------------|
 | `${SPECS_DIR}` | config | Path to specs directory (e.g., `specs`) |
+| `${PROCESS_DIR}` | config | Path to process specs directory (empty when not used) |
 | `${MODE}` | runtime | Current mode: `plan`, `build`, or `prompt` |
 | `${RALPH_HOME}` | runtime | Relative path from project root to Ralph's directory (e.g., `.ralph` or `.`) |
 

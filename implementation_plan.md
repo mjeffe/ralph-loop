@@ -108,15 +108,15 @@ Changes made:
 
 ### Task 6: Add `prompts/plan-process.md` and `PROCESS_DIR` to installer and updater
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/process-planning.md`, `specs/installer.md`, `specs/updater.md`
 
 Add the new process planning prompt to the managed files so it's installed and updated.
 
-Changes needed:
-- **`install.sh`**: Add `prompts/plan-process.md` to `MANAGED_FILES` array and `SOURCE_PATHS`
-- **`update.sh`**: Add `prompts/plan-process.md` to `MANAGED_FILES` array and `SOURCE_PATHS`
-- **`specs/project-structure.md`**: Add `PROCESS_DIR` to config table, add `specs/process/` to layout examples, add `prompts/plan-process.md` to prompts listing
+Changes made:
+- **`install.sh`**: Added `prompts/plan-process.md` to `MANAGED_FILES` array and `SOURCE_PATHS`
+- **`update.sh`**: Added `prompts/plan-process.md` to `MANAGED_FILES` array and `SOURCE_PATHS`
+- **`specs/project-structure.md`**: Added `PROCESS_DIR` to config table and template variables table, added `specs/process/` to both layout diagrams, added `prompts/plan-process.md` to prompts listing in both layouts
 
 ---
 
