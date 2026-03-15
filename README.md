@@ -1,9 +1,14 @@
 # Ralph Wiggum Loop
 
 > [!CAUTION]
-> **This is my sandbox for learning the Ralph Wiggum approach to using an LLM coding agent. It is a research project. DO NOT USE.**
+> **This is my sandbox for working with loop-based, LLM coding agents (based on
+> Geoffrey Huntley's [Ralph Wiggum post](https://ghuntley.com/ralph/)). I am
+> actively using it in several projects, but it is essentially _a research project_.
+> USE AT YOUR OWN RISK.**
 >
 > This software is experimental, unstable, and under active development. There is no support, no documentation guarantees, and no warranty of any kind. Use at your own risk.
+
+Note also that the `sandbox` config is full of my environment preferences, as those are not yet part of a generic config.
 
 ## Overview
 
@@ -89,10 +94,10 @@ curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | 
 # Generate implementation plan (process, from phased process specs)
 .ralph/ralph plan --process
 
-# Run build iterations (default: 10)
+# Run build iterations (default max: 10)
 .ralph/ralph build
 
-# Run specific number of iterations
+# Run up to a max specific number of iterations
 .ralph/ralph build 20
 
 # Run custom prompt
@@ -202,24 +207,8 @@ Comprehensive specifications are available in the **[specs/](specs/README.md)** 
 
 - Git repository initialized (`git init`)
 - Bash shell
-- Agent CLI installed and available in PATH (e.g., Cline)
+- Agent CLI installed and available in PATH (e.g., amp, cline)
 - At least one specification document in `specs/`
-
-## Coding Agents
-
-I have invested several months in working with Cline in VSCode so for now, I'd like to stick with it.
-However, here are some alternatives I may investigate:
-
-**Free/OSS:**
-
-- [Cline](https://docs.cline.bot/introduction/welcome)
-- [Roo](https://github.com/RooCodeInc/Roo-Code?ref=ghuntley.com) - a fork of Cline
-- [Crush](https://github.com/charmbracelet/crush)
-- [Qwen Code](https://github.com/QwenLM/qwen-code)
-
-**Paid:**
-- [Claude Code](https://claude.com/product/claude-code)
-- [amp](https://ampcode.com/)
 
 ## Exit Codes
 
@@ -233,7 +222,28 @@ Ralph uses specific exit codes to indicate different outcomes:
 
 ## Future Enhancements
 
-- **Enhanced statistics** - Better cost and performance tracking
+- **Enhanced statistics** - Better cost and performance tracking. I have no idea how much of the context window is used in a given iteration. That is a crucial missing bit for tuning prompts. This is an inherent limitation of the shell based pipe into a coding agent approach.
+
+## Coding Agents
+
+I generally favor open source and have used Cline in VSCode for several months,
+however, after discovering [amp](https://ampcode.com), there is no looking back!
+It is far more expensive because I cannot control the models I use, but these
+guys have invested in the research to figure out which models work best for each
+type of work, and oh my does it pay off!
+
+Having said that, here are some alternatives I may investigate:
+
+**Free/OSS:**
+
+- [Cline](https://docs.cline.bot/introduction/welcome)
+- [Roo](https://github.com/RooCodeInc/Roo-Code?ref=ghuntley.com) - a fork of Cline
+- [Crush](https://github.com/charmbracelet/crush)
+- [Qwen Code](https://github.com/QwenLM/qwen-code)
+
+**Paid:**
+- [Claude Code](https://claude.com/product/claude-code)
+- [amp](https://ampcode.com/)
 
 ## References
 
