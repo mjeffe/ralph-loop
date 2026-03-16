@@ -124,7 +124,9 @@ trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >
 Responsibilities (in order):
 1. Configure git credentials (see Appendix A)
 2. Clone GIT_REPO into workdir if `.git/HEAD` is missing (fresh volume)
-3. Create sentinel directory (after clone — workdir must be empty for clone)
+3. Create sentinel directory at `${RALPH_HOME}/.sandbox/` (after clone —
+   workdir must be empty for clone). Sentinel files live here so they are
+   covered by `.ralph/.gitignore` and do not pollute the project's git status.
 4. Copy .env.example → .env if missing, with sandbox-appropriate overrides.
    Common overrides: DB_HOST=127.0.0.1, MAIL_HOST=127.0.0.1,
    QUEUE_CONNECTION=sync, CACHE_STORE=file. Adjust based on what services
@@ -135,8 +137,8 @@ Responsibilities (in order):
    **every boot** (not just first creation) so users can add or update
    secrets in the sandbox .env and restart the container.
    The sandbox .env contains real secrets and must never be committed.
-6. Install dependencies idempotently (sentinel file pattern — check sentinel,
-   not output directory, so partial installs get retried)
+6. Install dependencies idempotently (sentinel file in `${RALPH_HOME}/.sandbox/`
+   — check sentinel, not output directory, so partial installs get retried)
 7. Generate app secret/key if framework requires it (after deps install)
 8. Initialize and bootstrap database if applicable:
    - Init data directory if needed
@@ -261,7 +263,8 @@ Quote any entry whose value contains a colon:
 
 - Simple existence checks (`.git/HEAD`, `.env`) are fine for single-command steps
 - Multi-step operations (dependency install, migrations) must use **sentinel files**
-  (e.g., `touch .sandbox-deps-installed` after success; check the sentinel, not
-  the output directory, so partial installs get retried)
-- **Create sentinel directories after the clone step** — the workdir must be
+  stored in `${RALPH_HOME}/.sandbox/` (e.g., `touch ${RALPH_HOME}/.sandbox/deps-installed`
+  after success; check the sentinel, not the output directory, so partial installs
+  get retried)
+- **Create the sentinel directory after the clone step** — the workdir must be
   empty for `git clone` to succeed into it

@@ -323,7 +323,10 @@ Responsibilities (in order):
 1. Configure git credentials (GitHub path via `gh auth`, or generic path via
    git credential store — see Appendix A in the prompt)
 2. Clone GIT_REPO into workdir if `.git/HEAD` is missing (fresh volume)
-3. Create sentinel directory (after clone — workdir must be empty for clone)
+3. Create sentinel directory at `${RALPH_HOME}/.sandbox/` (after clone —
+   workdir must be empty for clone). This keeps sentinel files inside ralph's
+   own directory where they are covered by `.ralph/.gitignore`, avoiding any
+   changes to the parent project's `.gitignore`.
 4. Copy `.env.example` → `.env` if missing, with sandbox-appropriate overrides
    (e.g., `DB_HOST=127.0.0.1`, `MAIL_HOST=127.0.0.1`, `QUEUE_CONNECTION=sync`,
    `CACHE_STORE=file` — adjusted based on provisioned services).
@@ -333,7 +336,8 @@ Responsibilities (in order):
    **every boot** (not just first creation) so users can add or update
    secrets in the sandbox `.env` and restart the container.
    The sandbox `.env` contains real secrets and must never be committed.
-6. Install dependencies idempotently (sentinel file pattern)
+6. Install dependencies idempotently (sentinel file pattern — sentinels go
+   in `${RALPH_HOME}/.sandbox/`)
 7. Generate app secret/key if framework requires it (after deps install)
 8. Initialize and bootstrap database if applicable (init data directory, start
    DB temporarily, create user/databases, run migrations with sentinel, stop DB)
@@ -342,10 +346,11 @@ Responsibilities (in order):
    etc. — only processes the project actually uses)
 10. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
 
-Multi-step operations must use **sentinel files** for idempotency. Check the
-sentinel, not the output directory, so partial installs get retried. Simple
+Multi-step operations must use **sentinel files** in `${RALPH_HOME}/.sandbox/`
+for idempotency (e.g., `touch ${RALPH_HOME}/.sandbox/deps-installed`). Check
+the sentinel, not the output directory, so partial installs get retried. Simple
 existence checks (`.git/HEAD`, `.env`) are fine for single-command steps.
-Sentinel directories must be created after the clone step — the workdir must
+The sentinel directory must be created after the clone step — the workdir must
 be empty for `git clone` to succeed into it.
 
 ### 3. `docker-compose.yml`
@@ -400,8 +405,9 @@ without fixating on them at the expense of higher-priority concerns.
   store (URL-encoded credentials for providers like AWS CodeCommit).
 - **Appendix B: YAML Environment Variable Syntax** — examples of correct list
   syntax and the colon-quoting pitfall in docker-compose.yml.
-- **Appendix C: Idempotency Patterns** — sentinel file pattern, empty workdir
-  requirement before clone, and when simple existence checks suffice.
+- **Appendix C: Idempotency Patterns** — sentinel file pattern using
+  `${RALPH_HOME}/.sandbox/`, empty workdir requirement before clone, and
+  when simple existence checks suffice.
 
 ## Template Variables
 

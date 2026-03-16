@@ -9,3 +9,6 @@ last_agent_output
 
 # Sandbox environment file (contains tokens)
 sandbox/.env
+
+# Sandbox sentinel files (created by entrypoint.sh inside the container)
+.sandbox/
