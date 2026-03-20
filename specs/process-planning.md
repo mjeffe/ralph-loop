@@ -49,6 +49,10 @@ constraints), not additional CLI flags.
 | **Process specs** | Ordered playbooks with phases and sequencing ("how to get there") | `${PROCESS_DIR}/*.md` |
 | **Implementation plan** | Build-mode execution queue (derived from either source) | `implementation_plan.md` |
 
+For large spec volumes that exceed single-iteration context capacity, see
+`specs/incremental-planning.md` for the decomposition ledger, skeleton-first workflow,
+volume hint, and phase collapsing mechanisms.
+
 Process specs are not target-state specs. They describe:
 - Migration phases and their ordering
 - Dependencies between steps
