@@ -85,7 +85,7 @@ Update the process planning prompt to support large spec volumes per the spec. C
 
 ### Task 3: Add phase collapsing instruction to `prompts/build.md`
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/incremental-planning.md`
 
 Add a phase collapsing instruction to the build prompt's plan update section (Workflow step 7), gated behind `Plan Type: process`:
@@ -93,6 +93,8 @@ Add a phase collapsing instruction to the build prompt's plan update section (Wo
 - When all tasks in a process plan phase are marked `complete`, collapse the phase to a single summary line: `## Phase N — Name ✅ (X/X complete)`
 - This applies only to `Plan Type: process` plans
 - Full task history is preserved in git; the collapsed summary saves context for subsequent iterations
+
+**Notes:** Added phase collapsing bullet to Workflow step 7 in `prompts/build.md`, gated behind `Plan Type: process`.
 
 ---
 

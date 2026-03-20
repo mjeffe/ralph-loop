@@ -37,6 +37,7 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
    - Add a brief note on what changed
    - Add any newly discovered tasks (note which task surfaced them)
    - Adjust any remaining tasks that are now obsolete, incorrect, or mis-ordered
+   - **Phase collapsing (`Plan Type: process` only):** When all tasks in a phase are marked `complete`, collapse the entire phase to a single summary line: `## Phase N — Name ✅ (X/X complete)`. Full task history is preserved in git; the collapsed summary saves context for subsequent iterations.
 8. Commit all changes with a descriptive commit message.
 9. If all tasks are `complete` (none `planned` or `blocked`), output the completion signal (see Exit Signals).
 10. If only `blocked` tasks remain (no `planned` work available), output the replan signal (see Exit Signals).
