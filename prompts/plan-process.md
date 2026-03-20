@@ -21,6 +21,7 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 - **Specs Index:** ${SPECS_DIR}/README.md
 - **Implementation Plan:** ${RALPH_HOME}/implementation_plan.md
 - **Project instructions:** AGENTS.md
+- **Spec Volume:** ${SPEC_VOLUME_HINT}
 
 ## Workflow
 

@@ -433,6 +433,52 @@ test_help_unknown_topic_exits_zero() {
     assert_contains "falls back to index" "ralph help <topic>" "$output"
 }
 
+test_spec_volume_hint_in_prompt_template() {
+    echo "--- SPEC_VOLUME_HINT in plan-process.md ---"
+    local template
+    template=$(cat "$RALPH_DIR/prompts/plan-process.md")
+    assert_contains "plan-process.md contains SPEC_VOLUME_HINT" '${SPEC_VOLUME_HINT}' "$template"
+}
+
+test_spec_volume_hint_small() {
+    echo "--- Volume hint: small project ---"
+    local process_dir="$TMP_DIR/small_specs"
+    mkdir -p "$process_dir"
+    echo "# Small spec" > "$process_dir/one.md"
+    echo "# Another" > "$process_dir/two.md"
+
+    local SPEC_BYTES SPEC_COUNT SPEC_KB SPEC_VOLUME_HINT
+    SPEC_BYTES=$(cat "$process_dir"/*.md 2>/dev/null | wc -c)
+    SPEC_COUNT=$(find "$process_dir" -maxdepth 1 -name '*.md' | wc -l)
+    SPEC_KB=$(( SPEC_BYTES / 1024 ))
+    if [[ "$SPEC_KB" -lt 50 && "$SPEC_COUNT" -lt 5 ]]; then
+        SPEC_VOLUME_HINT="Total process spec volume: ${SPEC_COUNT} files, ~${SPEC_KB} KB. You can likely complete planning in one iteration."
+    else
+        SPEC_VOLUME_HINT="Total process spec volume: ${SPEC_COUNT} files, ~${SPEC_KB} KB. This exceeds single-iteration capacity. Use the decomposition ledger and process one spec file per iteration."
+    fi
+    assert_contains "small volume gets single-iteration hint" "one iteration" "$SPEC_VOLUME_HINT"
+}
+
+test_spec_volume_hint_large() {
+    echo "--- Volume hint: large project ---"
+    local process_dir="$TMP_DIR/large_specs"
+    mkdir -p "$process_dir"
+    for i in $(seq 1 6); do
+        dd if=/dev/zero bs=10240 count=1 2>/dev/null | tr '\0' 'x' > "$process_dir/spec-${i}.md"
+    done
+
+    local SPEC_BYTES SPEC_COUNT SPEC_KB SPEC_VOLUME_HINT
+    SPEC_BYTES=$(cat "$process_dir"/*.md 2>/dev/null | wc -c)
+    SPEC_COUNT=$(find "$process_dir" -maxdepth 1 -name '*.md' | wc -l)
+    SPEC_KB=$(( SPEC_BYTES / 1024 ))
+    if [[ "$SPEC_KB" -lt 50 && "$SPEC_COUNT" -lt 5 ]]; then
+        SPEC_VOLUME_HINT="Total process spec volume: ${SPEC_COUNT} files, ~${SPEC_KB} KB. You can likely complete planning in one iteration."
+    else
+        SPEC_VOLUME_HINT="Total process spec volume: ${SPEC_COUNT} files, ~${SPEC_KB} KB. This exceeds single-iteration capacity. Use the decomposition ledger and process one spec file per iteration."
+    fi
+    assert_contains "large volume gets incremental hint" "decomposition ledger" "$SPEC_VOLUME_HINT"
+}
+
 test_managed_files_in_sync() {
     echo "--- Managed files: install.sh and update.sh in sync ---"
     local installer_files updater_files
@@ -566,6 +612,9 @@ main() {
     test_help_shows_topic_index
     test_help_plan_shows_content
     test_help_unknown_topic_exits_zero
+    test_spec_volume_hint_in_prompt_template
+    test_spec_volume_hint_small
+    test_spec_volume_hint_large
     test_managed_files_in_sync
     test_detect_stack
 

@@ -30,7 +30,7 @@ The one remaining spec with implementation gaps is `specs/incremental-planning.m
 
 ### Task 1: Add volume hint computation to `ralph` script
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/incremental-planning.md`
 
 In the `plan --process` code path of the `ralph` script, after validating `PROCESS_DIR`, compute spec volume metrics and generate `SPEC_VOLUME_HINT`:
@@ -45,6 +45,8 @@ The variable must be exported before `prepare_prompt` is called so it's availabl
 
 Add tests:
 - Verify `SPEC_VOLUME_HINT` is substituted into the prompt when using `--process` (can be tested by checking the prompt template contains `${SPEC_VOLUME_HINT}` and the script exports it)
+
+**Notes:** Added volume hint computation (SPEC_BYTES, SPEC_COUNT, SPEC_KB, SPEC_VOLUME_HINT) to the `plan --process` code path in `ralph`. Added `${SPEC_VOLUME_HINT}` to the Context section of `prompts/plan-process.md`. Added 3 tests: template variable presence, small-volume hint, large-volume hint (80 total).
 
 ---
 
