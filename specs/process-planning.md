@@ -126,8 +126,11 @@ ordering. See `specs/plan-mode.md` for full details.
 
 ### Sequence-Constrained Planning
 
-`ralph plan --process` reads process specs and target-state specs, surveys the codebase,
-and decomposes process phases into build-iteration-sized tasks.
+`ralph plan --process` reads process specs, surveys the codebase, and decomposes process
+phases into build-iteration-sized tasks. Target-state specs in `${SPECS_DIR}` are available
+as background context (domain knowledge, naming conventions, architectural patterns) but
+are not authoritative for process planning — process specs define their own per-phase
+outcomes.
 
 The key difference from gap-driven planning:
 
@@ -137,7 +140,7 @@ The key difference from gap-driven planning:
 | **Codebase survey** | Full | Full |
 | **Task discovery** | Infer from spec-vs-code gaps | Decompose within human-defined phases |
 | **Ordering authority** | Agent decides | Human's phase structure is authoritative |
-| **Target-state specs** | Primary input | Validation context (see below) |
+| **Target-state specs** | Primary input | Background context (may be pre-migration; not used for validation) |
 | **Adding work** | Expected | Discovered prerequisites may be inserted before the affected phase; ancillary work goes in an appendix |
 
 Process specs define the strategy, phases, and sequencing constraints. The agent surveys
@@ -174,15 +177,14 @@ When multiple process specs are present:
 
 ### Target-State Spec Interaction
 
-Target-state specs from `${SPECS_DIR}` are **validation context**. Use them to:
+Target-state specs from `${SPECS_DIR}` are **background context**, not a validation
+source. In practice, target-state specs often describe the pre-migration system and are
+not updated until after the migration completes. The process spec itself defines the
+intended outcome of each phase.
 
-- Understand the intended end state of each process step
-- Confirm whether authored process work is already satisfied in the codebase
-- Surface contradictions, missing outcomes, or sequencing risks
-
-They do not create standalone tasks by themselves. Only create work from them when the
-missing work is necessary to execute or verify an existing process phase/step; in that
-case, classify it as a discovered prerequisite (see Discovered Work below).
+The agent may read target-state specs for domain knowledge, naming conventions, and
+architectural patterns, but does not validate process planning against them or generate
+tasks from them.
 
 ### Discovery and Investigation Tasks
 
@@ -213,9 +215,8 @@ completed spec out of the active directory.
 When `ralph plan --process` finds an existing plan with build progress, it does not
 preserve incomplete work blindly:
 
-- **Revalidate** each `complete` task against the current codebase and current specs.
-  Preserve a completed task only if its outcome is still present and still aligned with
-  current process/target-state context.
+- **Revalidate** each `complete` task against the current codebase and current process
+  specs. Preserve a completed task only if its outcome is still present and still correct.
 - **Re-evaluate** each `blocked` task. If the blocker has cleared, return it to `planned`.
   If it still stands, keep it `blocked` with an updated reason.
 - **Re-decompose** all remaining incomplete phases from the current process specs rather
@@ -254,7 +255,7 @@ within a human-defined framework rather than open-ended gap analysis.
 ```markdown
 You are an expert software architect working in Ralph process-planning mode.
 
-Each iteration starts with **fresh context** — you have no memory of prior iterations. Treat repo files as the sole source of truth: `${PROCESS_DIR}/`, `${SPECS_DIR}/`, `AGENTS.md`, git history, and any existing `${RALPH_HOME}/implementation_plan.md`.
+Each iteration starts with **fresh context** — you have no memory of prior iterations. Treat repo files as the sole source of truth: `${PROCESS_DIR}/`, `AGENTS.md`, git history, and any existing `${RALPH_HOME}/implementation_plan.md`. Target-state specs in `${SPECS_DIR}/` are available as background context but are not authoritative for process planning.
 
 ## Operating Contract
 
@@ -271,14 +272,14 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 ## Context
 
 - **Process Specifications:** ${PROCESS_DIR}
-- **Target-State Specifications:** ${SPECS_DIR}
+- **Target-State Specifications (background context):** ${SPECS_DIR}
 - **Specs Index:** ${SPECS_DIR}/README.md
 - **Implementation Plan:** ${RALPH_HOME}/implementation_plan.md
 - **Project instructions:** AGENTS.md
 
 ## Workflow
 
-1. **Read inputs** — Study `AGENTS.md`, `${SPECS_DIR}/README.md`, all top-level `*.md` files in `${PROCESS_DIR}/` (not subdirectories), and target-state specs in `${SPECS_DIR}/` for context. If `${RALPH_HOME}/implementation_plan.md` exists, read it to understand prior progress.
+1. **Read inputs** — Study `AGENTS.md`, `${SPECS_DIR}/README.md`, all top-level `*.md` files in `${PROCESS_DIR}/` (not subdirectories), and optionally target-state specs in `${SPECS_DIR}/` for background context (domain knowledge, naming conventions, architectural patterns). If `${RALPH_HOME}/implementation_plan.md` exists, read it to understand prior progress.
 2. **Survey the codebase** — Understand the current state of the project, focusing on areas touched by the process specs. Survey enough of the codebase to accurately size remaining phases and identify sequencing-relevant constraints.
 3. **Check for completed specs** — If your survey reveals that all work described by a process spec is already complete, do not generate tasks for it. Instead, note it at the top of the plan: "Process spec `<file>` appears complete — consider moving it to `${PROCESS_DIR}/archive/`."
 4. **Decompose phases** — For each active process spec, determine whether each phase and step fits in a single build iteration or needs splitting. Split based on independently testable concerns, but keep child tasks adjacent within their parent phase. You may emit **discovery/investigation tasks** (inventories, measurements, feasibility assessments) when a phase requires understanding before implementation.
@@ -297,7 +298,7 @@ Planning is complete when:
 - Discovered work has been classified as either `Discovered prerequisite` or `Ancillary / Follow-up Work`
 - Phase order and explicit dependencies are clear enough for build mode to choose the next task safely
 - Unresolved conflicts and process gaps are called out explicitly
-- Previously completed tasks have been revalidated against the current codebase and current specs
+- Previously completed tasks have been revalidated against the current codebase and current process specs
 
 ## Plan Format
 
@@ -341,20 +342,10 @@ If you discover work not explicitly written in the process specs, classify it be
 
 Do not silently expand the process spec. Every discovered item must be clearly classified.
 
-## Target-State Validation
-
-Use `${SPECS_DIR}/` to validate process planning, not to originate it:
-
-- Confirm whether an authored phase is already satisfied
-- Confirm that the decomposed tasks would actually reach the intended end state
-- Surface contradictions or missing outcomes as `Target-state validation:` or `Conflict:` notes
-
-Do not create standalone tasks from a target-state spec unless the work is necessary to execute or verify an existing process phase/step; if so, classify it as a discovered prerequisite.
-
 ## Conflicts and Process Gaps
 
 ### Conflicts
-If process specs, target-state specs, code, or tests disagree:
+If process specs, code, or tests disagree:
 
 1. Preserve explicit phase ordering from the process spec that defines the sequence.
 2. Use the more detailed process spec to refine decomposition, not to silently reorder higher-level phases.
@@ -391,7 +382,7 @@ When multiple process specs are present:
 
 If `${RALPH_HOME}/implementation_plan.md` already exists and contains build progress:
 
-- Revalidate each `complete` task against the current codebase and current specs before preserving it.
+- Revalidate each `complete` task against the current codebase and current process specs before preserving it.
 - Keep a `complete` task only if its intended outcome still exists and is still correct.
 - If previously completed work is no longer satisfied, do not silently trust it. Keep the historical record, and add a new task labeled `Corrective follow-up for Task N` in the earliest valid phase that restores the intended state.
 - Re-evaluate each `blocked` task. If the blocker is gone, return it to `planned`. If the blocker still stands, keep it `blocked` with an updated reason. If the blocker was based on an outdated assumption, replace it with the correct prerequisite or manual gate.
