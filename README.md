@@ -92,6 +92,7 @@ curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | 
 .ralph/ralph plan
 
 # Generate implementation plan (process, from phased process specs)
+# Large spec volumes are handled automatically via incremental decomposition
 .ralph/ralph plan --process
 
 # Run build iterations (default max: 10)
@@ -200,6 +201,7 @@ Comprehensive specifications are available in the **[specs/](specs/README.md)** 
 - **[sandbox-setup-prompt.md](specs/sandbox-setup-prompt.md)** - Sandbox setup prompt template
 - **[agent-scripts.md](specs/agent-scripts.md)** - Agent script contract and extensibility
 - **[process-planning.md](specs/process-planning.md)** - Process planning mode
+- **[incremental-planning.md](specs/incremental-planning.md)** - Incremental process planning for large spec volumes
 - **[help-system.md](specs/help-system.md)** - CLI help system
 - **[AGENTS.md](AGENTS.md)** - Agent configuration for this project
 

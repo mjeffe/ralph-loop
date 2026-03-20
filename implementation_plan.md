@@ -116,9 +116,11 @@ Add tests to `tests/test_ralph.sh`:
 
 ### Task 5: Update `README.md` to document incremental planning
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/incremental-planning.md`, `specs/overview.md`
 
 Update the root README to mention incremental process planning capability:
 - Note in the process planning section that large spec volumes are handled automatically via decomposition ledger and skeleton-first workflow
 - Add `incremental-planning.md` to the Documentation section if not already present
+
+**Notes:** Added comment in Usage section noting automatic incremental decomposition for large spec volumes. Added `incremental-planning.md` entry to the Documentation section.
