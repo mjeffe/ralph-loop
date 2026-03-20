@@ -18,148 +18,99 @@ This plan covers gaps between the specs and the current implementation. The code
 - Signal detection (COMPLETE, REPLAN)
 - Template variable substitution
 - Session logging
-- Tests
+- Process planning mode (`--process` flag, `prompts/plan-process.md`, `PROCESS_DIR` config)
+- Help system (`ralph help [topic]`)
+- Plan-type-aware build mode (gap-driven vs process task selection)
+- REPLAN `Plan Command:` reading
+- Tests (77 assertions)
 
-Remaining gaps are concentrated in: process planning mode, help system, plan-type-aware build mode, and prompt template sync.
-
----
-
-### Task 1: Add process planning support to `ralph` script and `config`
-
-**Status:** complete
-**Spec:** `specs/process-planning.md`, `specs/loop-behavior.md`
-
-Add `--process` flag parsing to the `ralph` script and `PROCESS_DIR` config variable.
-
-Changes made:
-- **`config`**: Added `PROCESS_DIR=""` with comment
-- **`ralph` script**:
-  - Added `PROCESS_FLAG` variable and `--process` parsing in argument loop
-  - Validates `--process` is only used with `plan` mode (error otherwise)
-  - Validates `PROCESS_DIR` when `--process` is used: must be set, directory must exist, must contain `*.md` files
-  - Exports `PROCESS_DIR` for envsubst
-  - Selects `prompts/plan-process.md` as the prompt template when `--process` is used
-  - Updated `usage()` to include `plan --process`
-- **`prompts/plan-process.md`**: Created from the canonical template in `specs/process-planning.md`
-- **`tests/test_ralph.sh`**: Added 5 tests for `--process` flag validation; fixed `assert_contains` to handle `--` prefixed needles
-- **`tests/test_ralph.sh`**: Fixed `assert_contains` grep to use `--` separator (prevents flags like `--process` being interpreted as grep options)
+The one remaining spec with implementation gaps is `specs/incremental-planning.md`, which extends process planning for large spec volumes.
 
 ---
 
-### Task 2: Sync `prompts/plan.md` with canonical template in spec
+### Task 1: Add volume hint computation to `ralph` script
 
-**Status:** complete
-**Spec:** `specs/plan-mode.md`
+**Status:** planned
+**Spec:** `specs/incremental-planning.md`
 
-The current `prompts/plan.md` was missing the plan metadata header (`Plan Type: gap-driven`, `Plan Command: ralph plan`) that the canonical template in `specs/plan-mode.md` requires.
+In the `plan --process` code path of the `ralph` script, after validating `PROCESS_DIR`, compute spec volume metrics and generate `SPEC_VOLUME_HINT`:
 
-Changes made:
-- **`prompts/plan.md`**: Added `Plan Type:` and `Plan Command:` instructions to the Task Format section, matching the canonical template in the spec.
+- Compute `SPEC_BYTES` via `cat "$PROCESS_DIR"/*.md 2>/dev/null | wc -c`
+- Compute `SPEC_COUNT` via `find "$PROCESS_DIR" -maxdepth 1 -name '*.md' | wc -l`
+- Compute `SPEC_KB` as `$(( SPEC_BYTES / 1024 ))`
+- Generate `SPEC_VOLUME_HINT` based on threshold (< 50 KB or < 5 files → single-iteration hint; otherwise → incremental hint)
+- Export `SPEC_VOLUME_HINT` for envsubst
 
----
+The variable must be exported before `prepare_prompt` is called so it's available for `envsubst` substitution.
 
-### Task 3: Sync `prompts/build.md` with canonical template in spec
-
-**Status:** complete
-**Spec:** `specs/build-mode.md`
-
-Replaced `prompts/build.md` with the canonical template from `specs/build-mode.md`. Key additions:
-- Plan-type-aware task selection in Operating Contract (`gap-driven` vs `process`)
-- Updated Workflow step 1 to read `Plan Type:` header
-- Updated Workflow step 2 with plan-type-specific selection rules
-- Updated Workflow steps 9-11 with blocked-only → REPLAN logic
-- Updated Exit Signals to clarify blocked tasks should not trigger COMPLETE
+Add tests:
+- Verify `SPEC_VOLUME_HINT` is substituted into the prompt when using `--process` (can be tested by checking the prompt template contains `${SPEC_VOLUME_HINT}` and the script exports it)
 
 ---
 
-### Task 4: Add REPLAN `Plan Command:` reading to ralph script
+### Task 2: Update `prompts/plan-process.md` for incremental planning
 
-**Status:** complete
-**Spec:** `specs/loop-behavior.md`
+**Status:** planned
+**Spec:** `specs/incremental-planning.md`
 
-When the REPLAN signal is detected, the ralph script now reads the `Plan Command:` line from the implementation plan instead of hardcoding `ralph plan`.
+Update the process planning prompt to support large spec volumes per the spec. Changes:
 
-Changes made:
-- **`ralph` script, `run_loop()` function**: REPLAN case (rc=3) now greps `Plan Command:` from `${RALPH_HOME}/implementation_plan.md`, strips the prefix, and uses it in the log message. Falls back to `ralph plan` if not found or file is missing. Message also updated to match spec wording: "...to regenerate the implementation plan."
-- Testing note: This logic is inside `run_loop` which requires full agent invocation to exercise. Unit-level testing deferred to Task 8.
+1. **Context section** — Add `${SPEC_VOLUME_HINT}` as a line (e.g., `- **Spec Volume:** ${SPEC_VOLUME_HINT}`)
 
----
+2. **Plan Format section** — Add the decomposition ledger format:
+   ```markdown
+   ## Decomposition Progress
 
-### Task 5: Add help system to `ralph` script
+   | Spec File | Status | Iteration |
+   |-----------|--------|-----------|
+   | cross-cutting.md | decomposed | 1 |
+   | resource-01.md | pending | - |
+   ```
 
-**Status:** complete
-**Spec:** `specs/help-system.md`
+3. **Workflow section** — Replace the single-pass workflow with the skeleton-first two-phase approach:
+   - Phase A (Skeleton, iteration 1): Read specs shallowly, produce decomposition ledger, optionally produce skeleton phase headings, commit and stop
+   - Phase B (Decompose, iterations 2+): Read plan + ledger, pick next `pending` spec, decompose into tasks, mark `decomposed`, commit and stop
+   - Small project shortcut: when volume hint says single-iteration is safe, collapse both phases
+   - Late-iteration context pressure guidance: when plan exceeds ~40-50 tasks, read only ledger + recent phase tasks
 
-Add `ralph help [topic]` CLI mode with topic functions for plan, specs, build, and sandbox.
+4. **Exit Signal section** — Update completion criteria to include "all spec files in the decomposition ledger are marked `decomposed`"
 
-Changes made:
-- **`ralph` script**:
-  - Added `help` to recognized modes in argument parsing, with `HELP_TOPIC` capture that handles topic names that overlap mode names (e.g., `ralph help plan`)
-  - Added `ralph_help()` dispatcher and topic functions: `help_index()`, `help_plan()`, `help_specs()`, `help_build()`, `help_sandbox()`
-  - Moved existing `sandbox_help()` content to `help_sandbox()`
-  - Removed `sandbox help` subcommand — sandbox help is now `ralph help sandbox`
-  - Updated `usage()` to include `help [topic]` and remove `sandbox help`
-  - Help mode skips agent script loading, prerequisite validation, and session log init
-  - Unknown topics print error to stderr then show the topic index
-  - Updated `sandbox_setup` message to reference `ralph help sandbox` instead of `ralph sandbox help`
-  - Each topic contains condensed operational summaries as described in the spec
+5. **Regeneration Rules section** — Update to handle ledger (reset all entries to `pending` on regeneration) and collapsed phases (treat as complete unless current specs/codebase contradict)
 
 ---
 
-### Task 6: Add `prompts/plan-process.md` and `PROCESS_DIR` to installer and updater
+### Task 3: Add phase collapsing instruction to `prompts/build.md`
 
-**Status:** complete
-**Spec:** `specs/process-planning.md`, `specs/installer.md`, `specs/updater.md`
+**Status:** planned
+**Spec:** `specs/incremental-planning.md`
 
-Add the new process planning prompt to the managed files so it's installed and updated.
+Add a phase collapsing instruction to the build prompt's plan update section (Workflow step 7), gated behind `Plan Type: process`:
 
-Changes made:
-- **`install.sh`**: Added `prompts/plan-process.md` to `MANAGED_FILES` array and `SOURCE_PATHS`
-- **`update.sh`**: Added `prompts/plan-process.md` to `MANAGED_FILES` array and `SOURCE_PATHS`
-- **`specs/project-structure.md`**: Added `PROCESS_DIR` to config table and template variables table, added `specs/process/` to both layout diagrams, added `prompts/plan-process.md` to prompts listing in both layouts
-
----
-
-### Task 7: Add `help` mode to `specs/loop-behavior.md`
-
-**Status:** complete
-**Spec:** `specs/help-system.md`, `specs/loop-behavior.md`
-
-The help-system spec says to add `help [topic]` to the CLI interface modes section of `specs/loop-behavior.md`.
-
-Changes made:
-- **`specs/loop-behavior.md`**: Added `help [topic]` to the Modes section with description matching help-system spec
+- When all tasks in a process plan phase are marked `complete`, collapse the phase to a single summary line: `## Phase N — Name ✅ (X/X complete)`
+- This applies only to `Plan Type: process` plans
+- Full task history is preserved in git; the collapsed summary saves context for subsequent iterations
 
 ---
 
-### Task 8: Update tests for new features
+### Task 4: Add tests for incremental planning features
 
-**Status:** complete
-**Spec:** `specs/process-planning.md`, `specs/help-system.md`, `specs/loop-behavior.md`
+**Status:** planned
+**Spec:** `specs/incremental-planning.md`
 
-Add tests for the new functionality.
+Add tests to `tests/test_ralph.sh`:
 
-Changes made:
-- **`tests/test_ralph.sh`**: Added 4 new test functions (10 new assertions, 77 total):
-  - `test_usage_shows_help` — verifies `--help` output includes `help`
-  - `test_help_shows_topic_index` — verifies `ralph help` lists all 4 topics
-  - `test_help_plan_shows_content` — verifies `ralph help plan` shows gap-driven and --process content
-  - `test_help_unknown_topic_exits_zero` — verifies `ralph help bogus` shows error, falls back to index, exits 0
-
-Note: `--process` flag tests were already added in Task 1. MANAGED_FILES sync test already existed.
+- Test that `SPEC_VOLUME_HINT` variable is exported/computed in the `--process` code path (can test by examining the prompt template for the variable placeholder)
+- Test that `prompts/plan-process.md` contains `${SPEC_VOLUME_HINT}` (template variable presence check)
+- Test that `prompts/build.md` contains phase collapsing instruction
+- Test that `prompts/plan-process.md` contains decomposition ledger format/instructions
 
 ---
 
-### Task 9: Update `README.md` to document process planning and help
+### Task 5: Update `README.md` to document incremental planning
 
-**Status:** complete
-**Spec:** `specs/overview.md`, `specs/process-planning.md`, `specs/help-system.md`
+**Status:** planned
+**Spec:** `specs/incremental-planning.md`, `specs/overview.md`
 
-Update the root README to reflect the new features.
-
-Changes made:
-- **`README.md`**:
-  - Added `ralph plan --process` to the Usage section with descriptive comment
-  - Added `ralph help [topic]` block to the Usage section with all four topics
-  - Added `prompts/plan-process.md` to the Project Structure tree
-  - Added `process-planning.md` and `help-system.md` to the Documentation section
+Update the root README to mention incremental process planning capability:
+- Note in the process planning section that large spec volumes are handled automatically via decomposition ledger and skeleton-first workflow
+- Add `incremental-planning.md` to the Documentation section if not already present
