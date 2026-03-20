@@ -52,7 +52,7 @@ Add tests:
 
 ### Task 2: Update `prompts/plan-process.md` for incremental planning
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/incremental-planning.md`
 
 Update the process planning prompt to support large spec volumes per the spec. Changes:
@@ -78,6 +78,8 @@ Update the process planning prompt to support large spec volumes per the spec. C
 4. **Exit Signal section** — Update completion criteria to include "all spec files in the decomposition ledger are marked `decomposed`"
 
 5. **Regeneration Rules section** — Update to handle ledger (reset all entries to `pending` on regeneration) and collapsed phases (treat as complete unless current specs/codebase contradict)
+
+**Notes:** All 5 changes applied to `prompts/plan-process.md`. Context section already had `${SPEC_VOLUME_HINT}` from Task 1. Added: decomposition ledger format (Plan Format), skeleton-first two-phase workflow with small/large project split and late-iteration context pressure guidance (Workflow), ledger criterion in exit signal (Exit Signal), ledger reset and collapsed phase handling (Regeneration Rules).
 
 ---
 

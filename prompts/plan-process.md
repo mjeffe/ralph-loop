@@ -25,6 +25,12 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 
 ## Workflow
 
+Choose the appropriate workflow based on the spec volume hint.
+
+### Small Projects (single-iteration safe)
+
+When the volume hint indicates single-iteration is safe, collapse both phases into one iteration:
+
 1. **Read inputs** — Study `AGENTS.md`, `${SPECS_DIR}/README.md`, all top-level `*.md` files in `${PROCESS_DIR}/` (not subdirectories), and target-state specs in `${SPECS_DIR}/` for context. If `${RALPH_HOME}/implementation_plan.md` exists, read it to understand prior progress.
 2. **Survey the codebase** — Understand the current state of the project, focusing on areas touched by the process specs. Survey enough of the codebase to accurately size remaining phases and identify sequencing-relevant constraints.
 3. **Check for completed specs** — If your survey reveals that all work described by a process spec is already complete, do not generate tasks for it. Instead, note it at the top of the plan: "Process spec `<file>` appears complete — consider moving it to `${PROCESS_DIR}/archive/`."
@@ -34,6 +40,34 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 7. **If planning is complete**, output the completion signal (see Exit Signal).
 8. **If planning is not yet complete**, stop without a signal — the loop will start another iteration.
 
+### Large Projects (incremental, skeleton-first)
+
+When the volume hint indicates the spec volume exceeds single-iteration capacity, use the two-phase skeleton-first workflow.
+
+#### Phase A — Skeleton (iteration 1)
+
+1. Read all spec files shallowly — filenames, headings, any dependency declarations between specs.
+2. Read the orienting/top-level process spec(s) fully (these are typically small and provide the big picture).
+3. Produce the decomposition ledger (see Plan Format) with all spec files listed and ordered.
+4. Optionally produce skeleton phase headings in the plan (no tasks yet).
+5. Commit and stop (do not emit `COMPLETE`).
+
+#### Phase B — Decompose (iterations 2+)
+
+1. Read the plan file (including ledger and all tasks so far).
+2. Pick the next `pending` spec file from the ledger.
+3. Read that spec file fully. Survey the relevant codebase areas.
+4. Decompose it into build-sized tasks. Append tasks to the plan.
+5. If the spec introduces a discovered prerequisite or conflict with already-decomposed work, use the existing mechanisms (insert prerequisite before affected phase, add `Conflict:` note).
+6. Mark the spec file `decomposed` in the ledger. Commit and stop.
+7. Repeat until all specs are decomposed, then emit `COMPLETE`.
+
+You may process multiple pending specs in a single iteration if context permits, but default to one. The cost of unnecessary single-spec iterations is low; the cost of exceeding context is high.
+
+#### Late-Iteration Context Pressure
+
+As more specs are decomposed, the plan-so-far grows. When the plan exceeds ~40–50 tasks, read only the ledger, phase headings, and the tasks from the immediately preceding phase (for dependency context) rather than all tasks. Cross-phase dependencies are declared in the process spec, not discovered by re-reading old tasks.
+
 ## Exit Signal
 
 When planning is complete, output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it.
@@ -41,6 +75,7 @@ When planning is complete, output exactly `<promise>COMPLETE</promise>` — the 
 Planning is complete when:
 - Every active top-level process spec has been reviewed
 - Every authored phase is either decomposed into build-sized tasks, noted as already complete, or represented by an explicit blocked/manual gate
+- All spec files in the decomposition ledger (if present) are marked `decomposed`
 - Discovered work has been classified as either `Discovered prerequisite` or `Ancillary / Follow-up Work`
 - Phase order and explicit dependencies are clear enough for build mode to choose the next task safely
 - Unresolved conflicts and process gaps are called out explicitly
@@ -64,6 +99,21 @@ Each task needs at minimum:
 - An optional `Depends on:` line when the dependency is not obvious from placement
 
 Order tasks to match the phase ordering from the process specs.
+
+### Decomposition Ledger
+
+When using incremental planning (see Workflow), include a `## Decomposition Progress` section in the plan. This ledger tracks which spec files have been decomposed:
+
+```markdown
+## Decomposition Progress
+
+| Spec File | Status | Iteration |
+|-----------|--------|-----------|
+| cross-cutting.md | decomposed | 1 |
+| resource-01.md | pending | - |
+```
+
+The ledger is the resumable work queue. On each iteration, read it, skip files marked `decomposed`, and pick the next `pending` file(s). Populate the ledger during the skeleton pass and update it as each spec is decomposed.
 
 ## Task Sizing
 
@@ -143,6 +193,8 @@ If `${RALPH_HOME}/implementation_plan.md` already exists and contains build prog
 - If previously completed work is no longer satisfied, do not silently trust it. Keep the historical record, and add a new task labeled `Corrective follow-up for Task N` in the earliest valid phase that restores the intended state.
 - Re-evaluate each `blocked` task. If the blocker is gone, return it to `planned`. If the blocker still stands, keep it `blocked` with an updated reason. If the blocker was based on an outdated assumption, replace it with the correct prerequisite or manual gate.
 - Re-decompose all remaining incomplete phases from the current process specs rather than trusting stale task wording.
+- If the plan contains a decomposition ledger, reset all ledger entries to `pending`. Regeneration implies re-assessment — re-decompose each spec against the current codebase and current specs. Previously completed tasks that survive revalidation are preserved in the plan body, but the ledger drives fresh decomposition passes.
+- Treat collapsed phases (e.g., `## Phase N — Name ✅ (X/X complete)`) as complete. Only re-expand a collapsed phase if current specs or codebase state contradict the phase's outcomes — in that case, re-decompose and add corrective follow-up tasks.
 
 ## Task Status Values
 
