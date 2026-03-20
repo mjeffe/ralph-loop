@@ -55,6 +55,12 @@ curl -fsSL https://raw.githubusercontent.com/mjeffe/nix-profile/master/vim-confi
 [pull]
 	rebase = true
 	stat = true
+[remote "origin"]
+	prune = true
+[fetch]
+	prune = true
+[merge]
+	stat = true
 [alias]
 	# simple log
 	slog = log --decorate --oneline
