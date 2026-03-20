@@ -51,7 +51,7 @@ tests pass.
 ---
 
 ### Task 2: Create `prompts/align-specs.md` prompt template
-**Status:** planned
+**Status:** complete
 **Spec:** specs/align-specs.md
 
 Create `prompts/align-specs.md` using the canonical prompt template from the spec
@@ -59,6 +59,10 @@ Create `prompts/align-specs.md` using the canonical prompt template from the spe
 variables: `${PROCESS_DIR}`, `${RALPH_HOME}`, `${SPECS_DIR}`.
 
 This is a new file — no existing file needs modification.
+
+**Notes:** Created `prompts/align-specs.md` with the canonical template from the spec.
+Template covers first-iteration and subsequent-iteration workflows, exit signal,
+blocked specs handling, scope constraints, and spec quality guidelines. All 92 tests pass.
 
 ---
 
