@@ -100,7 +100,7 @@ Add a phase collapsing instruction to the build prompt's plan update section (Wo
 
 ### Task 4: Add tests for incremental planning features
 
-**Status:** planned
+**Status:** complete
 **Spec:** `specs/incremental-planning.md`
 
 Add tests to `tests/test_ralph.sh`:
@@ -109,6 +109,8 @@ Add tests to `tests/test_ralph.sh`:
 - Test that `prompts/plan-process.md` contains `${SPEC_VOLUME_HINT}` (template variable presence check)
 - Test that `prompts/build.md` contains phase collapsing instruction
 - Test that `prompts/plan-process.md` contains decomposition ledger format/instructions
+
+**Notes:** Added `test_build_prompt_has_phase_collapsing` (2 assertions: phase collapsing mention + Plan Type: process gate) and `test_plan_process_has_decomposition_ledger` (3 assertions: Decomposition Progress heading, Spec File table header, Skeleton workflow mention). The first two bullet points were already covered by existing tests from Task 1. Total: 85 assertions.
 
 ---
 

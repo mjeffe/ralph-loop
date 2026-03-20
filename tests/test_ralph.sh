@@ -479,6 +479,23 @@ test_spec_volume_hint_large() {
     assert_contains "large volume gets incremental hint" "decomposition ledger" "$SPEC_VOLUME_HINT"
 }
 
+test_build_prompt_has_phase_collapsing() {
+    echo "--- build.md contains phase collapsing instruction ---"
+    local template
+    template=$(cat "$RALPH_DIR/prompts/build.md")
+    assert_contains "build.md mentions phase collapsing" "Phase collapsing" "$template"
+    assert_contains "build.md gates on Plan Type: process" "Plan Type: process" "$template"
+}
+
+test_plan_process_has_decomposition_ledger() {
+    echo "--- plan-process.md contains decomposition ledger ---"
+    local template
+    template=$(cat "$RALPH_DIR/prompts/plan-process.md")
+    assert_contains "plan-process.md has Decomposition Progress heading" "Decomposition Progress" "$template"
+    assert_contains "plan-process.md has ledger table headers" "Spec File" "$template"
+    assert_contains "plan-process.md mentions skeleton-first workflow" "Skeleton" "$template"
+}
+
 test_managed_files_in_sync() {
     echo "--- Managed files: install.sh and update.sh in sync ---"
     local installer_files updater_files
@@ -615,6 +632,8 @@ main() {
     test_spec_volume_hint_in_prompt_template
     test_spec_volume_hint_small
     test_spec_volume_hint_large
+    test_build_prompt_has_phase_collapsing
+    test_plan_process_has_decomposition_ledger
     test_managed_files_in_sync
     test_detect_stack
 
