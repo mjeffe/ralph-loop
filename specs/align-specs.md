@@ -44,6 +44,102 @@ These prerequisites prevent misuse as a general-purpose "generate specs from cod
 The user must have done the disciplined work (write process specs, plan, build) before
 alignment is available.
 
+## Alignment Ledger
+
+The alignment ledger (`${RALPH_HOME}/alignment_ledger.md`) tracks which target-state specs
+have been reviewed and updated. It serves the same role as `implementation_plan.md` does
+for build mode — persistent memory across fresh-context iterations.
+
+The ledger is a separate file from the implementation plan because the two have independent
+lifecycles. `ralph plan` regenerates `implementation_plan.md` from scratch; alignment
+progress must survive that. The typical lifecycle is sequential and non-overlapping:
+
+```
+ralph plan --process  →  creates implementation_plan.md
+ralph build           →  consumes/updates implementation_plan.md
+ralph align-specs     →  creates/updates alignment_ledger.md
+ralph plan            →  regenerates implementation_plan.md (ledger untouched)
+```
+
+### Ledger Format
+
+```markdown
+# Alignment Ledger
+
+Process Specs: specs/process/
+Created: YYYY-MM-DD
+
+## Affected Specs
+
+### 1. specs/loop-behavior.md
+Status: complete
+Changes: Added align-specs to CLI modes section
+Commit: a1b2c3d
+
+### 2. specs/overview.md
+Status: complete
+Changes: Added align-specs as optional post-migration step
+Commit: a1b2c3d
+
+### 3. specs/spec-lifecycle.md
+Status: planned
+Scope: Add guidance on using ralph align-specs after process migrations
+
+### 4. specs/auth.md
+Status: blocked
+Reason: Process specs contradict on auth delegation approach — needs human clarification
+
+### 5. specs/notifications.md
+Status: new
+Scope: Migration introduced notification system with no existing spec — create from scratch
+```
+
+### Ledger Lifecycle
+
+**First iteration (no ledger exists):**
+
+1. Agent reads all inputs (process specs, plan, existing target-state specs)
+2. Surveys which specs are affected by the migration
+3. Creates the alignment ledger with all affected specs listed
+4. Begins aligning specs, marking completed ones in the ledger
+5. Commits updated spec files + ledger
+
+**Subsequent iterations (ledger exists):**
+
+1. Agent reads the ledger — knows exactly what's done and what remains
+2. Picks the next `planned` spec(s), aligns them, updates ledger status
+3. Commits updated spec files + ledger
+
+**Already complete (ledger exists, no `planned` specs remain):**
+
+1. Agent reads the ledger, confirms nothing remains
+2. Outputs `<promise>COMPLETE</promise>`
+
+This matches how build mode handles an all-complete plan — the agent reads state, confirms
+there's no work, and exits. One cheap iteration, no bash-level pre-checks needed.
+
+### Status Values
+
+- `planned` — identified as affected, not yet aligned
+- `complete` — reviewed and updated (or confirmed unchanged), committed
+- `blocked` — cannot be aligned without human intervention (document reason)
+- `new` — migration introduced a component with no existing spec, needs creation
+
+### Blocked Specs
+
+When the agent encounters irreconcilable conflicts (e.g., process specs contradict each
+other on a design decision, or the codebase diverged from process spec intent in a way
+that requires a human judgment call), it marks the spec as `blocked` in the ledger with
+a reason.
+
+The agent continues aligning non-blocked specs. When all non-blocked specs are `complete`
+and only `blocked` specs remain, the agent outputs `<promise>COMPLETE</promise>`. The
+human reviews the ledger, resolves the conflicts, and re-runs if needed.
+
+This keeps blocking at the task level (in the ledger) rather than introducing a new
+loop-level signal, matching how build mode handles blocked tasks in the implementation
+plan.
+
 ## Behavior
 
 ### Agent Inputs
@@ -57,13 +153,16 @@ The agent reads, in order of authority:
 3. **Codebase** — current reality, the ground truth for what the system actually does now.
 4. **Existing target-state specs** (`${SPECS_DIR}/`) — what needs updating. The specs
    index (`${SPECS_DIR}/README.md`) maps what specs exist.
+5. **Alignment ledger** (`${RALPH_HOME}/alignment_ledger.md`) — if it exists, the
+   persistent record of alignment progress from prior iterations.
 
 ### Agent Responsibilities
 
 1. **Read all inputs** — process specs, implementation plan, existing target-state specs
-   index, and `AGENTS.md`.
-2. **Identify stale specs** — determine which target-state specs describe behavior that
-   was changed by the process-spec migration.
+   index, alignment ledger (if present), and `AGENTS.md`.
+2. **Create or read the alignment ledger** — on the first iteration, survey all inputs
+   and create the ledger listing all affected specs. On subsequent iterations, read the
+   existing ledger to determine remaining work.
 3. **Update stale specs** — revise spec content to reflect the post-migration system.
    Use process specs for intent and rationale, the implementation plan for build decisions,
    and the codebase for current reality.
@@ -74,8 +173,11 @@ The agent reads, in order of authority:
    of the old behavior remains, remove the spec file.
 6. **Update the specs index** — keep `${SPECS_DIR}/README.md` current with any additions
    or removals.
-7. **Commit** with a descriptive commit message.
-8. **Output completion signal** when alignment is complete.
+7. **Update the alignment ledger** — mark completed specs, note changes and commit hashes.
+8. **Commit** all changes (spec files + ledger) with a descriptive commit message. One
+   commit per iteration containing all spec files aligned in that iteration plus the
+   updated ledger.
+9. **Output completion signal** when alignment is complete (see Completion).
 
 ### Scope Constraints
 
@@ -85,7 +187,8 @@ The agent reads, in order of authority:
   `specs/auth.md`, update that file — do not reorganize into new files unless the old
   structure no longer makes sense.
 - Preserve spec sections that were not affected by the migration.
-- Do not implement code changes. This mode only updates spec files.
+- Do not implement code changes. This mode only updates spec files and the alignment
+  ledger.
 
 ### What Good Aligned Specs Look Like
 
@@ -100,20 +203,25 @@ design intent that code alone cannot express.
 
 ### Iterative Alignment
 
-For large migrations with many affected specs, the agent may need multiple iterations.
-The agent uses its judgment on how to break up the work. The existing target-state specs
-provide a natural work queue — each spec file is a unit of work.
+For large migrations with many affected specs, the agent uses multiple iterations. The
+alignment ledger provides the persistent work queue — the agent uses its judgment on how
+many specs to align per iteration (small specs may be batched, large ones get a solo
+iteration).
 
-The agent should not output `<promise>COMPLETE</promise>` until all affected specs have
-been reviewed and updated.
+Each iteration follows the same pattern: read the ledger, pick `planned` work, align
+specs, update the ledger, commit.
 
 ## Completion
 
 The agent outputs `<promise>COMPLETE</promise>` when:
-- All target-state specs affected by the process-spec migration have been reviewed
-- Stale specs have been updated, new specs created, obsolete specs removed
+- All `planned` and `new` specs in the alignment ledger have been processed (moved to
+  `complete` or `blocked`)
 - `${SPECS_DIR}/README.md` is current
 - All changes are committed
+- The ledger reflects final state
+
+Blocked specs do not prevent completion. The agent completes all actionable work and
+leaves the ledger as a record of what remains for human resolution.
 
 ## Build Completion Nudge
 
@@ -135,16 +243,22 @@ It is printed to both the terminal and the session log, after the session summar
 
 ### Implementation
 
-In the `ralph` script, after writing the session summary and before exiting, check:
+In `run_loop()`, after writing the session summary and before the `exit` call. All
+needed state (`$exit_reason`, `$MODE`) is already local to `run_loop()`:
 
 ```bash
-if [[ "$MODE" == "build" && "$EXIT_REASON" == "COMPLETE" ]]; then
+if [[ "$MODE" == "build" && "$exit_reason" == "completion signal" ]]; then
     plan_type=$(grep -m1 '^Plan Type:' "$RALPH_HOME/implementation_plan.md" 2>/dev/null \
         | sed 's/^Plan Type:[[:space:]]*//')
     if [[ "$plan_type" == "process" ]]; then
-        # print nudge banner
+        log ""
+        log "╔══════════════════════════════════════════════════════════════════════════════════╗"
+        log "║  Process-plan build complete. Target-state specs may need updating.            ║"
+        log "║  Run: ralph align-specs                                                       ║"
+        log "╚══════════════════════════════════════════════════════════════════════════════════╝"
     fi
 fi
+exit "$exit_code"
 ```
 
 ## Prompt Template
@@ -167,33 +281,46 @@ implementation plan for build decisions, and the codebase for current reality.
 
 - **Process Specifications:** ${PROCESS_DIR}
 - **Implementation Plan:** ${RALPH_HOME}/implementation_plan.md
+- **Alignment Ledger:** ${RALPH_HOME}/alignment_ledger.md
 - **Target-State Specifications:** ${SPECS_DIR}
 - **Specs Index:** ${SPECS_DIR}/README.md
 - **Project instructions:** AGENTS.md
 
 ## Workflow
 
+### First Iteration (no alignment ledger exists)
+
 1. **Read inputs** — Study `AGENTS.md`, process specs in `${PROCESS_DIR}/`, the
    implementation plan at `${RALPH_HOME}/implementation_plan.md` (including build notes
    and completed task details), and the specs index at `${SPECS_DIR}/README.md`.
 2. **Identify affected specs** — Determine which target-state specs describe behavior
-   that was changed by the migration. List them.
-3. **Survey the codebase** — For each affected area, understand the current post-migration
-   state.
-4. **Update specs** — For each affected spec:
-   - Revise content to reflect current system behavior
-   - Incorporate design rationale from process specs (the "why")
-   - Incorporate relevant build decisions from the implementation plan
-   - Preserve sections not affected by the migration
-   - If a spec is entirely obsolete (feature fully replaced, no trace remains), remove it
-5. **Create new specs** — If the migration introduced components with no existing spec,
-   create new spec files following the project's existing conventions.
-6. **Update the index** — Keep `${SPECS_DIR}/README.md` current with any additions or
-   removals.
-7. **Commit** all changes with a descriptive commit message.
-8. **If alignment is complete**, output the completion signal (see Exit Signal).
-9. **If alignment is not yet complete**, stop without a signal — the loop will start
-   another iteration.
+   that was changed by the migration. Include specs that need updating, new specs that
+   need creating, and obsolete specs that should be removed.
+3. **Create the alignment ledger** — Write `${RALPH_HOME}/alignment_ledger.md` listing
+   all affected specs with status `planned` (or `new` for specs that need creating).
+4. **Begin alignment** — Survey the codebase for affected areas and start updating specs.
+   For each spec you complete, update its ledger entry to `complete` with a brief summary
+   of changes.
+5. **Commit** all changes (spec files + ledger) with a descriptive commit message.
+6. **If all specs are aligned**, output the completion signal (see Exit Signal).
+7. **If work remains**, stop without a signal — the loop will start another iteration.
+
+### Subsequent Iterations (alignment ledger exists)
+
+1. **Read the alignment ledger** at `${RALPH_HOME}/alignment_ledger.md` to determine
+   what work remains.
+2. **If no `planned` or `new` specs remain**, output the completion signal.
+3. **Pick the next spec(s)** — select `planned` or `new` entries from the ledger. Use
+   your judgment on how many to tackle this iteration (small specs may be batched, large
+   ones deserve a solo iteration).
+4. **Read inputs for context** — process specs, implementation plan, and the relevant
+   sections of the codebase.
+5. **Align the selected specs** — update, create, or remove spec files as needed.
+6. **Update the ledger** — mark completed specs, note changes and commit hash.
+7. **Update the specs index** if any specs were added or removed.
+8. **Commit** all changes (spec files + ledger) with a descriptive commit message.
+9. **If all specs are aligned**, output the completion signal.
+10. **If work remains**, stop without a signal.
 
 ## Exit Signal
 
@@ -201,11 +328,21 @@ When alignment is complete, output exactly `<promise>COMPLETE</promise>` — the
 cannot exit without it.
 
 Alignment is complete when:
-- All target-state specs affected by the migration have been reviewed and updated
-- New specs have been created for components introduced by the migration
-- Obsolete specs have been removed
+- All `planned` and `new` specs in the ledger have been processed
+- Stale specs have been updated, new specs created, obsolete specs removed
 - `${SPECS_DIR}/README.md` is current
 - All changes are committed
+- The ledger reflects final state
+
+Blocked specs do not prevent completion. Complete all actionable work and leave the
+ledger as a record for human review.
+
+## Blocked Specs
+
+If you encounter irreconcilable conflicts — process specs contradict each other, the
+codebase diverged from process spec intent in ways requiring human judgment, or you
+lack enough information to write an accurate spec — mark the spec as `blocked` in the
+ledger with a clear reason. Continue aligning non-blocked specs.
 
 ## Scope
 
@@ -213,7 +350,7 @@ Alignment is complete when:
   specs.
 - Follow existing spec file boundaries and conventions.
 - Preserve spec sections not affected by the migration.
-- **Do not implement code changes.** This mode only updates spec files.
+- **Do not implement code changes.** This mode only updates spec files and the ledger.
 
 ## Spec Quality
 
@@ -235,7 +372,7 @@ Begin alignment now.
 1. Add `align-specs` as a recognized mode
 2. Add prerequisite checks (PROCESS_DIR, plan type, completed tasks)
 3. Use `prompts/align-specs.md` as the prompt template
-4. Add build-completion nudge after session summary for process-plan builds
+4. Add build-completion nudge inside `run_loop()` before `exit`
 
 ### `specs/loop-behavior.md`
 
@@ -253,7 +390,14 @@ process-spec migrations.
 
 ### `specs/help-system.md`
 
-Add align-specs guidance to the `ralph help specs` topic.
+1. Add `align-specs` as a new help topic (`ralph help align-specs`) covering:
+   - Purpose: updating target-state specs after process-spec migrations
+   - Prerequisites (PROCESS_DIR, process-type plan, completed tasks)
+   - The alignment ledger: what it is, how to reset (delete and re-run)
+   - Workflow: runs iteratively, creates ledger on first iteration, picks up where it left off
+   - Blocked specs: resolved by human, then re-run
+2. Add a brief mention of `ralph align-specs` to the `ralph help specs` topic under
+   spec maintenance.
 
 ### Installer and Updater
 
