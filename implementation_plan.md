@@ -67,7 +67,7 @@ blocked specs handling, scope constraints, and spec quality guidelines. All 92 t
 ---
 
 ### Task 3: Add build-completion nudge for process plans
-**Status:** planned
+**Status:** complete
 **Spec:** specs/align-specs.md
 
 In `run_loop()`, after writing the session summary and before the `exit` call, add the
@@ -84,6 +84,12 @@ to both terminal and log:
 
 The spec provides the exact implementation snippet. All needed state (`$exit_reason`,
 `$MODE`) is already local to `run_loop()`.
+
+**Notes:** Added the nudge block inside `run_loop()` after the session summary log lines
+and before `exit`, matching the spec's exact implementation snippet. Uses `log()` to
+output to both terminal and session log. Tests skipped — nudge is inside `run_loop()`
+which exits and requires a full agent invocation to exercise; the logic is a direct
+copy of the spec's canonical snippet. All 92 existing tests pass.
 
 ---
 

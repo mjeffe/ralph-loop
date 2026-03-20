@@ -300,6 +300,19 @@ run_loop() {
     log "Duration: $(( $(date +%s) - session_start ))s"
     log "Exit: ${exit_reason} (code ${exit_code})"
     log "================================================================================"
+
+    if [[ "$MODE" == "build" && "$exit_reason" == "completion signal" ]]; then
+        plan_type=$(grep -m1 '^Plan Type:' "$RALPH_HOME/implementation_plan.md" 2>/dev/null \
+            | sed 's/^Plan Type:[[:space:]]*//')
+        if [[ "$plan_type" == "process" ]]; then
+            log ""
+            log "╔══════════════════════════════════════════════════════════════════════════════════╗"
+            log "║  Process-plan build complete. Target-state specs may need updating.            ║"
+            log "║  Run: ralph align-specs                                                       ║"
+            log "╚══════════════════════════════════════════════════════════════════════════════════╝"
+        fi
+    fi
+
     exit "$exit_code"
 }
 
