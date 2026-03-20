@@ -35,6 +35,24 @@ others. Two changes recommended:
    on ralph-loop to understand and modify the prompts. Add a sync comment at the
    top of each file.
 
+## Workflow Status Awareness (`ralph status`)
+
+Consider a `ralph status` command that surfaces where the user is in the current workflow
+and suggests the next step. Ralph already has the information (plan type, task statuses,
+process dir configuration) — it just doesn't present it as workflow guidance.
+
+Example output:
+```
+Mode: process
+Plan: complete (42 tasks)
+Build: 38/42 complete, 4 planned
+Next: ralph build 4
+After build: ralph align-specs
+```
+
+This would benefit all modes, not just process workflows. Non-prescriptive — it shows
+state and suggests, doesn't automate.
+
 ## Test Guidance Policy (prompts/build.md step 7)
 
 Current policy nudges agents toward coverage where it matters most (bug fixes,
