@@ -668,6 +668,22 @@ test_usage_shows_align_specs() {
     assert_contains "shows align-specs mode" "align-specs" "$output"
 }
 
+test_help_align_specs_shows_content() {
+    echo "--- ralph help align-specs shows content ---"
+    local output
+    output=$("$RALPH_DIR/ralph" help align-specs 2>&1)
+    assert_contains "align-specs help shows purpose" "ALIGN SPECS" "$output"
+    assert_contains "align-specs help shows prerequisites" "PREREQUISITES" "$output"
+    assert_contains "align-specs help shows ledger" "ALIGNMENT LEDGER" "$output"
+}
+
+test_help_index_shows_align_specs() {
+    echo "--- ralph help index includes align-specs ---"
+    local output
+    output=$("$RALPH_DIR/ralph" help 2>&1)
+    assert_contains "index shows align-specs topic" "align-specs" "$output"
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -719,6 +735,8 @@ main() {
     test_align_specs_requires_process_plan
     test_align_specs_requires_completed_tasks
     test_usage_shows_align_specs
+    test_help_align_specs_shows_content
+    test_help_index_shows_align_specs
 
     teardown
 

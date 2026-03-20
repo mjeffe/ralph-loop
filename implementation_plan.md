@@ -94,7 +94,7 @@ copy of the spec's canonical snippet. All 92 existing tests pass.
 ---
 
 ### Task 4: Add `align-specs` to installer/updater managed files and help system
-**Status:** planned
+**Status:** complete
 **Spec:** specs/align-specs.md, specs/help-system.md
 
 1. Add `prompts/align-specs.md` to `MANAGED_FILES` and `SOURCE_PATHS` in both
@@ -110,3 +110,10 @@ copy of the spec's canonical snippet. All 92 existing tests pass.
 4. Add `align-specs` case to `ralph_help()` dispatcher.
 5. Add brief mention of `ralph align-specs` to `help_specs()` under spec maintenance.
 6. Add tests for `ralph help align-specs`.
+
+**Notes:** Added `prompts/align-specs.md` to both `install.sh` and `update.sh` MANAGED_FILES
+and SOURCE_PATHS arrays (test_managed_files_in_sync validates sync). Added `help_align_specs()`
+function covering purpose, prerequisites, alignment ledger, workflow, and blocked specs.
+Added `align-specs` to `help_index()` and `ralph_help()` dispatcher. Added "Spec Maintenance
+After Migrations" section to `help_specs()`. 4 new test assertions (2 test functions) added,
+all 96 tests pass.
