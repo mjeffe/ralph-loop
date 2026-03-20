@@ -15,7 +15,7 @@ structure) is implemented and passing all 85 tests.
 ---
 
 ### Task 1: Add `align-specs` mode to the `ralph` script
-**Status:** planned
+**Status:** complete
 **Spec:** specs/align-specs.md
 
 Add the `align-specs` CLI mode to the `ralph` script:
@@ -41,6 +41,12 @@ Add the `align-specs` CLI mode to the `ralph` script:
    - `ralph align-specs` without process-type plan exits with error
    - `ralph align-specs` without completed tasks exits with error
    - Usage output includes `align-specs`
+
+**Notes:** Added `align-specs` to argument parser, usage output, and entry point case
+statement. Three prerequisite checks validate PROCESS_DIR, process-type plan, and at
+least one completed task. Agent script loads normally (not excluded). Exports PROCESS_DIR
+for prompt template substitution. 7 new test assertions (4 test functions) added, all 92
+tests pass.
 
 ---
 

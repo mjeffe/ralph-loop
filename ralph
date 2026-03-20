@@ -4,6 +4,7 @@
 # Usage:
 #   ralph plan [max_iterations]
 #   ralph build [max_iterations]
+#   ralph align-specs [max_iterations]
 #   ralph prompt <file> [max_iterations]
 #   ralph update
 #   ralph sandbox <setup|up|down|reset|shell|status>
@@ -41,6 +42,7 @@ Modes:
   plan   [max_iterations]              Run gap-driven plan mode iterations
   plan   --process [max_iterations]    Run process plan mode iterations
   build  [max_iterations]              Run build mode iterations
+  align-specs [max_iterations]         Update target-state specs after process migration
   prompt <file> [max_iterations]       Run an ad-hoc prompt from file in the loop
   update                               Update ralph to the latest upstream version
   help   [topic]                       Show operational guidance (topics: plan, specs, build, sandbox)
@@ -61,7 +63,7 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        plan|build|prompt|update|sandbox|help)
+        plan|build|align-specs|prompt|update|sandbox|help)
             if [[ "$MODE" == "help" ]]; then
                 HELP_TOPIC="$1"
             else
@@ -863,6 +865,35 @@ case "$MODE" in
         PROMPT_TEMPLATE="$RALPH_DIR/prompts/build.md"
         if [[ ! -f "$PROMPT_TEMPLATE" ]]; then
             echo "Error: build prompt template not found: $PROMPT_TEMPLATE" >&2
+            exit 1
+        fi
+        run_loop "$PROMPT_TEMPLATE"
+        ;;
+
+    align-specs)
+        if [[ -z "${PROCESS_DIR:-}" ]]; then
+            echo "Error: align-specs requires process specs. Set PROCESS_DIR in config." >&2
+            exit 1
+        fi
+        local_plan="$RALPH_DIR/implementation_plan.md"
+        if [[ ! -f "$local_plan" ]]; then
+            echo "Error: align-specs requires a process-type implementation plan. Run 'ralph plan --process' and 'ralph build' first." >&2
+            exit 1
+        fi
+        local_plan_type=$(grep -m1 '^Plan Type:' "$local_plan" 2>/dev/null \
+            | sed 's/^Plan Type:[[:space:]]*//')
+        if [[ "$local_plan_type" != "process" ]]; then
+            echo "Error: align-specs requires a process-type implementation plan. Run 'ralph plan --process' and 'ralph build' first." >&2
+            exit 1
+        fi
+        if ! grep -q 'Status:.*complete' "$local_plan" 2>/dev/null; then
+            echo "Error: align-specs requires completed build work. Run 'ralph build' first." >&2
+            exit 1
+        fi
+        export PROCESS_DIR
+        PROMPT_TEMPLATE="$RALPH_DIR/prompts/align-specs.md"
+        if [[ ! -f "$PROMPT_TEMPLATE" ]]; then
+            echo "Error: align-specs prompt template not found: $PROMPT_TEMPLATE" >&2
             exit 1
         fi
         run_loop "$PROMPT_TEMPLATE"

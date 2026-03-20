@@ -589,6 +589,85 @@ test_detect_stack() {
     rm -rf "$proj"
 }
 
+test_align_specs_requires_process_dir() {
+    echo "--- align-specs requires PROCESS_DIR ---"
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" align-specs 2>&1) || rc=$?
+    assert_eq "align-specs without PROCESS_DIR exits 1" "1" "$rc"
+    assert_contains "error mentions process specs" "align-specs requires process specs" "$output"
+}
+
+test_align_specs_requires_process_plan() {
+    echo "--- align-specs requires process-type plan ---"
+    local config_backup
+    config_backup=$(cat "$RALPH_DIR/config")
+    echo "PROCESS_DIR=\"$TMP_DIR/project/specs\"" >> "$RALPH_DIR/config"
+
+    local plan_backup=""
+    if [[ -f "$RALPH_DIR/implementation_plan.md" ]]; then
+        plan_backup=$(cat "$RALPH_DIR/implementation_plan.md")
+    fi
+    cat > "$RALPH_DIR/implementation_plan.md" <<'PLAN'
+# Implementation Plan
+
+Plan Type: gap-driven
+
+### Task 1: Something
+**Status:** planned
+PLAN
+
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" align-specs 2>&1) || rc=$?
+
+    # Restore config and plan
+    echo "$config_backup" > "$RALPH_DIR/config"
+    if [[ -n "$plan_backup" ]]; then
+        echo "$plan_backup" > "$RALPH_DIR/implementation_plan.md"
+    fi
+
+    assert_eq "align-specs with gap-driven plan exits 1" "1" "$rc"
+    assert_contains "error mentions process-type" "process-type implementation plan" "$output"
+}
+
+test_align_specs_requires_completed_tasks() {
+    echo "--- align-specs requires completed tasks ---"
+    local config_backup
+    config_backup=$(cat "$RALPH_DIR/config")
+    echo "PROCESS_DIR=\"$TMP_DIR/project/specs\"" >> "$RALPH_DIR/config"
+
+    local plan_backup=""
+    if [[ -f "$RALPH_DIR/implementation_plan.md" ]]; then
+        plan_backup=$(cat "$RALPH_DIR/implementation_plan.md")
+    fi
+    cat > "$RALPH_DIR/implementation_plan.md" <<'PLAN'
+# Implementation Plan
+
+Plan Type: process
+
+### Task 1: Something
+**Status:** planned
+PLAN
+
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" align-specs 2>&1) || rc=$?
+
+    # Restore
+    echo "$config_backup" > "$RALPH_DIR/config"
+    if [[ -n "$plan_backup" ]]; then
+        echo "$plan_backup" > "$RALPH_DIR/implementation_plan.md"
+    fi
+
+    assert_eq "align-specs without completed tasks exits 1" "1" "$rc"
+    assert_contains "error mentions completed build work" "align-specs requires completed build work" "$output"
+}
+
+test_usage_shows_align_specs() {
+    echo "--- Usage output includes align-specs ---"
+    local output
+    output=$("$RALPH_DIR/ralph" --help 2>&1)
+    assert_contains "shows align-specs mode" "align-specs" "$output"
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -636,6 +715,10 @@ main() {
     test_plan_process_has_decomposition_ledger
     test_managed_files_in_sync
     test_detect_stack
+    test_align_specs_requires_process_dir
+    test_align_specs_requires_process_plan
+    test_align_specs_requires_completed_tasks
+    test_usage_shows_align_specs
 
     teardown
 
