@@ -3,7 +3,7 @@
 This doc is primarily for the humans. It is an active doc to keep current
 thoughs, reminders, ideas, things to watch for, etc.
 
-## List of Items to Implement
+## List of Items to Implement or Refactor
 
 - How can I monitor/track the % of context window used during an iteration?
 - how can we reduce token usage. These iterations can get expensive
@@ -13,6 +13,8 @@ thoughs, reminders, ideas, things to watch for, etc.
   we would do to create a production version. What needs to be cleaned up, what
   would be a more appropriate programming language than bash, what should be
   modularized, etc.
+- Make a workdir subdirectory of `.ralph/` so work files such as `implementation_plan.md`,
+  `alignment_ledger.md`, `last_agent_output`, etc., do not clutter ralph's root dir.
 
 ## Scoped Process Planning (`ralph plan --process <spec-file>`)
 
