@@ -16,6 +16,21 @@ thoughs, reminders, ideas, things to watch for, etc.
 - Make a workdir subdirectory of `.ralph/` so work files such as `implementation_plan.md`,
   `alignment_ledger.md`, `last_agent_output`, etc., do not clutter ralph's root dir.
 
+## Automated Retrospective (`ralph retro`)
+
+`ralph help retro` provides a manual retro process with sample prompts for
+agent-assisted analysis. Once we've accumulated experience with manual retros
+(via feedback from teams and our own usage), consider a `ralph retro` mode that
+automates the analysis phase: the agent reads session logs, the plan, and git
+history, then produces a structured retro report. The human still decides what
+to act on — same pattern as `ralph align-specs` (agent analyzes, human acts).
+
+Key design questions to answer from experience first:
+- Which analysis steps are mechanical enough to automate vs. need discussion?
+- What report format is most actionable?
+- Should retro produce a file (like alignment_ledger.md) or just terminal output?
+- Can the agent reliably identify wasted iterations from logs alone?
+
 ## Scoped Process Planning (`ralph plan --process <spec-file>`)
 
 Allow focusing `ralph plan --process` on a single process spec file, ignoring
