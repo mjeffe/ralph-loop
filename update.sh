@@ -195,6 +195,8 @@ main() {
 
     # Apply updates
     local has_upstream_files=false
+    local has_conflicts=false
+    local conflict_count=0
     local new_manifest_entries=()
 
     for file in "${MANAGED_FILES[@]}"; do
@@ -243,20 +245,54 @@ main() {
         fi
 
         if [[ "$file_modified" == true ]]; then
-            # Preserve user's version, write .upstream
-            cp "$upstream_tmp" "${local_file}.upstream"
-            has_upstream_files=true
-            if [[ "$has_manifest" == false ]]; then
-                print_status "$file" "SKIPPED (no manifest; assuming modified)"
+            local originals_file="$RALPH_DIR/.originals/$file"
+
+            if [[ -f "$originals_file" ]]; then
+                # Three-way merge: ours (user's file), base (originals), theirs (upstream)
+                # git merge-file modifies the first arg in place; work on a copy
+                local merge_tmp="$TMP_DIR/merge_${file//\//_}"
+                cp "$local_file" "$merge_tmp"
+                local merge_rc=0
+                git merge-file "$merge_tmp" "$originals_file" "$upstream_tmp" || merge_rc=$?
+
+                if [[ "$merge_rc" -eq 0 ]]; then
+                    # Clean merge
+                    cp "$merge_tmp" "$local_file"
+                    if [[ "$file" == "ralph" ]]; then
+                        chmod +x "$local_file"
+                    fi
+                    print_status "$file" "done (merged)"
+                    local new_checksum
+                    new_checksum="$(compute_checksum "$local_file")"
+                    new_manifest_entries+=("$new_checksum  $file")
+                else
+                    # Conflict — write conflict-marked file and keep .upstream as clean reference
+                    cp "$merge_tmp" "$local_file"
+                    cp "$upstream_tmp" "${local_file}.upstream"
+                    has_upstream_files=true
+                    has_conflicts=true
+                    conflict_count=$(( conflict_count + 1 ))
+                    print_status "$file" "CONFLICT"
+                    info "  → Conflict markers written to $RALPH_DIR/${file}"
+                    info "  → Clean upstream version saved as $RALPH_DIR/${file}.upstream"
+                    local upstream_checksum
+                    upstream_checksum="$(compute_checksum "$upstream_tmp")"
+                    new_manifest_entries+=("$upstream_checksum  $file")
+                fi
             else
-                print_status "$file" "SKIPPED (locally modified)"
+                # No originals — fall back to .upstream file approach
+                cp "$upstream_tmp" "${local_file}.upstream"
+                has_upstream_files=true
+                if [[ "$has_manifest" == false ]]; then
+                    print_status "$file" "SKIPPED (no manifest; assuming modified)"
+                else
+                    print_status "$file" "SKIPPED (locally modified)"
+                fi
+                info "  → New version saved as $RALPH_DIR/${file}.upstream"
+                local upstream_checksum
+                upstream_checksum="$(compute_checksum "$upstream_tmp")"
+                new_manifest_entries+=("$upstream_checksum  $file")
             fi
-            info "  → New version saved as $RALPH_DIR/${file}.upstream"
-            # Record the new upstream checksum so that if the user accepts
-            # the .upstream file, the next update will see it as unmodified.
-            local upstream_checksum
-            upstream_checksum="$(compute_checksum "$upstream_tmp")"
-            new_manifest_entries+=("$upstream_checksum  $file")
         else
             # Checksums match — safe to overwrite
             cp "$upstream_tmp" "$local_file"
@@ -296,6 +332,18 @@ main() {
     # Write updated version
     echo "$latest_version" > "$RALPH_DIR/.version"
 
+    # Update .originals/ with new upstream versions for all managed files
+    mkdir -p "$RALPH_DIR/.originals"
+    for file in "${MANAGED_FILES[@]}"; do
+        local upstream_tmp="$TMP_DIR/$file"
+        if [[ -f "$upstream_tmp" ]]; then
+            local orig_dir
+            orig_dir="$(dirname "$RALPH_DIR/.originals/$file")"
+            mkdir -p "$orig_dir"
+            cp "$upstream_tmp" "$RALPH_DIR/.originals/$file"
+        fi
+    done
+
     info ""
     info "Updated to $latest_version."
 
@@ -303,7 +351,13 @@ main() {
         info "Manifest created. Future updates will detect modifications automatically."
     fi
 
-    if [[ "$has_upstream_files" == true ]]; then
+    if [[ "$has_conflicts" == true ]]; then
+        if [[ "$conflict_count" -eq 1 ]]; then
+            info "$conflict_count file has merge conflicts. Resolve conflicts and delete .upstream files when done."
+        else
+            info "$conflict_count files have merge conflicts. Resolve conflicts and delete .upstream files when done."
+        fi
+    elif [[ "$has_upstream_files" == true ]]; then
         info "Review .upstream files for changes you may want to merge."
     fi
 }

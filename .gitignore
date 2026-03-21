@@ -12,3 +12,6 @@ sandbox/.env
 
 # Sandbox sentinel files (created by entrypoint.sh inside the container)
 .sandbox/
+
+# Upstream originals for three-way merge (internal to updater)
+.originals/

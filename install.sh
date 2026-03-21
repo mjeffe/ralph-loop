@@ -146,6 +146,21 @@ generate_manifest() {
 }
 
 # ---------------------------------------------------------------------------
+# Populate .originals/ with copies of managed files for future update merges
+# ---------------------------------------------------------------------------
+populate_originals() {
+    for file in "${MANAGED_FILES[@]}"; do
+        local filepath="$RALPH_DIR/$file"
+        if [[ -f "$filepath" ]]; then
+            local dest_dir
+            dest_dir="$(dirname "$RALPH_DIR/.originals/$file")"
+            mkdir -p "$dest_dir"
+            cp "$filepath" "$RALPH_DIR/.originals/$file"
+        fi
+    done
+}
+
+# ---------------------------------------------------------------------------
 # Create .ralph/ directory structure
 # ---------------------------------------------------------------------------
 install_ralph_dir() {
@@ -155,6 +170,7 @@ install_ralph_dir() {
     mkdir -p "$RALPH_DIR/prompts"
     mkdir -p "$RALPH_DIR/logs"
     mkdir -p "$RALPH_DIR/sandbox"
+    mkdir -p "$RALPH_DIR/.originals"
 
     # Copy all managed files using SOURCE_PATHS for repo-to-install mapping
     for file in "${MANAGED_FILES[@]}"; do
@@ -175,6 +191,9 @@ EOF
     info "Writing version and manifest..."
     get_upstream_version > "$RALPH_DIR/.version"
     generate_manifest
+
+    info "Populating originals for future update merges..."
+    populate_originals
 }
 
 # ---------------------------------------------------------------------------

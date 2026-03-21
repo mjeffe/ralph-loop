@@ -57,6 +57,26 @@ b5a4c3d2e1f0a9b8...  README.md
 
 Paths in the manifest are relative to `.ralph/`.
 
+## Originals Directory
+
+The originals directory (`.ralph/.originals/`) stores a copy of each managed file as it was
+delivered by the upstream installer or updater — before any user customization. This provides
+the "base" version needed for three-way merges during updates.
+
+```
+.ralph/.originals/config
+.ralph/.originals/prompts/plan.md
+.ralph/.originals/prompts/build.md
+...
+```
+
+Paths mirror the managed file structure relative to `.ralph/`.
+
+When the installer creates a file, it also copies that file into `.originals/`. When the
+updater overwrites or merges a file, it updates the `.originals/` copy with the new upstream
+version. This ensures the originals always reflect the upstream version the user's current
+file was derived from.
+
 ## File Classification
 
 Files in `.ralph/` fall into three categories that determine update behavior:
@@ -92,8 +112,14 @@ For each file that would be installed (same file list as `install.sh`):
 2. **Look up original checksum** from `.ralph/.manifest`
 3. **Compare:**
    - **Checksums match** → user has not modified the file → overwrite with new version
-   - **Checksums differ** → user has customized the file → preserve user's version, write
-     the new upstream version as `<file>.upstream` for manual review
+   - **Checksums differ** → user has customized the file → attempt three-way merge:
+     - If `.ralph/.originals/<file>` exists, run `git merge-file` with the user's file as
+       "ours", the originals copy as "base", and the new upstream as "theirs"
+     - **Clean merge** → apply the merged result, report `done (merged)`
+     - **Conflict** → write conflict markers into the file, also save the clean upstream
+       version as `<file>.upstream` for reference, report `CONFLICT`
+     - **No originals file** → fall back to the `.upstream` file approach (safe default),
+       report `SKIPPED (locally modified)`
    - **File missing from manifest** (pre-manifest install) → treat as modified (safe default)
    - **File does not exist on disk** (deleted by user) → skip, do not recreate
 4. **New upstream files** that did not exist in the previous version are added normally
@@ -104,7 +130,10 @@ For each file that would be installed (same file list as `install.sh`):
    the new checksum; for preserved files, record the new upstream checksum so that if the user
    later accepts the `.upstream` file, the next update will see it as unmodified)
 2. **Update `.ralph/.version`** with the new commit hash
-3. **Display summary** of what was updated, skipped, and any `.upstream` files to review
+3. **Update `.ralph/.originals/`** with the new upstream version for every managed file,
+   regardless of whether the file was overwritten, merged, or conflicted. This ensures
+   future updates always have the correct base for three-way merges.
+4. **Display summary** of what was updated, skipped, and any `.upstream` files to review
 
 ### Files Outside `.ralph/`
 
@@ -132,14 +161,14 @@ Latest:  e91d4f0
 
 Updating ralph.............. done
 Updating README.md.......... done
-Updating config............. SKIPPED (locally modified)
-  → New version saved as .ralph/config.upstream
+Updating config............. done (merged)
 Updating prompts/plan.md.... done
-Updating prompts/build.md... SKIPPED (locally modified)
-  → New version saved as .ralph/prompts/build.md.upstream
+Updating prompts/build.md... CONFLICT
+  → Conflict markers written to .ralph/prompts/build.md
+  → Clean upstream version saved as .ralph/prompts/build.md.upstream
 
 Updated to e91d4f0.
-Review .upstream files for changes you may want to merge.
+1 file has merge conflicts. Resolve conflicts and delete .upstream files when done.
 ```
 
 ### Pre-manifest install (first update)
@@ -162,20 +191,52 @@ Manifest created. Future updates will detect modifications automatically.
 Review .upstream files for changes you may want to merge.
 ```
 
+## Three-Way Merge
+
+When a file has been modified by the user (checksum differs from manifest), the updater
+attempts a three-way merge using `git merge-file`:
+
+```bash
+git merge-file <user's file> <originals copy> <new upstream>
+```
+
+This uses the standard "ours / base / theirs" model:
+- **ours** = the user's current customized file
+- **base** = the upstream version the user started from (`.ralph/.originals/`)
+- **theirs** = the new upstream version
+
+`git merge-file` modifies the first argument in place. On success (exit code 0), the merge
+was clean and the file now contains both the user's customizations and the upstream changes.
+On conflict (exit code > 0), the file contains standard conflict markers that the user must
+resolve manually.
+
+### Fallback
+
+If no originals file exists for a given managed file (pre-originals installs, or files added
+upstream before the originals directory existed), the updater falls back to the previous
+behavior: preserve the user's file and write the new upstream version as `<file>.upstream`.
+The originals directory is populated from the new upstream so that future updates can use
+three-way merge.
+
 ## Upstream Files
 
-When a file is skipped due to user modifications, the new upstream version is saved alongside
-it with an `.upstream` suffix:
+When a merge produces conflicts, or when no originals file exists for fallback, the new
+upstream version is saved alongside the user's file with an `.upstream` suffix:
 
 ```
 .ralph/config              ← user's customized version (preserved)
 .ralph/config.upstream     ← new upstream version (for review)
 ```
 
-The user can then:
-- **Diff** the two files to see what changed upstream
-- **Merge** upstream changes into their customized version
-- **Delete** the `.upstream` file when done
+For **conflicts**, the user's file contains conflict markers. The `.upstream` file is a clean
+reference. The user should:
+- Resolve conflict markers in their file
+- Delete the `.upstream` file when done
+
+For **fallback** (no originals), the user should:
+- Diff the two files to see what changed upstream
+- Manually merge upstream changes into their customized version
+- Delete the `.upstream` file when done
 
 `.upstream` files should be added to `.ralph/.gitignore` so they are not committed to the
 parent project.
@@ -190,7 +251,17 @@ Installations made before the manifest feature was added will not have `.ralph/.
 - Treat all core and customizable files as "modified" (do not overwrite)
 - Write `.upstream` files for everything
 - Create the manifest and version file
+- Populate `.ralph/.originals/` from the new upstream versions (bootstrapping for future merges)
 - Future updates will work normally
+
+### Pre-Originals Install
+
+Installations or updates made before the originals directory feature was added will not have
+`.ralph/.originals/`. On the first update with originals support:
+
+- Modified files fall back to `.upstream` behavior (no base for three-way merge)
+- `.ralph/.originals/` is populated from the new upstream for all managed files
+- Future updates will use three-way merge
 
 ### Files Removed Upstream
 
@@ -229,6 +300,7 @@ If the update script cannot reach GitHub:
 The installer must be updated to:
 1. Generate `.ralph/.version` with the current commit hash at install time
 2. Generate `.ralph/.manifest` with SHA256 checksums of all installed files
+3. Populate `.ralph/.originals/` with copies of all managed files as installed
 
 ### ralph
 
@@ -239,6 +311,7 @@ The ralph script must be updated to:
 ### .ralph/.gitignore
 
 Add `*.upstream` pattern to exclude upstream review files from git.
+Add `.originals/` to exclude the originals directory from git.
 
 ## New Files
 
