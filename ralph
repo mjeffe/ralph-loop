@@ -350,6 +350,7 @@ Ralph Help — run 'ralph help <topic>' for details.
   build        Build mode: task selection, signals, mid-implementation guidance
   sandbox      Sandbox lifecycle: setup, daily workflow, troubleshooting
   align-specs  Updating target-state specs after process-spec migrations
+  retro        Post-cycle retrospective: reviewing results and improving inputs
 EOF
 }
 
@@ -645,6 +646,195 @@ To resolve: review the ledger, fix the conflict, and re-run.
 EOF
 }
 
+help_retro() {
+    cat <<'EOF'
+RETROSPECTIVE
+=============
+
+After a plan+build cycle, review what happened and improve your inputs
+for the next cycle. This is a human-driven process — you analyze the
+results, identify patterns, and update specs, AGENTS.md, and prompts.
+
+WHEN TO DO A RETRO
+------------------
+After every significant plan+build cycle, especially when:
+  - Build agents struggled, blocked frequently, or triggered REPLAN
+  - Tasks took more iterations than expected
+  - You see repeated patterns in agent mistakes
+  - The plan needed manual editing mid-build
+
+WHAT TO REVIEW
+--------------
+
+  1. Session logs (.ralph/logs/session-*.log or logs/session-*.log)
+     - How many iterations did each task take?
+     - Were there retries or agent failures?
+     - Did agents waste iterations on wrong approaches?
+
+  2. Implementation plan (implementation_plan.md)
+     - Blocked tasks: why were they blocked? Could the spec have prevented it?
+     - "Assumption / Spec gap:" notes: these are specs that need tightening
+     - "Conflict:" notes: sources of truth that disagree
+     - Tasks added during build: were they foreseeable during planning?
+     - Task sizing: were tasks too large (multi-iteration) or too small?
+
+  3. Git history (git log --oneline)
+     - Are commit messages clear and descriptive?
+     - Were there revert commits or fix-up commits?
+     - Did agents commit unrelated changes?
+
+  4. AGENTS.md effectiveness
+     - Did agents use the correct test/build/lint commands?
+     - Did agents follow project conventions?
+     - Were there environment-specific issues (paths, tools, versions)?
+
+  5. Spec quality
+     - Did agents misinterpret any specs?
+     - Were verification criteria clear enough for agents to know when done?
+     - Were there ambiguities that led to guessing?
+
+COMMON FAILURE PATTERNS
+-----------------------
+
+  Wrong test commands     → Update AGENTS.md with exact commands and flags
+  Unclear "done" state    → Add a Verify section to specs with concrete checks
+  Agent scope creep       → Tighten task descriptions in specs, add constraints
+  Repeated mistakes       → Add a "Pitfalls" or "Do NOT" section to AGENTS.md
+  Bad task sizing          → Review task sizing heuristics in your specs;
+                             add examples of good vs bad decomposition
+  Spec ambiguity          → Add concrete examples, explicit edge cases,
+                             sample inputs/outputs
+  Missing prerequisites   → Add dependency/environment setup to AGENTS.md
+  Stale plan              → Delete implementation_plan.md and re-plan more often
+
+WHERE TO APPLY FIXES
+--------------------
+
+  AGENTS.md               Operational knowledge: commands, environment, conventions,
+                          pitfalls. This is what agents read every iteration — keep
+                          it concise and accurate.
+
+  Specs (specs/*.md)      Behavioral definitions: what the system should do, how to
+                          verify it works. Tighten ambiguous areas, add Verify blocks,
+                          add examples.
+
+  Prompts (prompts/*.md)  Structural changes to how agents approach planning or
+                          building. Change these rarely and carefully — they affect
+                          all projects using ralph.
+
+RETRO CHECKLIST
+---------------
+
+  [ ] Read the session log — note iterations per task, failures, retries
+  [ ] Scan the plan for Assumption/Spec gap and Conflict notes
+  [ ] Check git log for revert/fixup commits or unclear messages
+  [ ] Identify the top 2-3 issues that cost the most wasted iterations
+  [ ] For each issue, decide: AGENTS.md fix, spec fix, or prompt fix?
+  [ ] Apply the fixes
+  [ ] Commit the improvements before the next plan+build cycle
+
+AGENT-ASSISTED ANALYSIS
+------------------------
+You can use an interactive agent session to help analyze a cycle. Start
+a session with your preferred agent and paste the prompt below. The agent
+will read your session logs, plan, and git history, then walk through the
+retro with you.
+
+Session log files are in .ralph/logs/ (or logs/ in the ralph-loop repo).
+Filenames encode the mode and timestamp, e.g.:
+
+  session-20250320-140000-plan.log
+  session-20250320-150000-build.log
+  session-20250321-090000-build.log
+
+A single plan+build cycle may span multiple session files (e.g., two
+separate 'ralph build' runs). Tell the agent which sessions to review,
+or let it identify the most recent cycle from the timestamps.
+
+  --- copy from here ---
+
+  Ralph is an iterative development system for LLM coding agents. It
+  works in cycles: plan mode analyzes specs and creates an implementation
+  plan, then build mode implements one task per iteration with fresh
+  agent context. Help me do a retrospective on my last plan+build cycle.
+
+  1. List the session logs in .ralph/logs/ (or logs/) and identify
+     which sessions belong to the most recent plan+build cycle.
+     Confirm with me before proceeding.
+
+  2. Read those session logs, .ralph/implementation_plan.md (or
+     implementation_plan.md), and run 'git log --oneline' for the
+     relevant date range.
+
+  3. Analyze and report:
+     - Iterations per task (how many iterations did each task take?)
+     - Agent failures, retries, and wasted iterations
+     - Blocked tasks and REPLAN signals — root causes
+     - All "Assumption / Spec gap:" and "Conflict:" notes in the plan
+     - Tasks added during build that could have been planned
+     - Task sizing issues (too large, too small)
+     - Git history: reverts, fixups, unclear commit messages
+     - AGENTS.md issues: wrong commands, missing conventions
+     - Spec quality: ambiguities, missing verification criteria
+
+  4. Rank the top issues by wasted iterations / effort.
+
+  5. For each issue, recommend where to fix it:
+     - AGENTS.md (operational: commands, environment, pitfalls)
+     - Specs (behavioral: verification, examples, constraints)
+     - Prompts (structural: change rarely, affects all projects)
+
+  6. Let's discuss the findings and decide which fixes to apply.
+
+  --- end copy ---
+
+SHARING FEEDBACK WITH RALPH-LOOP
+---------------------------------
+After a retro, you can share structural observations with the ralph-loop
+project to help improve prompts and defaults — without revealing anything
+about your project.
+
+Use the prompt below to generate a sanitized summary. The agent reads your
+retro artifacts and produces a report stripped of project-specific details:
+no file paths, domain names, business logic, or code snippets. Only
+structural patterns and ralph-specific observations are included.
+
+  --- copy from here ---
+
+  Ralph is an iterative development system for LLM coding agents. It
+  works in cycles: plan mode analyzes specs and creates an implementation
+  plan, then build mode implements one task per iteration with fresh
+  agent context. Generate a sanitized retro summary I can share with the
+  ralph-loop project. Read the session logs, implementation plan, and
+  git log from the cycle we just reviewed.
+
+  INCLUDE (structural observations only):
+  - Planning mode used (gap-driven / process)
+  - Number of plan iterations and build iterations
+  - Iteration-to-task ratio (how efficient was the cycle?)
+  - Number of blocked tasks, REPLAN signals, agent retries
+  - Categories of spec gaps encountered (not the gaps themselves)
+  - Categories of AGENTS.md fixes needed (e.g., "test commands",
+    "environment setup", "conventions")
+  - Task sizing observations (too granular, too coarse, about right)
+  - Any suggestions for ralph-loop prompts or defaults
+  - Agent type used (amp, claude, cline, etc.)
+
+  EXCLUDE (project secrets):
+  - Project name, domain, or business context
+  - File paths, module names, or API endpoints
+  - Code snippets or implementation details
+  - Team member names
+  - Specific spec content or task descriptions
+
+  Format as a GitHub issue body I can paste into:
+    https://github.com/mjeffe/ralph-loop/issues
+  Use the title: "Retro feedback: [one-line summary]"
+
+  --- end copy ---
+EOF
+}
+
 ralph_help() {
     local topic="${1:-}"
     case "$topic" in
@@ -654,6 +844,7 @@ ralph_help() {
         build)       help_build ;;
         sandbox)     help_sandbox ;;
         align-specs) help_align_specs ;;
+        retro)       help_retro ;;
         *)           echo "Unknown help topic: $topic" >&2; echo; help_index ;;
     esac
 }

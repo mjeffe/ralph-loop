@@ -16,6 +16,7 @@ ralph help plan             # Planning modes and when to use each
 ralph help specs            # Writing specs: target-state vs process, best practices
 ralph help build            # Build mode behavior, signals, discoveries
 ralph help sandbox          # Sandbox lifecycle (existing sandbox_help, moved here)
+ralph help retro            # Post-cycle retrospective guidance
 ```
 
 `ralph --help` and `ralph -h` continue to show the short usage message (existing
@@ -40,6 +41,7 @@ Ralph Help — run 'ralph help <topic>' for details.
   specs     Writing specs: target-state vs process, lifecycle, best practices
   build     Build mode: task selection, signals, mid-implementation guidance
   sandbox   Sandbox lifecycle: setup, daily workflow, troubleshooting
+  retro     Post-cycle retrospective: reviewing results and improving inputs
 ```
 
 ## Topic Content
@@ -91,6 +93,30 @@ Cover:
 The existing `sandbox_help()` content, moved into the help system. No content
 changes — accessed via `ralph help sandbox`.
 
+### `ralph help retro`
+
+Cover:
+- When to do a retro: after every significant plan+build cycle, especially
+  when builds struggled, blocked frequently, or triggered REPLAN
+- What to review: session logs (iterations per task, failures, retries),
+  implementation plan (blocked tasks, spec gap notes, conflict notes, tasks
+  added during build, task sizing), git history (revert/fixup commits),
+  AGENTS.md effectiveness (test commands, conventions), spec quality
+  (misinterpretations, unclear verification criteria)
+- Common failure patterns and where to fix them: wrong test commands →
+  AGENTS.md, unclear done state → spec Verify blocks, agent scope creep →
+  spec constraints, repeated mistakes → AGENTS.md pitfalls section
+- Where to apply fixes: AGENTS.md (operational), specs (behavioral),
+  prompts (structural — change rarely)
+- A checklist for working through the retro process
+- Agent-assisted analysis: a sample prompt users can paste into an
+  interactive agent session to walk through the retro; explains how to
+  identify session log files for a cycle (filenames encode mode and
+  timestamp, a cycle may span multiple build sessions)
+- Sharing feedback with ralph-loop: a sanitization prompt that generates
+  a structured summary stripped of project-specific details (no paths,
+  domain names, code, or team names); output formatted as a GitHub issue
+
 ## Implementation
 
 Help text is defined as functions in the `ralph` script (same pattern as the existing
@@ -130,6 +156,7 @@ ralph_help() {
         specs)    help_specs ;;
         build)    help_build ;;
         sandbox)  help_sandbox ;;
+        retro)    help_retro ;;
         *)        echo "Unknown help topic: $topic" >&2; echo; help_index ;;
     esac
 }
