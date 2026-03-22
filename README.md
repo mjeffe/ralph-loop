@@ -1,9 +1,9 @@
 # Ralph Wiggum Loop
 
 > [!CAUTION]
-> **This is my sandbox for working with loop-based, LLM coding agents (based on
-> Geoffrey Huntley's [Ralph Wiggum post](https://ghuntley.com/ralph/)). I am
-> actively using it in several projects, but it is essentially _a research project_.
+> **This is my sandbox for developing and experimenting with loop-based, LLM
+> coding agent workflows (based on Geoffrey Huntley's [Ralph Wiggum post](https://ghuntley.com/ralph/)).
+> I am actively using it in several projects, but it is essentially _a research project_.
 > USE AT YOUR OWN RISK.**
 >
 > This software is experimental, unstable, and under active development. There is no support, no documentation guarantees, and no warranty of any kind. Use at your own risk.
