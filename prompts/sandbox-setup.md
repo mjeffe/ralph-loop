@@ -154,8 +154,9 @@ Responsibilities (in order):
 
 ### 3. docker-compose.yml
 
-- name: {project-name}-sandbox (derive from git remote or directory name)
-- container_name: {project-name}-sandbox
+- name: ${SANDBOX_NAME:-{project-name}-sandbox} (SANDBOX_NAME is auto-derived
+  by ralph from the checkout path; the default is a fallback for manual use)
+- Do NOT set container_name — let Compose auto-derive it from the project name
 - Build context: `.` (the sandbox directory)
 - Environment variables: **use list syntax (`- KEY=value`), never map syntax**
   (see Appendix B for YAML quoting rules)
@@ -182,6 +183,9 @@ Responsibilities (in order):
   SANDBOX_HTTP_PORT=80, SANDBOX_DB_PORT=5432 (or 3306 for MySQL),
   SANDBOX_SMTP_PORT=1025, SANDBOX_MAIL_UI_PORT=8025,
   SANDBOX_VITE_PORT=5173 (if applicable)
+- SANDBOX_NAME — commented out, with a note that it is auto-derived from the
+  checkout path and can be overridden when the auto-generated name is not suitable:
+  `# SANDBOX_NAME=my-project-sandbox`
 - Document every env var used in docker-compose.yml or entrypoint.sh
 - **Project-level secrets:** Scan the project's .env.example (or equivalent)
   for third-party API keys and secrets not covered by the sandbox infrastructure

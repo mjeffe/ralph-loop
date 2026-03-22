@@ -319,6 +319,18 @@ run_loop() {
 # ---------------------------------------------------------------------------
 # Sandbox lifecycle commands
 # ---------------------------------------------------------------------------
+sandbox_ensure_name() {
+    if [[ -z "${SANDBOX_NAME:-}" ]]; then
+        local project_root
+        project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+        local hash
+        hash=$(echo -n "$project_root" | sha1sum | cut -c1-8)
+        local dir_name
+        dir_name=$(basename "$project_root")
+        export SANDBOX_NAME="${dir_name}-sandbox-${hash}"
+    fi
+}
+
 sandbox_container_name() {
     local compose_file="$RALPH_DIR/sandbox/docker-compose.yml"
     local name
@@ -570,6 +582,10 @@ TROUBLESHOOTING
     Set alternate ports in .ralph/sandbox/.env:
       SANDBOX_HTTP_PORT=8080
       SANDBOX_DB_PORT=54321
+
+  Multiple checkouts of the same project?
+    SANDBOX_NAME is auto-derived from the checkout path to avoid collisions.
+    Override it in .ralph/sandbox/.env if the auto-generated name is not suitable.
 
 UPDATING AGENTS.md FOR SANDBOX COMMANDS
 ---------------------------------------
@@ -1000,6 +1016,7 @@ sandbox_setup() {
 }
 
 sandbox_up() {
+    sandbox_ensure_name
     local compose_file="$RALPH_DIR/sandbox/docker-compose.yml"
     if [[ ! -f "$compose_file" ]]; then
         echo "Sandbox not configured. Run 'ralph sandbox setup' first." >&2
@@ -1021,10 +1038,12 @@ sandbox_up() {
 }
 
 sandbox_down() {
+    sandbox_ensure_name
     docker compose -f "$RALPH_DIR/sandbox/docker-compose.yml" down "$@"
 }
 
 sandbox_reset() {
+    sandbox_ensure_name
     local compose_file="$RALPH_DIR/sandbox/docker-compose.yml"
     local reset_all=false
 
@@ -1062,12 +1081,14 @@ sandbox_reset() {
 }
 
 sandbox_shell() {
+    sandbox_ensure_name
     local container_name
     container_name=$(sandbox_container_name)
     docker exec -it -u ralph "$container_name" bash
 }
 
 sandbox_status() {
+    sandbox_ensure_name
     local compose_file="$RALPH_DIR/sandbox/docker-compose.yml"
     if [[ ! -f "$compose_file" ]]; then
         echo "Sandbox not configured. Run 'ralph sandbox setup' first." >&2

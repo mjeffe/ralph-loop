@@ -71,6 +71,41 @@ After `ralph sandbox setup` generates the project-specific files:
 | `sandbox/.env.example` | project | No — generated once by `ralph sandbox setup` |
 | `sandbox/.env` | user | No — gitignored, never committed |
 
+## Sandbox Name Uniqueness
+
+When a project is checked out in multiple locations on the same host (e.g.,
+`~/src/perkins/` and `~/tmp/perkins/`), the generated `docker-compose.yml` would
+produce collisions — identical project names, container names, and volume names.
+
+The `sandbox_ensure_name()` function auto-derives a unique `SANDBOX_NAME` from the
+checkout path, combining the directory basename with an 8-character hash of the full
+path. Users can override it via the `SANDBOX_NAME` environment variable.
+
+```bash
+sandbox_ensure_name() {
+    if [[ -z "${SANDBOX_NAME:-}" ]]; then
+        local project_root
+        project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+        local hash
+        hash=$(echo -n "$project_root" | sha1sum | cut -c1-8)
+        local dir_name
+        dir_name=$(basename "$project_root")
+        export SANDBOX_NAME="${dir_name}-sandbox-${hash}"
+    fi
+}
+```
+
+This function is called at the top of every sandbox lifecycle function:
+`sandbox_up`, `sandbox_down`, `sandbox_reset`, `sandbox_shell`, and
+`sandbox_status`. The exported `SANDBOX_NAME` is then available to
+`docker compose` via variable substitution in `docker-compose.yml`.
+
+| Checkout path | Auto-derived SANDBOX_NAME |
+|---|---|
+| `~/src/perkins/` | `perkins-sandbox-a1b2c3d4` |
+| `~/tmp/perkins/` | `perkins-sandbox-e5f67890` |
+| `~/src/other-project/` | `other-project-sandbox-1a2b3c4d` |
+
 ## CLI Commands
 
 All sandbox commands are subcommands of `ralph sandbox`. They are **host-only** — if

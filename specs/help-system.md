@@ -90,8 +90,17 @@ Cover:
 
 ### `ralph help sandbox`
 
-The existing `sandbox_help()` content, moved into the help system. No content
-changes — accessed via `ralph help sandbox`.
+The existing `sandbox_help()` content, moved into the help system, plus a
+troubleshooting entry for multi-checkout collisions — accessed via
+`ralph help sandbox`.
+
+The troubleshooting section should include an entry like:
+
+```
+  Multiple checkouts of the same project?
+    SANDBOX_NAME is auto-derived from the checkout path to avoid collisions.
+    Override it in .ralph/sandbox/.env if the auto-generated name is not suitable.
+```
 
 ### `ralph help retro`
 

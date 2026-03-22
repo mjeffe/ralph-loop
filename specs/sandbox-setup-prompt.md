@@ -355,8 +355,14 @@ be empty for `git clone` to succeed into it.
 
 ### 3. `docker-compose.yml`
 
-- **Project name:** `{project-name}-sandbox` (derived from git repo or directory)
-- **Container name:** `{project-name}-sandbox`
+- **Project name:** `${SANDBOX_NAME:-{project-name}-sandbox}` — uses the
+  `SANDBOX_NAME` env var (auto-derived by ralph from the checkout path, see
+  `sandbox-cli.md`). This ensures unique project names when the same project
+  is checked out in multiple locations.
+- **No `container_name:`** — omit `container_name` so Compose auto-derives it
+  from the project name. The existing `sandbox_container_name()` fallback
+  already handles this (derives `{project-name}-sandbox-1` from the compose
+  project name).
 - **Build context:** `.` (the sandbox directory)
 - **Environment:** Use list syntax (`- KEY=value`), never map syntax. Quote any
   entry whose value contains a colon. Required vars: `SANDBOX=1`, `GIT_REPO`,
@@ -385,6 +391,8 @@ Template with:
   `SANDBOX_HTTP_PORT=80`, `SANDBOX_DB_PORT=5432` or `3306`,
   `SANDBOX_SMTP_PORT=1025`, `SANDBOX_MAIL_UI_PORT=8025`,
   `SANDBOX_VITE_PORT=5173` if applicable)
+- `SANDBOX_NAME` — commented out, with a note that it is auto-derived from the
+  checkout path and can be overridden when the auto-generated name is not suitable
 - Every env var used in `docker-compose.yml` or `entrypoint.sh` must be
   documented here
 - **Project-level secrets:** Scan the project's `.env.example` (or equivalent)
