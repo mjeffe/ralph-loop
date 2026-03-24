@@ -160,9 +160,16 @@ Responsibilities (in order):
    — check sentinel, not output directory, so partial installs get retried)
 7. Generate app secret/key if framework requires it (after deps install)
 8. Initialize and bootstrap database if applicable:
-   - Init data directory if needed
-   - Start DB temporarily, create user/databases, run migrations (sentinel)
-   - Stop DB — supervisord manages it going forward
+   a. Init data directory if needed, start DB temporarily, create user/databases.
+   b. **Pre-migration prerequisites:** Scan migration files, SQL directories
+      (e.g., `database/sql/`, `db/`), documentation, and AGENTS.md for
+      prerequisites that must exist before migrations run — PostgreSQL
+      extensions (`CREATE EXTENSION pgcrypto`, `postgis`, `uuid-ossp`),
+      custom SQL functions or triggers, or schema setup scripts. Install
+      or run any prerequisites found. Without this, migrations that depend
+      on extensions or functions will fail on first boot.
+   c. Run migrations (with sentinel).
+   d. Stop DB — supervisord manages it going forward.
 9. Generate supervisord config files in /etc/supervisor/conf.d/ for each
    required service (autorestart=true, startsecs=5). Determine which
    long-running processes the project needs — this typically includes the
@@ -222,6 +229,8 @@ Before finishing, verify:
 - [ ] Supervisord services match exposed ports (no orphan ports or services)
 - [ ] DB init/migration logic matches the detected database type
   (no server init for SQLite, no pg_* commands for MySQL, etc.)
+- [ ] If migrations reference extensions, functions, or triggers, pre-migration
+  prerequisites are installed before migrations run
 - [ ] Install commands match the detected package manager
 - [ ] entrypoint.sh is copied to a location in PATH (e.g., /usr/local/bin/)
 - [ ] User ralph has correct permissions for workdir and home directory

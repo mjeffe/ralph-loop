@@ -362,8 +362,17 @@ Responsibilities (in order):
 6. Install dependencies idempotently (sentinel file pattern — sentinels go
    in `${RALPH_HOME}/.sandbox/`)
 7. Generate app secret/key if framework requires it (after deps install)
-8. Initialize and bootstrap database if applicable (init data directory, start
-   DB temporarily, create user/databases, run migrations with sentinel, stop DB)
+8. Initialize and bootstrap database if applicable:
+   a. Init data directory if needed, start DB temporarily, create user/databases.
+   b. **Pre-migration prerequisites:** Scan migration files, SQL directories,
+      documentation, and AGENTS.md for database prerequisites that must exist
+      before migrations can run — e.g., PostgreSQL extensions (`CREATE EXTENSION
+      pgcrypto`, `postgis`, `uuid-ossp`), custom SQL functions or triggers,
+      or schema setup scripts. Install/run any prerequisites found. This step
+      is critical: without it, migrations that depend on extensions or functions
+      will fail on first boot.
+   c. Run migrations (with sentinel).
+   d. Stop DB — supervisord manages it going forward.
 9. Generate supervisord config files for each required long-running process
    (database server, web server, queue worker, Vite dev server, mail catcher,
    etc. — only processes the project actually uses)
