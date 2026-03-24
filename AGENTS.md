@@ -34,6 +34,12 @@ short-circuit expensive operations.
 - Use conventional commits (feat:, fix:, etc.)
 - First line under 72 characters followed by a blank line.
 
+## GitHub CLI
+
+When using `gh` to view issues or PRs, always use `--json` to select specific fields (e.g.,
+`gh issue view 3 --json title,body,state,comments`). The default pretty-print format queries
+the deprecated Projects (classic) API, which produces GraphQL warnings and may fail.
+
 ## Code Style
 
 - Indent with 4 spaces, 120 max line length
