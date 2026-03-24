@@ -316,6 +316,8 @@ Responsibilities:
 - ENTRYPOINT `["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]`
 - WORKDIR: `/var/www/html` for PHP projects, `/app` for others
 - EXPOSE only ports for services that are actually provisioned
+- Apply user preferences from `sandbox-preferences.md` — when running fetched
+  scripts in `RUN` commands, strip `/dev/tty` references (see Appendix D)
 
 ### 2. `entrypoint.sh`
 
@@ -467,6 +469,8 @@ without fixating on them at the expense of higher-priority concerns.
 - **Appendix C: Idempotency Patterns** — sentinel file pattern using
   `${RALPH_HOME}/.sandbox/`, empty workdir requirement before clone, and
   when simple existence checks suffice.
+- **Appendix D: Non-Interactive Docker Builds** — stripping `/dev/tty`
+  references from fetched scripts so they work in TTY-less Docker builds.
 
 ## Template Variables
 

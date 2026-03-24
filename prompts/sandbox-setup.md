@@ -120,6 +120,8 @@ Responsibilities:
 - ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
 - WORKDIR: /var/www/html for PHP projects, /app for others
 - EXPOSE only ports for services that are actually provisioned
+- Apply user preferences from sandbox-preferences.md — when running fetched
+  scripts in `RUN` commands, strip `/dev/tty` references (see Appendix D)
 
 ### 2. entrypoint.sh
 
@@ -323,3 +325,10 @@ Quote any entry whose value contains a colon:
   get retried)
 - **Create the sentinel directory after the clone step** — the workdir must be
   empty for `git clone` to succeed into it
+
+## Appendix D: Non-Interactive Docker Builds
+
+Docker builds have no TTY. When `sandbox-preferences.md` or other sources specify
+scripts fetched via `curl | bash`, audit them for `/dev/tty` references and pipe
+through `sed "s|</dev/tty||"` before execution. Defer interactive plugin installs
+to first use rather than baking them into the image.
