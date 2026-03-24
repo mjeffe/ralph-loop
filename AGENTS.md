@@ -33,6 +33,12 @@ short-circuit expensive operations.
 - No agent attribution or "Generated with" footers
 - Use conventional commits (feat:, fix:, etc.)
 - First line under 72 characters followed by a blank line.
+- Do not include `Closes #N` or `Fixes #N` in commit messages — issues often have
+  multiple gaps to address across several commits. Auto-close would prematurely close
+  the issue. Instead, close issues manually via `gh issue close --comment` once all
+  gaps are addressed.
+- Reference the issue number in commit messages (e.g., `fix: add bundling constraint (#1)`)
+  so GitHub creates cross-reference links on the issue.
 
 ## GitHub CLI
 
