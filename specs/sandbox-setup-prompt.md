@@ -322,7 +322,10 @@ trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >
 Responsibilities (in order):
 1. Configure git credentials (GitHub path via `gh auth`, or generic path via
    git credential store — see Appendix A in the prompt)
-2. Clone GIT_REPO into workdir if `.git/HEAD` is missing (fresh volume)
+2. Clone GIT_REPO into workdir if `.git/HEAD` is missing (fresh volume).
+   Docker named volumes are created with root ownership — chown the workdir
+   to ralph **before** cloning so `git clone` (running as ralph) can write
+   to it.
 3. Create sentinel directory at `${RALPH_HOME}/.sandbox/` (after clone —
    workdir must be empty for clone). This keeps sentinel files inside ralph's
    own directory where they are covered by `.ralph/.gitignore`, avoiding any
