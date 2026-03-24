@@ -22,8 +22,11 @@ After dependency install, run in order:
 1. `cp .env.example .env` (if `.env` is missing)
 2. `php artisan key:generate` (if `APP_KEY` is empty)
 3. `php artisan migrate --force` (behind a sentinel check)
-4. `php artisan storage:link` (idempotent, safe to re-run)
-5. If `package.json` exists: `npm ci && npm run build` (behind a sentinel check)
+4. `php artisan db:seed --force` if seeders exist (behind a sentinel check).
+   Check for `database/seeders/DatabaseSeeder.php` or equivalent. If the
+   project has separate reference-data and dev-data seeders, seed both.
+5. `php artisan storage:link` (idempotent, safe to re-run)
+6. If `package.json` exists: `npm ci && npm run build` (behind a sentinel check)
 
 ## Workdir
 

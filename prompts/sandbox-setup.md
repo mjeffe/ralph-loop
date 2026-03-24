@@ -169,7 +169,14 @@ Responsibilities (in order):
       or run any prerequisites found. Without this, migrations that depend
       on extensions or functions will fail on first boot.
    c. Run migrations (with sentinel).
-   d. Stop DB — supervisord manages it going forward.
+   d. **Run seeders** if the project has them (with sentinel). Scan for
+      seeder classes, seed scripts, or fixture-loading commands in project
+      source, documentation, or AGENTS.md. Reference data seeders (lookup
+      tables, roles, permissions) are especially important — the app may
+      be non-functional without them. Refer to the stack playbook for the
+      specific command. If a separate test database was created (step 5a),
+      run seeders against it too.
+   e. Stop DB — supervisord manages it going forward.
 9. Generate supervisord config files in /etc/supervisor/conf.d/ for each
    required service (autorestart=true, startsecs=5). Determine which
    long-running processes the project needs — this typically includes the

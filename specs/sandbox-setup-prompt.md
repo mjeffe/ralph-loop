@@ -372,7 +372,14 @@ Responsibilities (in order):
       is critical: without it, migrations that depend on extensions or functions
       will fail on first boot.
    c. Run migrations (with sentinel).
-   d. Stop DB — supervisord manages it going forward.
+   d. **Run seeders** if the project has them (with sentinel). Scan for
+      seeder classes, seed scripts, or fixture-loading commands in the
+      project source, documentation, or AGENTS.md. Reference data seeders
+      (lookup tables, roles, permissions) are especially important — the
+      app may be non-functional without them. Stack playbooks provide the
+      specific seeding command. If a separate test database was created
+      (step 5a), run seeders against it too.
+   e. Stop DB — supervisord manages it going forward.
 9. Generate supervisord config files for each required long-running process
    (database server, web server, queue worker, Vite dev server, mail catcher,
    etc. — only processes the project actually uses)
