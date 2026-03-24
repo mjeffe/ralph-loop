@@ -222,6 +222,11 @@ Responsibilities (in order):
 
 ### 4. .env.example (sandbox compose env file)
 
+**Formatting rule:** Use plain ASCII section headers — `# --- Section Name ---`.
+Do NOT use Unicode box-drawing characters or padded decorative lines (e.g.,
+`# ─── Section Name ──────`). Plain ASCII keeps diffs clean when the user
+merges their existing .env against a regenerated .env.example.
+
 - GIT_REPO= (pre-filled from git remote)
 - Credential vars: uncomment GITHUB_TOKEN for GitHub repos, or GIT_CRED_USER
   and GIT_CRED_PASS for non-GitHub repos

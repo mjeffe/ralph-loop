@@ -433,6 +433,12 @@ be empty for `git clone` to succeed into it.
 
 ### 4. `.env.example` (sandbox compose env file)
 
+**Formatting rule:** Use plain ASCII section headers — `# --- Section Name ---`.
+Do NOT use Unicode box-drawing characters or padded decorative lines (e.g.,
+`# ─── Section Name ──────`). Plain ASCII keeps diffs clean when the user
+runs `ralph sandbox setup --force` and merges their existing `.env` against the
+regenerated `.env.example`.
+
 Template with:
 - `GIT_REPO=` (pre-filled from git remote)
 - Credential vars: `GITHUB_TOKEN` uncommented for GitHub repos, or
