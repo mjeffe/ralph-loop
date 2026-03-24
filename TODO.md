@@ -15,6 +15,7 @@ thoughs, reminders, ideas, things to watch for, etc.
   modularized, etc.
 - Make a workdir subdirectory of `.ralph/` so work files such as `implementation_plan.md`,
   `alignment_ledger.md`, `last_agent_output`, etc., do not clutter ralph's root dir.
+- Discuss pros and cons of converting the sandbox to multi-service rather than a single monolitic container.
 
 ## Automated Retrospective (`ralph retro`)
 
