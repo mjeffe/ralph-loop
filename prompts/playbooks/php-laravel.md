@@ -41,6 +41,33 @@ Apply these overrides in the sandbox `.env` to simplify the single-container set
 - Set `DB_CONNECTION`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
   to match the provisioned database.
 
+## Test Environment Bootstrapping
+
+If `.env.testing` exists (or `.env.testing.example`):
+
+1. Copy `.env.testing.example` → `.env.testing` if missing.
+2. Populate empty secret keys (`APP_KEY`, `JWT_SECRET`, etc.) with generated
+   values, same as the primary `.env`.
+3. **Container env var conflict mitigation:** Laravel uses `Dotenv\Dotenv` in
+   immutable mode — it will not overwrite env vars already present in `$_SERVER`
+   or `$_ENV`. Since the entrypoint exports vars like `DB_DATABASE`, those leak
+   into PHPUnit and override `.env.testing` values silently. To fix this, create
+   or patch `tests/bootstrap.php` (or the file referenced by `phpunit.xml`
+   `bootstrap=`) to clear conflicting vars before Laravel boots:
+
+   ```php
+   // Clear container-level DB env vars so .env.testing values take effect
+   foreach (['DB_CONNECTION','DB_HOST','DB_PORT','DB_DATABASE','DB_USERNAME','DB_PASSWORD'] as $key) {
+       putenv($key);
+       unset($_ENV[$key], $_SERVER[$key]);
+   }
+   ```
+
+   Place this **before** the `require __DIR__.'/../vendor/autoload.php'` line.
+
+4. If `.env.testing` specifies a separate test database (e.g., `DB_DATABASE=myapp_testing`),
+   create that database during the DB bootstrap step (entrypoint step 8).
+
 ## Long-Running Processes (supervisord)
 
 Configure supervisord programs for:

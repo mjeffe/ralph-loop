@@ -72,6 +72,10 @@ The prompt instructs the agent to build a **project profile** by examining:
 - **Agent instructions:** `AGENTS.md` — documents how to run the project.
 - **Test configuration:** `phpunit.xml`, `jest.config.*`, `pytest.ini`, etc. —
   reveals test database requirements.
+- **Test environment files:** `.env.testing`, `.env.test`, or equivalent — these
+  often contain empty secrets that must be generated for tests to pass. Their
+  presence also signals a potential env var conflict in an all-in-one container
+  (see entrypoint step 5a).
 - **Ralph dependencies:** The `dependencies` file in ralph's home directory lists
   system packages (apt) that ralph itself requires at runtime. All listed packages
   must be installed in the Dockerfile.
@@ -339,6 +343,22 @@ Responsibilities (in order):
    **every boot** (not just first creation) so users can add or update
    secrets in the sandbox `.env` and restart the container.
    The sandbox `.env` contains real secrets and must never be committed.
+5a. Bootstrap test environment files if the project has them (e.g.,
+   `.env.testing`, `.env.test`). Two responsibilities:
+   - **Generate missing secrets:** Copy the test env template if the
+     framework doesn't auto-create it, then populate any empty secret
+     keys (e.g., `APP_KEY`, `JWT_SECRET`) with generated values — the
+     same way the primary `.env` secrets are handled.
+   - **Mitigate container env var conflicts:** In an all-in-one container,
+     the entrypoint exports environment variables (e.g., `DB_DATABASE`)
+     that are visible to all processes. Many frameworks use an immutable
+     dotenv loader that refuses to overwrite values already present in the
+     process environment, so test env file overrides (like a separate test
+     database name) are silently ignored. The agent must detect this risk
+     and generate a mitigation — typically a test bootstrap snippet that
+     clears conflicting env vars before the framework loads its dotenv
+     file. The specific mechanism is framework-dependent; stack playbooks
+     should provide the concrete pattern.
 6. Install dependencies idempotently (sentinel file pattern — sentinels go
    in `${RALPH_HOME}/.sandbox/`)
 7. Generate app secret/key if framework requires it (after deps install)

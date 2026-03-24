@@ -47,6 +47,8 @@ versions, package names, and startup commands.
 - AGENTS.md for project-specific run/test instructions
 - CI config (.github/workflows/, .gitlab-ci.yml) for service dependencies
 - Test config (phpunit.xml, jest.config.*, pytest.ini) for test database needs
+- Test environment files (.env.testing, .env.test, or equivalent) — check for
+  empty secrets and note potential container env var conflicts
 - Git remote URL (for GIT_REPO default)
 - ${RALPH_HOME}/dependencies for ralph's own system package requirements
 - ${RALPH_HOME}/sandbox-preferences.md for user-defined environment preferences
@@ -140,6 +142,20 @@ Responsibilities (in order):
    **every boot** (not just first creation) so users can add or update
    secrets in the sandbox .env and restart the container.
    The sandbox .env contains real secrets and must never be committed.
+5a. Bootstrap test environment files if the project has them (e.g.,
+   .env.testing, .env.test):
+   - **Generate missing secrets:** Copy the test env template if the
+     framework doesn't auto-create it, then populate any empty secret
+     keys (APP_KEY, JWT_SECRET, etc.) with generated values — same
+     approach as the primary .env.
+   - **Mitigate container env var conflicts:** In an all-in-one container,
+     entrypoint-exported env vars (e.g., DB_DATABASE) are visible to all
+     processes. Frameworks with immutable dotenv loaders will ignore test
+     env file overrides, causing tests to silently run against the main
+     database. Detect this risk and generate a framework-appropriate
+     mitigation — typically a test bootstrap snippet that clears
+     conflicting env vars before the framework loads its dotenv file.
+     Refer to the stack playbook for the concrete pattern.
 6. Install dependencies idempotently (sentinel file in `${RALPH_HOME}/.sandbox/`
    — check sentinel, not output directory, so partial installs get retried)
 7. Generate app secret/key if framework requires it (after deps install)
@@ -211,6 +227,8 @@ Before finishing, verify:
 - [ ] User ralph has correct permissions for workdir and home directory
 - [ ] All packages from ${RALPH_HOME}/dependencies are installed
 - [ ] User preferences from ${RALPH_HOME}/sandbox-preferences.md are applied
+- [ ] If test environment files exist, secrets are populated and container
+  env var conflicts are mitigated
 
 ## Rules
 
