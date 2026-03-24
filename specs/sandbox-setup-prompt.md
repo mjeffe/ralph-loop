@@ -65,8 +65,10 @@ The prompt instructs the agent to build a **project profile** by examining:
   `.devcontainer/`, `docker/`, or similar directories — for reference only.
   Do not copy them, but reuse authoritative details like runtime versions,
   package names, and startup commands.
-- **Environment configuration:** `.env.example`, `config/database.yml`, or
-  equivalent files that reveal database engine, cache driver, mail service, etc.
+- **Environment configuration:** The project's `.env.example`, `config/database.yml`,
+  or equivalent files that reveal database engine, cache driver, mail service,
+  etc. (This is the **application** env file, distinct from the sandbox
+  `.env.example` that the agent generates.)
 - **CI configuration:** `.github/workflows/`, `.gitlab-ci.yml` — often reveals
   the full service stack.
 - **Agent instructions:** `AGENTS.md` — documents how to run the project.
@@ -75,7 +77,7 @@ The prompt instructs the agent to build a **project profile** by examining:
 - **Test environment files:** `.env.testing`, `.env.test`, or equivalent — these
   often contain empty secrets that must be generated for tests to pass. Their
   presence also signals a potential env var conflict in an all-in-one container
-  (see entrypoint step 5a).
+  (see entrypoint step 6).
 - **Ralph dependencies:** The `dependencies` file in ralph's home directory lists
   system packages (apt) that ralph itself requires at runtime. All listed packages
   must be installed in the Dockerfile.
@@ -246,11 +248,13 @@ else
 fi
 ```
 
-The core prompt (`sandbox-setup.md`) references the playbook via a conditional
-instruction:
+The core prompt (`sandbox-setup.md`) references the playbook as the **first
+bullet** under "Sources to read", bolded, with directive language:
 
 ```markdown
-If a stack playbook is provided, read and follow it: ${STACK_PLAYBOOK}
+- **Stack playbook (read first if provided):** ${STACK_PLAYBOOK}
+  This file contains stack-specific commands, bootstrap sequences, and
+  mitigation patterns. Follow its guidance for all stack-specific decisions.
 ```
 
 When `STACK_PLAYBOOK` is empty, the line resolves to inert text and the agent
@@ -324,8 +328,9 @@ trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >
 ```
 
 Responsibilities (in order):
-1. Configure git credentials (GitHub path via `gh auth`, or generic path via
-   git credential store — see Appendix A in the prompt)
+1. Configure git credentials — the prompt directs the agent to **use the
+   exact snippets from Appendix A** (they contain critical workarounds for
+   known failure modes with `gh auth` and URL-encoded credentials).
 2. Clone GIT_REPO into workdir if `.git/HEAD` is missing (fresh volume).
    Docker named volumes are created with root ownership — chown the workdir
    to ralph **before** cloning so `git clone` (running as ralph) can write
@@ -334,16 +339,20 @@ Responsibilities (in order):
    workdir must be empty for clone). This keeps sentinel files inside ralph's
    own directory where they are covered by `.ralph/.gitignore`, avoiding any
    changes to the parent project's `.gitignore`.
-4. Copy `.env.example` → `.env` if missing, with sandbox-appropriate overrides
-   (e.g., `DB_HOST=127.0.0.1`, `MAIL_HOST=127.0.0.1`, `QUEUE_CONNECTION=sync`,
-   `CACHE_STORE=file` — adjusted based on provisioned services).
-5. Apply project-level secrets from container environment into `.env`:
+4. Copy the **project's** `.env.example` → `.env` if missing, with
+   sandbox-appropriate overrides (e.g., `DB_HOST=127.0.0.1`,
+   `MAIL_HOST=127.0.0.1`, `QUEUE_CONNECTION=sync`, `CACHE_STORE=file` —
+   adjusted based on provisioned services). This is the application's
+   runtime `.env` inside the repo workdir, not the sandbox's compose `.env`
+   in `${RALPH_HOME}/sandbox/`.
+5. Apply project-level secrets from container environment into the project's
+   `.env`:
    for each key in `.env`, if a matching env var is set in the container
    environment and non-empty, overwrite that key's value. This runs on
    **every boot** (not just first creation) so users can add or update
    secrets in the sandbox `.env` and restart the container.
    The sandbox `.env` contains real secrets and must never be committed.
-5a. Bootstrap test environment files if the project has them (e.g.,
+6. Bootstrap test environment files if the project has them (e.g.,
    `.env.testing`, `.env.test`). Two responsibilities:
    - **Generate missing secrets:** Copy the test env template if the
      framework doesn't auto-create it, then populate any empty secret
@@ -359,10 +368,10 @@ Responsibilities (in order):
      clears conflicting env vars before the framework loads its dotenv
      file. The specific mechanism is framework-dependent; stack playbooks
      should provide the concrete pattern.
-6. Install dependencies idempotently (sentinel file pattern — sentinels go
+7. Install dependencies idempotently (sentinel file pattern — sentinels go
    in `${RALPH_HOME}/.sandbox/`)
-7. Generate app secret/key if framework requires it (after deps install)
-8. Initialize and bootstrap database if applicable:
+8. Generate app secret/key if framework requires it (after deps install)
+9. Initialize and bootstrap database if applicable:
    a. Init data directory if needed, start DB temporarily, create user/databases.
    b. **Pre-migration prerequisites:** Scan migration files, SQL directories,
       documentation, and AGENTS.md for database prerequisites that must exist
@@ -378,12 +387,12 @@ Responsibilities (in order):
       (lookup tables, roles, permissions) are especially important — the
       app may be non-functional without them. Stack playbooks provide the
       specific seeding command. If a separate test database was created
-      (step 5a), run seeders against it too.
+      (step 6), run seeders against it too.
    e. Stop DB — supervisord manages it going forward.
-9. Generate supervisord config files for each required long-running process
-   (database server, web server, queue worker, Vite dev server, mail catcher,
-   etc. — only processes the project actually uses)
-10. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
+10. Generate supervisord config files for each required long-running process
+    (database server, web server, queue worker, Vite dev server, mail catcher,
+    etc. — only processes the project actually uses)
+11. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
 
 Multi-step operations must use **sentinel files** in `${RALPH_HOME}/.sandbox/`
 for idempotency (e.g., `touch ${RALPH_HOME}/.sandbox/deps-installed`). Check
@@ -394,6 +403,7 @@ be empty for `git clone` to succeed into it.
 
 ### 3. `docker-compose.yml`
 
+- **Define exactly one service** — all processes run inside it via supervisord.
 - **Project name:** `${SANDBOX_NAME:-{project-name}-sandbox}` — uses the
   `SANDBOX_NAME` env var (auto-derived by ralph from the checkout path, see
   `sandbox-cli.md`). This ensures unique project names when the same project
@@ -415,9 +425,11 @@ be empty for `git clone` to succeed into it.
 - **tty: true, stdin_open: true**
 - **Resource limits:** `deploy.resources.limits` with memory and CPU from env
   vars (defaults: 4g memory, 2 CPUs)
-- **env_file:** `.env`
+- **env_file:** Use `required: false` so compose does not fail when `.env`
+  is missing (the user creates it from `.env.example` before first `up`):
+  `env_file: [{path: .env, required: false}]`
 
-### 4. `.env.example`
+### 4. `.env.example` (sandbox compose env file)
 
 Template with:
 - `GIT_REPO=` (pre-filled from git remote)

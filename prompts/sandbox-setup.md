@@ -19,6 +19,11 @@ The sandbox is complete when ALL of these are true:
 6. All env vars referenced in compose/entrypoint are documented in `.env.example`
 7. All four generated files are internally consistent (ports ↔ services,
    workdir ↔ compose volumes, DB type ↔ init logic)
+8. If the project has test environment files, secrets are populated and
+   container env var conflicts are mitigated
+9. If the project has database seeders, they run after migrations
+10. If migrations depend on DB extensions or functions, prerequisites are
+    installed before migrations run
 
 ## Priority Order
 
@@ -39,11 +44,15 @@ material — do not copy them, but do reuse authoritative details like runtime
 versions, package names, and startup commands.
 
 **Sources to read:**
+- **Stack playbook (read first if provided):** ${STACK_PLAYBOOK}
+  This file contains stack-specific commands, bootstrap sequences, and
+  mitigation patterns. Follow its guidance for all stack-specific decisions.
 - Package manifests (composer.json, package.json, Gemfile, go.mod,
   requirements.txt, Cargo.toml, pyproject.toml, etc.)
 - Existing Docker/container files (Dockerfile, docker-compose.yml,
   .devcontainer/, docker/) — for reference only
-- .env.example or equivalent
+- The project's .env.example (or equivalent) — this is the **application** env
+  file, distinct from the sandbox .env.example you will generate
 - AGENTS.md for project-specific run/test instructions
 - CI config (.github/workflows/, .gitlab-ci.yml) for service dependencies
 - Test config (phpunit.xml, jest.config.*, pytest.ini) for test database needs
@@ -63,8 +72,6 @@ versions, package names, and startup commands.
 - Bootstrap/install command(s)
 - Likely test command
 - Git hosting provider (GitHub vs other)
-
-If a stack playbook is provided, read and follow it: ${STACK_PLAYBOOK}
 
 **Decision rules:**
 - Always provision the project's primary database engine — agents need to
@@ -124,7 +131,8 @@ trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit code $?)" >
 ```
 
 Responsibilities (in order):
-1. Configure git credentials (see Appendix A)
+1. Configure git credentials — **use the exact snippets from Appendix A**
+   (they contain critical workarounds for known failure modes)
 2. Clone GIT_REPO into workdir if `.git/HEAD` is missing (fresh volume).
    Docker named volumes are created with root ownership — chown the workdir
    to ralph **before** cloning so `git clone` (running as ralph) can write
@@ -132,17 +140,20 @@ Responsibilities (in order):
 3. Create sentinel directory at `${RALPH_HOME}/.sandbox/` (after clone —
    workdir must be empty for clone). Sentinel files live here so they are
    covered by `.ralph/.gitignore` and do not pollute the project's git status.
-4. Copy .env.example → .env if missing, with sandbox-appropriate overrides.
-   Common overrides: DB_HOST=127.0.0.1, MAIL_HOST=127.0.0.1,
-   QUEUE_CONNECTION=sync, CACHE_STORE=file. Adjust based on what services
-   are actually provisioned in the container.
-5. Apply project-level secrets from container environment into .env:
+4. Copy the **project's** .env.example → .env if missing, with
+   sandbox-appropriate overrides. Common overrides: DB_HOST=127.0.0.1,
+   MAIL_HOST=127.0.0.1, QUEUE_CONNECTION=sync, CACHE_STORE=file. Adjust
+   based on what services are actually provisioned in the container.
+   (This is the application's runtime .env inside the repo workdir, not
+   the sandbox's compose .env in ${RALPH_HOME}/sandbox/.)
+5. Apply project-level secrets from container environment into the
+   project's .env:
    for each key in .env, if a matching env var is set in the container
    environment and non-empty, overwrite that key's value. This runs on
    **every boot** (not just first creation) so users can add or update
    secrets in the sandbox .env and restart the container.
    The sandbox .env contains real secrets and must never be committed.
-5a. Bootstrap test environment files if the project has them (e.g.,
+6. Bootstrap test environment files if the project has them (e.g.,
    .env.testing, .env.test):
    - **Generate missing secrets:** Copy the test env template if the
      framework doesn't auto-create it, then populate any empty secret
@@ -156,10 +167,10 @@ Responsibilities (in order):
      mitigation — typically a test bootstrap snippet that clears
      conflicting env vars before the framework loads its dotenv file.
      Refer to the stack playbook for the concrete pattern.
-6. Install dependencies idempotently (sentinel file in `${RALPH_HOME}/.sandbox/`
+7. Install dependencies idempotently (sentinel file in `${RALPH_HOME}/.sandbox/`
    — check sentinel, not output directory, so partial installs get retried)
-7. Generate app secret/key if framework requires it (after deps install)
-8. Initialize and bootstrap database if applicable:
+8. Generate app secret/key if framework requires it (after deps install)
+9. Initialize and bootstrap database if applicable:
    a. Init data directory if needed, start DB temporarily, create user/databases.
    b. **Pre-migration prerequisites:** Scan migration files, SQL directories
       (e.g., `database/sql/`, `db/`), documentation, and AGENTS.md for
@@ -174,19 +185,20 @@ Responsibilities (in order):
       source, documentation, or AGENTS.md. Reference data seeders (lookup
       tables, roles, permissions) are especially important — the app may
       be non-functional without them. Refer to the stack playbook for the
-      specific command. If a separate test database was created (step 5a),
+      specific command. If a separate test database was created (step 6),
       run seeders against it too.
    e. Stop DB — supervisord manages it going forward.
-9. Generate supervisord config files in /etc/supervisor/conf.d/ for each
-   required service (autorestart=true, startsecs=5). Determine which
-   long-running processes the project needs — this typically includes the
-   database server and may include a web server, queue worker, Vite/HMR
-   dev server, mail catcher, etc. Only include processes the project
-   actually uses. Do NOT include one-shot tasks like migrations.
-10. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
+10. Generate supervisord config files in /etc/supervisor/conf.d/ for each
+    required service (autorestart=true, startsecs=5). Determine which
+    long-running processes the project needs — this typically includes the
+    database server and may include a web server, queue worker, Vite/HMR
+    dev server, mail catcher, etc. Only include processes the project
+    actually uses. Do NOT include one-shot tasks like migrations.
+11. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
 
 ### 3. docker-compose.yml
 
+- **Define exactly one service** — all processes run inside it via supervisord
 - name: ${SANDBOX_NAME:-{project-name}-sandbox} (SANDBOX_NAME is auto-derived
   by ralph from the checkout path; the default is a fallback for manual use)
 - Do NOT set container_name — let Compose auto-derive it from the project name
@@ -202,9 +214,11 @@ Responsibilities (in order):
   (start_period: 60s)
 - tty: true, stdin_open: true
 - deploy.resources.limits: memory ${SANDBOX_MEMORY_LIMIT:-4g}, cpus ${SANDBOX_CPU_LIMIT:-2}
-- env_file: .env
+- env_file with required: false so compose does not fail when .env is
+  missing (the user creates it from .env.example before first `up`):
+  `env_file: [{path: .env, required: false}]`
 
-### 4. .env.example
+### 4. .env.example (sandbox compose env file)
 
 - GIT_REPO= (pre-filled from git remote)
 - Credential vars: uncomment GITHUB_TOKEN for GitHub repos, or GIT_CRED_USER
