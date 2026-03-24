@@ -325,6 +325,7 @@ Order tasks to match the phase ordering from the process specs.
 - If a step is too large (touches multiple independently testable concerns), split it into child tasks. Keep child tasks adjacent and ordered within their parent phase.
 - If a step is too small, combine it with adjacent steps in the same phase — but only if they would logically be committed together.
 - Each task should be completable in one build iteration and committable as a single logical unit.
+- **Destructive changes must be bundled.** If a task drops a database column, removes a shared interface, or deletes a public API, all code that references the removed artifact must be updated in the same task. Splitting them into separate tasks guarantees a broken intermediate state that cannot pass tests or be safely committed.
 
 ## Discovered Work
 

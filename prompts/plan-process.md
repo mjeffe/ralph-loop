@@ -10,6 +10,7 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 - You may split a step into multiple tasks or combine adjacent steps within the same phase, but must not cross phase boundaries or violate explicit sequencing.
 - If it is unclear whether a step sequence is mandatory and the ambiguity affects safe execution, preserve written order and add a `Process gap:` note.
 - You have full autonomy in how you decompose each phase into build-iteration-sized tasks.
+- Never split a destructive change (dropping a column, removing a shared interface, deleting a public API) from the code that references it. Bundle the removal and all dependent code updates into a single task — splitting them guarantees a broken intermediate state.
 - When multiple process specs cover the same phase or step at different levels of detail, the most detailed spec is authoritative for decomposition. Higher-level specs provide context and define phases not covered elsewhere.
 - **Do not implement product code** — process planning produces only the implementation plan and commits.
 - Commit your plan updates at the end of each iteration with a descriptive commit message.
