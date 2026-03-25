@@ -19,8 +19,7 @@ The sandbox is complete when ALL of these are true:
 6. All env vars referenced in compose/entrypoint are documented in `.env.example`
 7. All four generated files are internally consistent (ports ↔ services,
    workdir ↔ compose volumes, DB type ↔ init logic)
-8. If the project has test environment files, secrets are populated and
-   container env var conflicts are mitigated
+8. If the project has test environment files, secrets are populated
 9. If the project has database seeders, they run after migrations
 10. If migrations depend on DB extensions or functions, prerequisites are
     installed before migrations run
@@ -57,7 +56,7 @@ versions, package names, and startup commands.
 - CI config (.github/workflows/, .gitlab-ci.yml) for service dependencies
 - Test config (phpunit.xml, jest.config.*, pytest.ini) for test database needs
 - Test environment files (.env.testing, .env.test, or equivalent) — check for
-  empty secrets and note potential container env var conflicts
+  empty secrets that must be generated for tests to pass
 - Git remote URL (for GIT_REPO default)
 - ${RALPH_HOME}/dependencies for ralph's own system package requirements
 - ${RALPH_HOME}/sandbox-preferences.md for user-defined environment preferences
@@ -143,36 +142,35 @@ Responsibilities (in order):
    workdir must be empty for clone). Sentinel files live here so they are
    covered by `.ralph/.gitignore` and do not pollute the project's git status.
 4. Copy the **project's** .env.example → .env if missing, with
-   sandbox-appropriate overrides. Common overrides: DB_HOST=127.0.0.1,
+   sandbox-appropriate overrides hardcoded in the entrypoint. Common
+   overrides: DB_HOST=127.0.0.1, DB_DATABASE, DB_USERNAME, DB_PASSWORD,
    MAIL_HOST=127.0.0.1, QUEUE_CONNECTION=sync, CACHE_STORE=file. Adjust
-   based on what services are actually provisioned in the container.
-   (This is the application's runtime .env inside the repo workdir, not
-   the sandbox's compose .env in ${RALPH_HOME}/sandbox/.)
-5. Apply project-level secrets from container environment into the
-   project's .env:
-   for each key in .env, if a matching env var is set in the container
-   environment and non-empty, overwrite that key's value. This runs on
-   **every boot** (not just first creation) so users can add or update
-   secrets in the sandbox .env and restart the container.
-   The sandbox .env contains real secrets and must never be committed.
-6. Bootstrap test environment files if the project has them (e.g.,
-   .env.testing, .env.test):
-   - **Generate missing secrets:** Copy the test env template if the
-     framework doesn't auto-create it, then populate any empty secret
-     keys (APP_KEY, JWT_SECRET, etc.) with generated values — same
-     approach as the primary .env.
-   - **Mitigate container env var conflicts:** In an all-in-one container,
-     entrypoint-exported env vars (e.g., DB_DATABASE) are visible to all
-     processes. Frameworks with immutable dotenv loaders will ignore test
-     env file overrides, causing tests to silently run against the main
-     database. Detect this risk and generate a framework-appropriate
-     mitigation — typically a test bootstrap snippet that clears
-     conflicting env vars before the framework loads its dotenv file.
-     Refer to the stack playbook for the concrete pattern.
-7. Install dependencies idempotently (sentinel file in `${RALPH_HOME}/.sandbox/`
+   based on what services are actually provisioned in the container. Use
+   sed commands to patch the specific keys after copying .env.example.
+   This is a **first-boot-only** operation — after creation, the .env
+   file belongs to the user. (This is the application's runtime .env
+   inside the repo workdir, not the sandbox's compose .env in
+   ${RALPH_HOME}/sandbox/.)
+
+   **Important:** App-config values (DB_*, MAIL_*, CACHE_STORE,
+   QUEUE_CONNECTION, APP_KEY, JWT_SECRET, etc.) must NOT be passed as
+   container environment variables via docker-compose.yml. They are
+   hardcoded in the entrypoint and written to .env on first boot only.
+   This avoids process-level env vars shadowing the framework's dotenv
+   loader — a problem that affects Laravel, Rails, Django, Spring, Node,
+   and any framework following the 12-factor convention where process env
+   vars take precedence over .env file values.
+5. Bootstrap test environment files if the project has them (e.g.,
+   .env.testing, .env.test). Copy the test env template if the framework
+   doesn't auto-create it, then populate any empty secret keys (APP_KEY,
+   JWT_SECRET, etc.) with generated values — same approach as the primary
+   .env. If the test env file specifies a separate test database (e.g.,
+   DB_DATABASE=myapp_testing), create that database during the DB
+   bootstrap step (step 8).
+6. Install dependencies idempotently (sentinel file in `${RALPH_HOME}/.sandbox/`
    — check sentinel, not output directory, so partial installs get retried)
-8. Generate app secret/key if framework requires it (after deps install)
-9. Initialize and bootstrap database if applicable:
+7. Generate app secret/key if framework requires it (after deps install)
+8. Initialize and bootstrap database if applicable:
    a. Init data directory if needed, start DB temporarily, create user/databases.
    b. **Pre-migration prerequisites:** Scan migration files, SQL directories
       (e.g., `database/sql/`, `db/`), documentation, and AGENTS.md for
@@ -187,16 +185,16 @@ Responsibilities (in order):
       source, documentation, or AGENTS.md. Reference data seeders (lookup
       tables, roles, permissions) are especially important — the app may
       be non-functional without them. Refer to the stack playbook for the
-      specific command. If a separate test database was created (step 6),
+      specific command. If a separate test database was created (step 5),
       run seeders against it too.
    e. Stop DB — supervisord manages it going forward.
-10. Generate supervisord config files in /etc/supervisor/conf.d/ for each
+9. Generate supervisord config files in /etc/supervisor/conf.d/ for each
     required service (autorestart=true, startsecs=5). Determine which
     long-running processes the project needs — this typically includes the
     database server and may include a web server, queue worker, Vite/HMR
     dev server, mail catcher, etc. Only include processes the project
     actually uses. Do NOT include one-shot tasks like migrations.
-11. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
+10. End with: `exec supervisord -n -c /etc/supervisor/supervisord.conf`
 
 ### 3. docker-compose.yml
 
@@ -206,7 +204,9 @@ Responsibilities (in order):
 - Do NOT set container_name — let Compose auto-derive it from the project name
 - Build context: `.` (the sandbox directory)
 - Environment variables: **use list syntax (`- KEY=value`), never map syntax**
-  (see Appendix B for YAML quoting rules)
+  (see Appendix B for YAML quoting rules). **Only infrastructure vars** — do NOT
+  include app-config vars (DB_*, MAIL_*, CACHE_STORE, etc.) which would shadow
+  the framework's dotenv loader.
 - Required env vars: SANDBOX=1, GIT_REPO, AMP_API_KEY, plus credential vars,
   plus GIT_CONFIG vars to rewrite SSH URLs to HTTPS (derive host from GIT_REPO)
 - Named volumes: sandbox-codebase (workdir), sandbox-db (database data, if applicable)
@@ -240,13 +240,12 @@ merges their existing .env against a regenerated .env.example.
 - SANDBOX_NAME — commented out, with a note that it is auto-derived from the
   checkout path and can be overridden when the auto-generated name is not suitable:
   `# SANDBOX_NAME=my-project-sandbox`
-- Document every env var used in docker-compose.yml or entrypoint.sh
-- **Project-level secrets:** Scan the project's .env.example (or equivalent)
-  for third-party API keys and secrets not covered by the sandbox infrastructure
-  vars above (e.g., STRIPE_SECRET, AWS_ACCESS_KEY_ID, SENDGRID_API_KEY).
-  Include each as a commented-out entry with a note that the user must fill
-  it in if the project requires it. Prefix the section with a comment:
-  `# Project secrets (fill in if needed by your app)`
+- Document every env var used in docker-compose.yml
+- **No app-config vars.** Do not include DB_*, MAIL_*, CACHE_STORE, APP_KEY,
+  JWT_SECRET, or other application-level config. These are hardcoded in
+  entrypoint.sh and written to the project's .env on first boot. Users who
+  need to add project-specific secrets (e.g., STRIPE_SECRET) should edit
+  the project's .env inside the container.
 
 ## Self-Validation Checklist
 
@@ -264,8 +263,8 @@ Before finishing, verify:
 - [ ] User ralph has correct permissions for workdir and home directory
 - [ ] All packages from ${RALPH_HOME}/dependencies are installed
 - [ ] User preferences from ${RALPH_HOME}/sandbox-preferences.md are applied
-- [ ] If test environment files exist, secrets are populated and container
-  env var conflicts are mitigated
+- [ ] If test environment files exist, secrets are populated
+- [ ] No app-config vars (DB_*, MAIL_*, etc.) in docker-compose.yml environment
 
 ## Rules
 
