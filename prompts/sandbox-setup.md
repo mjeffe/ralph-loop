@@ -109,7 +109,15 @@ Responsibilities:
 - Install the project's language runtime and version
 - Install all required extensions and system packages
 - Install service packages natively (database server, etc.) — only those
-  identified as required during project analysis
+  identified as required during project analysis. **Debian/Ubuntu PostgreSQL
+  packaging:** `apt-get install postgresql-*` auto-runs `pg_createcluster`,
+  which splits config (`/etc/postgresql/`) from data (`/var/lib/postgresql/`)
+  and leaves `PG_VERSION` in the data dir. Since the entrypoint uses
+  `pg_ctl -D <datadir>` (which expects `postgresql.conf` in the data dir),
+  this apt-created cluster is incompatible. **In the Dockerfile, drop the
+  default cluster after install** (e.g., `pg_dropcluster --stop <ver> main`
+  and clear the data dir) so `initdb` runs cleanly on first boot and creates
+  a self-contained cluster.
 - Install package managers (composer, npm/yarn/pnpm, pip, etc.)
 - Install GitHub CLI (gh) — only for GitHub-hosted projects
 - Install Amp CLI, tini, supervisord, and ralph dependencies
@@ -168,10 +176,21 @@ Responsibilities (in order):
    DB_DATABASE=myapp_testing), create that database during the DB
    bootstrap step (step 8).
 6. Install dependencies idempotently (sentinel file in `${RALPH_HOME}/.sandbox/`
-   — check sentinel, not output directory, so partial installs get retried)
+    — check sentinel, not output directory, so partial installs get retried).
+
+   **Private registry auth:** If `--ignore-scripts` is used (or lifecycle
+   scripts are otherwise skipped), scan `package.json` scripts and `.npmrc`
+   for preinstall hooks that configure private registry authentication
+   (e.g., FontAwesome Pro, GitHub Packages, private Artifactory). When
+   found, replicate that auth configuration in the entrypoint *before*
+   the install command — skipped hooks will not run, and the install will
+   fail with 401 errors without it.
 7. Generate app secret/key if framework requires it (after deps install)
 8. Initialize and bootstrap database if applicable:
    a. Init data directory if needed, start DB temporarily, create user/databases.
+      For PostgreSQL, remove stale `postmaster.pid` before each `pg_ctl start`
+      to survive unclean container shutdowns (the PID file persists on the
+      named volume and prevents startup).
    b. **Pre-migration prerequisites:** Scan migration files, SQL directories
       (e.g., `database/sql/`, `db/`), documentation, and AGENTS.md for
       prerequisites that must exist before migrations run — PostgreSQL
@@ -333,6 +352,16 @@ Quote any entry whose value contains a colon:
 ## Appendix D: Non-Interactive Docker Builds
 
 Docker builds have no TTY. When `sandbox-preferences.md` or other sources specify
-scripts fetched via `curl | bash`, audit them for `/dev/tty` references and pipe
-through `sed "s|</dev/tty||"` before execution. Defer interactive plugin installs
-to first use rather than baking them into the image.
+scripts fetched via `curl | bash`, pipe them through sed to strip `</dev/tty`
+redirects before execution. Use this template:
+
+```dockerfile
+RUN curl -fsSL https://example.com/install.sh | sed 's|</dev/tty||g' | bash
+```
+
+**Important:** The `<` redirect operator is part of the pattern — it must be
+included in the sed substitution. Stripping only `/dev/tty` (without the `<`)
+leaves a bare `<` which is a shell syntax error that fails the Docker build.
+
+Defer interactive plugin installs to first use rather than baking them into
+the image.
