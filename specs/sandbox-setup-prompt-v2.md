@@ -1,6 +1,6 @@
 # Sandbox Setup v2 — Multi-Container, Multi-Pass Architecture
 
-**Status:** DRAFT — proposed replacement for `sandbox-setup-prompt.md`
+**Status:** DRAFT (revised) — proposed replacement for `sandbox-setup-prompt.md`
 
 ## Problem Statement
 
@@ -45,7 +45,8 @@ Replace the monolithic single-container, single-prompt approach with:
    `depends_on` with healthchecks ensures service readiness.
 2. **The base image is invariant.** It changes only when ralph's own
    requirements change (new system dependency, new tool). It is a managed file
-   updated by `ralph update`.
+   updated by `ralph update`. The base image is auto-refreshed on every
+   `ralph sandbox up` so updates take effect without manual rebuilds.
 3. **Analysis and generation are separate concerns.** The LLM analyzes the
    project once and produces a locked profile. File generation references only
    the profile, not the raw project sources. This improves consistency because
@@ -60,6 +61,10 @@ Replace the monolithic single-container, single-prompt approach with:
    container but manages only app-level processes (web server, queue worker,
    Vite dev server). Infrastructure services (database, cache, mail) run in
    their own containers and are not managed by supervisord.
+7. **User preferences are deterministic.** Sandbox-preferences is a
+   user-maintained bash script (`sandbox-preferences.sh`) that runs during
+   `docker build`. Ralph COPY's and executes it without LLM interpretation —
+   the content is applied byte-for-byte, not parsed or translated by an agent.
 
 ## Architecture
 
@@ -163,7 +168,7 @@ WORKDIR /home/ralph
 - Package managers (composer, pip, etc.)
 - Database clients or servers
 - Project-specific extensions or packages
-- User preferences from `sandbox-preferences.md`
+- User preferences from `sandbox-preferences.sh`
 - GitHub CLI (only needed for GitHub-hosted projects)
 
 These are added by the generated project Dockerfile which uses the base image
@@ -171,7 +176,8 @@ as its `FROM` layer.
 
 ### Build Sequence
 
-During `ralph sandbox setup`, the base image is built before the agent runs:
+The base image is built during `ralph sandbox setup` (before the agent runs)
+and auto-refreshed on every `ralph sandbox up`:
 
 ```bash
 cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
@@ -196,18 +202,10 @@ USER root
 # Project-specific runtime, extensions, packages (LLM-generated)
 RUN apt-get update && apt-get install -y php8.3-cli php8.3-fpm ...
 
-# User preferences from sandbox-preferences.md (LLM-generated, heredocs)
-RUN cat >> /home/ralph/.bashrc <<'BASHRC'
-# ... contents from sandbox-preferences.md ...
-BASHRC
-
-RUN cat > /home/ralph/.gitconfig <<'GITCONFIG'
-# ... contents from sandbox-preferences.md ...
-GITCONFIG
-
-# Vim config (from sandbox-preferences.md — strip /dev/tty for non-interactive)
-RUN curl -fsSL https://raw.githubusercontent.com/.../install.sh \
-    | sed 's|</dev/tty||g' | bash -s min
+# User preferences (deterministic — no LLM involvement)
+COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
+RUN sed 's|</dev/tty||g' /tmp/sandbox-preferences.sh | bash \
+    && rm -f /tmp/sandbox-preferences.sh
 
 RUN chown -R ralph:ralph /home/ralph
 USER ralph
@@ -218,11 +216,12 @@ WORKDIR /var/www/html
 EXPOSE 80
 ```
 
-**Sandbox-preferences content is inlined via heredocs** in the Dockerfile
-rather than COPY'd from separate support files. This keeps the Dockerfile
-self-contained and avoids a support files subdirectory in the build context.
-The LLM reads `sandbox-preferences.md` and translates each preference into
-the appropriate Dockerfile instruction.
+**User preferences are applied via `sandbox-preferences.sh`** — a user-maintained
+bash script that ralph COPY's into the build context and executes during
+`docker build`. Ralph wraps execution with `sed 's|</dev/tty||g'` to strip
+TTY references that would hang a non-interactive build. The LLM does not read,
+interpret, or translate this file — it emits the fixed COPY/RUN block above.
+See the "Sandbox Preferences" section for details.
 
 ## Multi-Pass Prompt Pipeline
 
@@ -305,14 +304,56 @@ agent to output **only** a JSON profile to a designated file.
 }
 ```
 
+### Profile Schema
+
+The profile is the contract between Pass 1 (analysis) and Pass 2 (generation).
+Required fields must always be present — use empty arrays/objects (`[]`, `{}`)
+when a section does not apply. Optional fields may be omitted entirely.
+
+**Required top-level fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `schema_version` | integer | Always `1`. Reserved for future schema changes. |
+| `stack` | string | Detected stack identifier (e.g., `"php-laravel"`, `"node"`, `"python-django"`). Empty string if unknown. |
+| `runtimes` | array of objects | Language runtimes. Each: `name` (required), `version` (required), `evidence` (required, array of strings). |
+| `package_managers` | array of objects | Each: `name` (required), `install_command` (required). |
+| `services` | array of objects | External services (DB, cache, mail). Each: `name` (required), `image` (required), `port` or `ports` (required), `reason` (required). Empty array if no services needed. |
+| `system_packages` | array of strings | APT packages needed for the runtime (e.g., dev libraries). |
+| `git_provider` | string | `"github"` or `"other"`. Determines credential setup and whether GitHub CLI is installed. |
+| `git_remote` | string | Git clone URL for the project. |
+| `workdir` | string | Container working directory (e.g., `"/var/www/html"`, `"/app"`). |
+| `env_overrides` | object | Key-value pairs written to the project's `.env` on first boot. Service hostnames use compose service names (e.g., `"DB_HOST": "db"`). |
+| `bootstrap` | object | See below. |
+| `supervisor_programs` | array of objects | Each: `name` (required), `command` (required). Must contain at least one entry. For projects with no long-running app processes, use `{"name": "keepalive", "command": "sleep infinity"}`. |
+| `compose_ports` | object | Port mappings for `.env.example` and docker-compose.yml. Keys are descriptive names (e.g., `"http"`, `"db"`), values are port numbers. |
+| `assumptions` | array of strings | Decisions made without strong evidence. |
+| `notes` | array of strings | Observations, warnings, or context for the user. |
+
+**Required fields in `bootstrap`:**
+
+| Field | Type | Description |
+|---|---|---|
+| `secret_generation` | string or null | Command to generate app secrets (e.g., `"php artisan key:generate --force"`). Null if not needed. |
+| `migration` | string or null | Migration command. Null if no database. |
+| `seeder` | string or null | Seeder command. Null if no seeders. |
+| `post_install` | array of strings | Post-install commands (e.g., `["php artisan storage:link", "npm run build"]`). Empty array if none. |
+
+**Optional top-level fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `php_extensions` | array of strings | PHP extensions to install. Only present for PHP stacks. |
+| `test_env` | object or null | Test environment config: `file` (string), `test_db` (string or null), `secrets` (array of strings). |
+| `pre_migration_sql` | array of strings | SQL statements to run before migrations (e.g., `CREATE EXTENSION`). |
+
 **Key rules for the analysis prompt:**
 - Output only the JSON profile — no Docker files, no bash scripts.
 - Every decision must cite evidence (the `evidence`, `reason` fields).
 - Ambiguous or uncertain items go in `assumptions` or `notes`.
-- The profile schema is defined in the prompt so the agent knows the
-  expected structure.
-- `supervisor_programs` must include at least one entry. For projects with
-  no long-running app processes, use `{"name": "keepalive", "command": "sleep infinity"}`.
+- The profile schema is defined in the spec (above) and replicated in the
+  prompt so the agent knows the expected structure.
+- Required fields must always be present, even when empty.
 
 ### Pass 2: Generate Files from Profile
 
@@ -326,15 +367,16 @@ prompt provides:
 - File responsibilities (what each file must accomplish)
 - Git credential snippets (Appendix A from current prompt — these work well)
 - The stack playbook (if available) for stack-specific code patterns
-- User preferences from `sandbox-preferences.md`
+- The sandbox-preferences.sh script is COPY'd into the build context by
+  ralph before the agent runs — the render prompt does not read or interpret it
 
 **Key rules for the render prompt:**
 - Do not re-analyze the project. Use only information from the profile.
 - Do not add services, packages, or steps not represented in the profile.
 - Follow the profile's decisions exactly (runtime versions, package managers,
   env overrides, bootstrap commands).
-- Inline sandbox-preferences content via heredocs in the Dockerfile — do not
-  create separate support files.
+- Emit the fixed COPY/RUN block for `sandbox-preferences.sh` — do not read
+  or interpret the script's contents.
 
 This separation means the render agent has a much simpler job: translate a
 structured specification into Docker files. The decisions are already made.
@@ -355,17 +397,35 @@ issues to fix manually.
 
 ### Setup Invocation Model
 
-`ralph sandbox setup` always runs the full pipeline. If sandbox files already
-exist, the user must pass `--force` to regenerate (which preserves `.env`).
-There is no partial rerun — re-rendering from an existing profile without
-re-analyzing produces identical output, so there is no value in supporting it
-as a separate mode.
+`ralph sandbox setup` runs the full pipeline by default. Two flags modify
+behavior:
+
+- `--force` — overwrites existing generated files (preserves `.env`).
+- `--render-only` — skips Pass 1 (analysis), uses the existing
+  `project-profile.json` to run Pass 2 (generation) → validation → repair.
+  This is the advanced correction path: the user edits `project-profile.json`
+  to fix a wrong runtime version, add a missing service, or adjust env
+  overrides, then re-renders without paying for re-analysis.
+
+The flags are orthogonal:
 
 | Scenario | Behavior |
 |---|---|
 | No sandbox files exist | Pass 1 → Pass 2 → validate |
-| Files exist, no `--force` | Error: "use --force to regenerate" |
+| Files exist, no flags | Error: "use --force to regenerate" |
 | `--force` | Delete sandbox dir (preserve .env) → Pass 1 → Pass 2 → validate |
+| `--render-only` | Require existing profile → Pass 2 → validate |
+| `--render-only --force` | Require existing profile, delete generated files (preserve .env, preserve profile) → Pass 2 → validate |
+
+**`--render-only` guard rails:**
+- If `project-profile.json` does not exist, exit with error:
+  `"No project profile found. Run 'ralph sandbox setup' first (without --render-only)."`
+- Profile schema is validated before Pass 2 starts — missing required fields
+  produce a clear error listing the missing fields.
+- `--render-only` never modifies `project-profile.json`.
+- When combined with `--force`, only generated files (Dockerfile, entrypoint.sh,
+  docker-compose.yml, .env.example) are deleted. The profile and `.env` are
+  preserved.
 
 ## Machine Validator
 
@@ -378,12 +438,14 @@ generated files for structural correctness. Run automatically after Pass 2
 **Syntax:**
 - `bash -n entrypoint.sh` — entrypoint parses without errors
 - `docker compose -f docker-compose.yml config` — compose file is valid
+- `bash -n sandbox-preferences.sh` — preferences script parses without errors
 
 **Structural (Dockerfile):**
 - `FROM ralph-sandbox-base` is present
 - `ENTRYPOINT` uses tini
 - `entrypoint.sh` is copied into the image
 - WORKDIR is set
+- `sandbox-preferences.sh` is COPY'd and executed
 
 **Structural (entrypoint.sh):**
 - Starts with `#!/usr/bin/env bash` and `set -euo pipefail`
@@ -413,6 +475,13 @@ generated files for structural correctness. Run automatically after Pass 2
 - Runtime/version in Dockerfile matches profile
 - Env overrides in entrypoint match profile
 
+**Profile schema (run before Pass 2):**
+- All required top-level fields are present
+- `schema_version` equals `1`
+- `supervisor_programs` has at least one entry
+- `runtimes` has at least one entry
+- All `services` entries have required fields (`name`, `image`, `port`/`ports`, `reason`)
+
 ### Validator Output
 
 ```
@@ -431,7 +500,7 @@ Failures are machine-readable so they can be fed to the repair prompt.
 ### 1. Dockerfile (project-specific)
 
 With the base image handling invariants, the generated Dockerfile is short.
-User preferences from `sandbox-preferences.md` are inlined via heredocs.
+User preferences are applied deterministically via `sandbox-preferences.sh`.
 
 ```dockerfile
 FROM ralph-sandbox-base
@@ -450,24 +519,10 @@ RUN <package-manager-install-commands>
 # GitHub CLI — only for GitHub-hosted projects (from profile.git_provider)
 RUN <gh-install-commands>
 
-# User preferences from sandbox-preferences.md — inlined via heredocs.
-# The agent reads sandbox-preferences.md and translates each preference
-# into Dockerfile instructions. Packages are installed via apt-get,
-# dotfile content is appended/created via heredocs.
-RUN apt-get update && apt-get install -y <preference-packages> \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN cat >> /home/ralph/.bashrc <<'BASHRC'
-# ... contents from sandbox-preferences.md Packages/User Environment sections
-BASHRC
-
-RUN cat > /home/ralph/.gitconfig <<'GITCONFIG'
-# ... contents from sandbox-preferences.md if it specifies git config
-GITCONFIG
-
-# Scripts from sandbox-preferences.md (strip /dev/tty for Docker build)
-RUN curl -fsSL https://example.com/install.sh \
-    | sed 's|</dev/tty||g' | bash
+# User preferences (deterministic — no LLM involvement)
+COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
+RUN sed 's|</dev/tty||g' /tmp/sandbox-preferences.sh | bash \
+    && rm -f /tmp/sandbox-preferences.sh
 
 RUN chown -R ralph:ralph /home/ralph
 USER ralph
@@ -485,8 +540,11 @@ database server installation, initialization, or supervisord configuration for
 infrastructure services. It generates a small number of supervisord program
 configs for app-level processes, then hands off to supervisord.
 
-The entrypoint follows a fixed sequence. Steps are shown with generic
-placeholders — the LLM fills in stack-specific commands from the profile.
+The entrypoint follows five phases. Individual steps within each phase
+maintain their own idempotency boundaries (sentinel files) but the phases
+give the LLM a smaller mental model for generation. Steps are shown with
+generic placeholders — the LLM fills in stack-specific commands from the
+profile.
 
 ```bash
 #!/usr/bin/env bash
@@ -495,22 +553,34 @@ trap 'echo "[sandbox] ERROR: entrypoint failed at line $LINENO (exit $?)" >&2' E
 
 RALPH_HOME="${RALPH_HOME:-.ralph}"
 
-# --- 1. Git credentials ---
+# =============================================
+# Phase 1: Repo Access
+# =============================================
+
+# --- 1a. Git credentials ---
 # Use exact snippets from Appendix A of the render prompt (unchanged from
 # current — these handle known failure modes with gh auth and URL-encoded
 # credentials). GitHub path when GITHUB_TOKEN is set; generic credential
 # store path when GIT_CRED_USER/GIT_CRED_PASS are set.
 
-# --- 2. Clone repo ---
+# --- 1b. Clone repo ---
 if [ ! -f .git/HEAD ]; then
     sudo chown ralph:ralph "$(pwd)"
     git clone "$GIT_REPO" .
 fi
 
-# --- 3. Sentinel directory ---
+# =============================================
+# Phase 2: Ralph State Init
+# =============================================
+
+# --- 2a. Sentinel directory ---
 mkdir -p "${RALPH_HOME}/.sandbox"
 
-# --- 4. App .env setup (first boot only) ---
+# =============================================
+# Phase 3: Env Bootstrap
+# =============================================
+
+# --- 3a. App .env setup (first boot only) ---
 # Copy project's .env.example → .env, then apply env_overrides from profile
 # using sed commands. Key difference from current: service hostnames (db,
 # mail, redis) instead of 127.0.0.1.
@@ -520,19 +590,23 @@ if [ ! -f .env ] && [ -f .env.example ]; then
     # ... remaining overrides from profile.env_overrides
 fi
 
-# --- 5. Test env setup ---
+# --- 3b. Test env setup ---
 # Copy test env template if it exists, populate empty secrets.
 
-# --- 6. Install dependencies (sentinel-guarded) ---
+# =============================================
+# Phase 4: Project Bootstrap
+# =============================================
+
+# --- 4a. Install dependencies (sentinel-guarded) ---
 if [ ! -f "${RALPH_HOME}/.sandbox/deps-installed" ]; then
     <install-commands-from-profile>
     touch "${RALPH_HOME}/.sandbox/deps-installed"
 fi
 
-# --- 7. App secret generation (if framework requires it) ---
+# --- 4b. App secret generation (if framework requires it) ---
 <secret-generation-command-from-profile>
 
-# --- 8. Database bootstrap ---
+# --- 4c. Database bootstrap ---
 # DB server runs in its own container and is healthy before this entrypoint
 # starts (depends_on with healthcheck). No server init needed.
 if [ ! -f "${RALPH_HOME}/.sandbox/db-migrated" ]; then
@@ -545,9 +619,13 @@ if [ ! -f "${RALPH_HOME}/.sandbox/db-seeded" ]; then
     touch "${RALPH_HOME}/.sandbox/db-seeded"
 fi
 
-# --- 9. Post-install steps from profile.bootstrap.post_install ---
+# --- 4d. Post-install steps from profile.bootstrap.post_install ---
 
-# --- 10. Supervisord programs (app-level processes only) ---
+# =============================================
+# Phase 5: Supervisord Handoff
+# =============================================
+
+# --- 5a. Supervisord programs (app-level processes only) ---
 # Generate one conf file per entry in profile.supervisor_programs.
 # Each uses autorestart=true, startsecs=5, stdout/stderr to /dev/stdout.
 sudo tee /etc/supervisor/conf.d/<name>.conf > /dev/null <<'EOF'
@@ -563,16 +641,20 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 EOF
 
-# --- 11. Start supervisord (foreground) ---
+# --- 5b. Start supervisord (foreground) ---
 exec supervisord -n -c /etc/supervisor/supervisord.conf
 ```
 
 **Key differences from current:**
+- **5 phases** (repo access, state init, env bootstrap, project bootstrap,
+  supervisord handoff) instead of 10+ flat steps
 - No `initdb`, `pg_ctl`, `pg_createcluster`, stale PID handling
 - No supervisord config for infrastructure services (DB, redis, mail)
 - Supervisord manages only 1–3 app-level processes
 - DB is already running and healthy when this script starts
 - Service hostnames (`db`, `mail`) instead of `127.0.0.1`
+- Each substep maintains its own idempotency boundary (sentinel files) —
+  phases are conceptual groupings, not merged retry boundaries
 
 ### 3. docker-compose.yml
 
@@ -725,10 +807,12 @@ The function orchestrates the multi-pass pipeline:
 sandbox_setup() {
     local sandbox_dir="$RALPH_DIR/sandbox"
     local force=0
+    local render_only=0
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --force) force=1; shift ;;
+            --render-only) render_only=1; shift ;;
             *) echo "Error: unknown option for sandbox setup: $1" >&2; exit 1 ;;
         esac
     done
@@ -746,6 +830,13 @@ sandbox_setup() {
         exit 1
     fi
 
+    # --render-only requires an existing profile
+    if [[ "$render_only" -eq 1 && ! -f "$sandbox_dir/project-profile.json" ]]; then
+        echo "Error: no project profile found at $sandbox_dir/project-profile.json" >&2
+        echo "Run 'ralph sandbox setup' first (without --render-only)." >&2
+        exit 1
+    fi
+
     # Handle existing sandbox files
     if [[ -f "$sandbox_dir/Dockerfile" ]]; then
         if [[ "$force" -eq 0 ]]; then
@@ -759,13 +850,25 @@ sandbox_setup() {
             saved_env=$(mktemp)
             cp "$sandbox_dir/.env" "$saved_env"
         fi
-        rm -rf "$sandbox_dir"
+        if [[ "$render_only" -eq 1 ]]; then
+            # Preserve profile — only delete generated files
+            local saved_profile
+            saved_profile=$(mktemp)
+            cp "$sandbox_dir/project-profile.json" "$saved_profile"
+            rm -rf "$sandbox_dir"
+            mkdir -p "$sandbox_dir"
+            cp "$saved_profile" "$sandbox_dir/project-profile.json"
+            rm -f "$saved_profile"
+        else
+            rm -rf "$sandbox_dir"
+        fi
     fi
 
     mkdir -p "$sandbox_dir"
 
-    # Copy base Dockerfile into sandbox build context
+    # Copy base Dockerfile and sandbox-preferences into build context
     cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
+    cp "$RALPH_DIR/sandbox-preferences.sh" "$sandbox_dir/sandbox-preferences.sh"
 
     # Build base image (deterministic, no LLM involved)
     echo "Building sandbox base image..."
@@ -773,26 +876,39 @@ sandbox_setup() {
         -f "$sandbox_dir/Dockerfile.base" \
         "$sandbox_dir/"
 
-    # Detect stack and resolve playbook
-    local STACK
-    STACK=$(detect_stack)
-    local PLAYBOOK_FILE="$RALPH_DIR/prompts/playbooks/${STACK}.md"
-    if [[ -n "$STACK" && -f "$PLAYBOOK_FILE" ]]; then
-        export STACK_PLAYBOOK="$PLAYBOOK_FILE"
+    if [[ "$render_only" -eq 0 ]]; then
+        # Detect stack and resolve playbook
+        local STACK
+        STACK=$(detect_stack)
+        local PLAYBOOK_FILE="$RALPH_DIR/prompts/playbooks/${STACK}.md"
+        if [[ -n "$STACK" && -f "$PLAYBOOK_FILE" ]]; then
+            export STACK_PLAYBOOK="$PLAYBOOK_FILE"
+        else
+            export STACK_PLAYBOOK=""
+        fi
+
+        # Pass 1: Analyze project → project profile
+        echo "Analyzing project..."
+        local analyze_prompt
+        analyze_prompt=$(mktemp)
+        prepare_prompt "$RALPH_DIR/prompts/sandbox-analyze.md" "$analyze_prompt"
+        agent_invoke "$analyze_prompt" | agent_format_display
+        rm -f "$analyze_prompt"
+
+        if [[ ! -f "$sandbox_dir/project-profile.json" ]]; then
+            echo "Error: analysis did not produce project-profile.json" >&2
+            exit 1
+        fi
     else
-        export STACK_PLAYBOOK=""
+        echo "Using existing project profile (--render-only)."
     fi
 
-    # Pass 1: Analyze project → project profile
-    echo "Analyzing project..."
-    local analyze_prompt
-    analyze_prompt=$(mktemp)
-    prepare_prompt "$RALPH_DIR/prompts/sandbox-analyze.md" "$analyze_prompt"
-    agent_invoke "$analyze_prompt" | agent_format_display
-    rm -f "$analyze_prompt"
-
-    if [[ ! -f "$sandbox_dir/project-profile.json" ]]; then
-        echo "Error: analysis did not produce project-profile.json" >&2
+    # Validate profile schema before Pass 2
+    local profile_errors
+    profile_errors=$(sandbox_validate_profile "$sandbox_dir/project-profile.json")
+    if [[ -n "$profile_errors" ]]; then
+        echo "Error: project profile has schema errors:" >&2
+        echo "$profile_errors" >&2
         exit 1
     fi
 
@@ -873,8 +989,10 @@ prompts/
 
 ```
 .ralph/
+├── sandbox-preferences.sh     # User-maintained (see Sandbox Preferences)
 ├── sandbox/
-│   ├── Dockerfile.base        # Copied from templates/ during setup
+│   ├── Dockerfile.base        # Auto-refreshed from templates/ on setup and up
+│   ├── sandbox-preferences.sh # Copied from parent during setup (build context)
 │   ├── Dockerfile             # Generated by Pass 2 (project-specific)
 │   ├── docker-compose.yml     # Generated by Pass 2
 │   ├── entrypoint.sh          # Generated by Pass 2
@@ -901,8 +1019,9 @@ Docker context (if any). The parent project may have its own `Dockerfile` and
 are completely separate from the sandbox.
 
 The base image build also uses `.ralph/sandbox/` as its context.
-`Dockerfile.base` is copied into the sandbox directory during setup so
-both builds share the same context directory.
+`Dockerfile.base` and `sandbox-preferences.sh` are copied into the sandbox
+directory during setup so both builds share the same context directory.
+`Dockerfile.base` is also auto-refreshed on every `ralph sandbox up`.
 
 ## File Ownership
 
@@ -913,13 +1032,15 @@ both builds share the same context directory.
 | `prompts/sandbox-repair.md` | upstream | Yes |
 | `prompts/templates/Dockerfile.base` | upstream | Yes |
 | `prompts/playbooks/*.md` | upstream | Yes |
+| `sandbox-preferences.sh` | user | No — user-maintained |
 | `sandbox/Dockerfile` | project | No — generated by setup |
 | `sandbox/docker-compose.yml` | project | No — generated by setup |
 | `sandbox/entrypoint.sh` | project | No — generated by setup |
 | `sandbox/.env.example` | project | No — generated by setup |
 | `sandbox/project-profile.json` | project | No — generated by setup |
 | `sandbox/.env` | user | No — gitignored |
-| `sandbox/Dockerfile.base` | upstream (copy) | Indirectly — copied from templates/ during setup |
+| `sandbox/Dockerfile.base` | upstream (auto-refreshed) | Yes — copied from templates/ on setup and up |
+| `sandbox/sandbox-preferences.sh` | upstream (copy) | No — copied from parent sandbox-preferences.sh during setup |
 
 ## Changes to Existing Specs
 
@@ -931,6 +1052,14 @@ both builds share the same context directory.
 - `sandbox_reset` volume handling changes — codebase volume is on the `app`
   service, DB volume is on the `db` service. `--all` removes both.
 - `sandbox_status` should show status of all service containers.
+- `sandbox_up` must auto-refresh the base image before `docker compose up`:
+  copy `Dockerfile.base` from managed template, rebuild `ralph-sandbox-base`.
+  Docker layer cache makes this instant when unchanged.
+- `sandbox_up` must copy `sandbox-preferences.sh` into the sandbox build
+  context before building.
+- Remove the "Multi-container sandbox" non-goal (it is now a goal).
+- Update CLI help text (`ralph sandbox help`) to document `--render-only`
+  flag and the profile editing workflow.
 
 ### sandbox-setup-prompt.md
 
@@ -949,6 +1078,7 @@ Add new managed files:
 - `prompts/sandbox-render.md`
 - `prompts/sandbox-repair.md`
 - `prompts/templates/Dockerfile.base`
+- `sandbox-preferences.sh` (user-customizable, initial starter content)
 
 Remove: `prompts/sandbox-setup.md` (replaced)
 
@@ -984,6 +1114,105 @@ single-container approach:
 No backward compatibility is needed — sandbox files are regenerated from
 scratch with `--force`.
 
+## Sandbox Preferences
+
+User preferences for the sandbox environment are defined in
+`sandbox-preferences.sh` — a user-maintained bash script that runs as root
+during `docker build`, after the project runtime is installed and before the
+final `USER ralph` / `ENTRYPOINT` layers.
+
+### How It Works
+
+1. Ralph ships a starter `sandbox-preferences.sh` with commented-out examples.
+2. The user uncomments and customizes the script for their needs.
+3. During `ralph sandbox setup` (and `ralph sandbox up`), ralph copies the
+   script into the sandbox build context.
+4. The generated Dockerfile contains a fixed COPY/RUN block:
+   ```dockerfile
+   COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
+   RUN sed 's|</dev/tty||g' /tmp/sandbox-preferences.sh | bash \
+       && rm -f /tmp/sandbox-preferences.sh
+   ```
+5. The LLM never reads, interprets, or translates this file. Content is
+   applied byte-for-byte.
+
+### Starter File
+
+The installer creates `sandbox-preferences.sh` with commented-out examples
+of common tasks:
+
+```bash
+#!/usr/bin/env bash
+# Sandbox Preferences
+#
+# This script runs as root during `docker build` to customize the sandbox
+# environment. Edit it to install packages, configure dotfiles, set up
+# editors, or anything else you want in your sandbox container.
+#
+# Ralph runs this script non-interactively. Scripts that read from /dev/tty
+# are automatically patched — no action needed on your part.
+#
+# This file is user-owned — `ralph update` will never overwrite it.
+#
+# Common examples (uncomment and modify):
+#
+# --- Install packages ---
+# apt-get update && apt-get install -y --no-install-recommends \
+#     vim bash-completion ripgrep \
+#     && rm -rf /var/lib/apt/lists/*
+#
+# --- Append to .bashrc ---
+# cat >> /home/ralph/.bashrc <<'BASHRC'
+# alias ll="ls -lF"
+# export EDITOR=vim
+# BASHRC
+#
+# --- Write .gitconfig ---
+# cat > /home/ralph/.gitconfig <<'GITCONFIG'
+# [push]
+#     default = simple
+# [pull]
+#     rebase = true
+# GITCONFIG
+#
+# --- Install editor plugins (fetched scripts are auto-patched for /dev/tty) ---
+# curl -fsSL https://example.com/vim-setup.sh | bash -s min
+```
+
+### Design Rationale
+
+Previous iterations used `sandbox-preferences.md` — a markdown file that the
+LLM read during setup and translated into Dockerfile instructions (heredocs,
+apt-get commands, etc.). This was fragile because:
+
+- User content is arbitrary — `.bashrc` with backticks, `$()` subshells,
+  ANSI escapes in PS1; `.gitconfig` with complex format strings.
+- The LLM is an unreliable intermediary for faithfully reproducing
+  shell-heavy text. One escaping mistake breaks the Docker build silently.
+- Different runs could translate the same preferences differently.
+
+The bash script approach eliminates the LLM from the content-copying path
+entirely. The user writes bash (they know their content), ralph COPY's and
+runs it. Deterministic, debuggable, works for any content.
+
+### File Ownership
+
+`sandbox-preferences.sh` is user-owned. The installer creates the starter
+file. `ralph update` treats it as a customizable file — it will not overwrite
+user modifications (same as `config`). The file lives at
+`$RALPH_DIR/sandbox-preferences.sh` and is copied into the sandbox build
+context (`$RALPH_DIR/sandbox/sandbox-preferences.sh`) during setup and up.
+
+### Changes from Current Spec
+
+| Aspect | Current (`sandbox-preferences.md`) | v2 (`sandbox-preferences.sh`) |
+|---|---|---|
+| Format | Markdown with prose instructions | Executable bash script |
+| LLM role | Reads and translates to Dockerfile | None — fixed COPY/RUN block |
+| Content fidelity | LLM-dependent (may mangle escapes) | Byte-for-byte (COPY) |
+| User skill required | Describe preferences in prose | Write bash commands |
+| Flexibility | Limited to patterns LLM recognizes | Anything bash can do |
+
 ## Comparison: Current vs v2
 
 | Aspect | Current (single container) | v2 (multi-container, multi-pass) |
@@ -993,8 +1222,9 @@ scratch with `--force`.
 | DB bootstrapping | Native install, initdb, PID files, temp start/stop | Official image, env vars, done |
 | Supervisord scope | 5–8 programs (DB, web, queue, mail, redis, ...) | 1–3 programs (web, queue, vite) |
 | Service detection | Must decide what to install natively (error-prone) | Must decide which compose services to add (simpler) |
-| Entrypoint steps | 10 (including DB init, supervisord config gen) | 11 (but steps 8–10 are much simpler) |
+| Entrypoint structure | 10 flat steps (including DB init, supervisord config gen) | 5 phases with substeps (no DB init, simpler supervisord) |
 | Consistency across runs | Low (entire generation is non-deterministic) | Higher (locked profile, separate passes) |
 | Validation | Self-check in prompt (weak) | Machine validator + optional repair pass |
 | Base image | None (everything generated each time) | Managed, invariant, built locally |
-| Sandbox-preferences | Applied via COPY + separate files | Applied via heredocs (self-contained) |
+| Sandbox-preferences | LLM reads markdown, translates to Dockerfile instructions | Deterministic bash script, COPY'd and executed (no LLM) |
+| Profile editing | N/A (re-run full setup) | Edit profile JSON, re-render with `--render-only` |
