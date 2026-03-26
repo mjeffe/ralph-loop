@@ -1353,6 +1353,15 @@ detect_stack() {
 
 - `prompts/playbooks/` directory and all playbook files are managed upstream
 
+## Migration from Single-Container Sandbox
+
+Existing users who generated sandbox files with the previous single-container
+approach upgrade by running `ralph update` (delivers new prompts and base image
+template), then `ralph sandbox setup --force` to regenerate. The `.env` file is
+preserved across `--force` regeneration. Old single-container sandbox files are
+replaced with multi-container ones. No backward compatibility is needed —
+sandbox files are regenerated from scratch.
+
 ## Changes to Project Structure
 
 The directory layouts in `specs/project-structure.md` are updated to reflect

@@ -15,7 +15,7 @@ Specs are the source of truth for desired behavior. When adding or removing a sp
 | [agent-scripts.md](agent-scripts.md) | Agent script contract, required/optional functions, and adding new agents |
 | [updater.md](updater.md) | Update mechanism, manifest tracking, and preserving user customizations |
 | [sandbox-cli.md](sandbox-cli.md) | Sandbox lifecycle commands (`up`, `down`, `reset`, `shell`, `status`, `setup`) — implement first |
-| [sandbox-setup-prompt.md](sandbox-setup-prompt.md) | Multi-container, multi-pass prompt pipeline: project analysis, file generation, validation, and repair — implement after sandbox-cli |
+| [sandbox-setup-prompt.md](sandbox-setup-prompt.md) | Multi-container, multi-pass prompt pipeline: project analysis, file generation, validation, repair, and migration — implement after sandbox-cli |
 | [process-planning.md](process-planning.md) | Process planning mode: phased playbooks, CLI flags, plan-type metadata, and prompt template |
 | [incremental-planning.md](incremental-planning.md) | Incremental process planning: decomposition ledger, skeleton-first workflow, volume hint, and phase collapsing for large spec volumes |
 | [align-specs.md](align-specs.md) | Align-specs mode: update target-state specs after process-spec migrations, build-completion nudge |

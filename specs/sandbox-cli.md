@@ -65,8 +65,11 @@ After `ralph sandbox setup` generates the project-specific files:
 │   ├── sandbox-analyze.md    # managed upstream — prompt for project analysis pass
 │   ├── sandbox-render.md     # managed upstream — prompt for sandbox file rendering pass
 │   ├── sandbox-repair.md     # managed upstream — prompt for build repair pass
-│   └── templates/
-│       └── Dockerfile.base   # managed upstream — base image template
+│   ├── templates/
+│   │   └── Dockerfile.base   # managed upstream — base image template
+│   └── playbooks/            # managed upstream — stack-specific sandbox guidance
+│       ├── php-laravel.md
+│       └── ...
 ├── ...
 ```
 
@@ -78,6 +81,7 @@ After `ralph sandbox setup` generates the project-specific files:
 | `prompts/sandbox-render.md` | upstream (managed) | Yes |
 | `prompts/sandbox-repair.md` | upstream (managed) | Yes |
 | `prompts/templates/Dockerfile.base` | upstream (managed) | Yes |
+| `prompts/playbooks/*.md` | upstream (managed) | Yes |
 | `sandbox-preferences.sh` | user | No — customizable |
 | `sandbox/Dockerfile.base` | upstream (auto-refreshed) | Yes — copied from templates/ |
 | `sandbox/sandbox-preferences.sh` | upstream (copy) | No — copied from parent |
@@ -353,10 +357,12 @@ from the CLI perspective are:
 The installer adds:
 
 1. `prompts/sandbox-analyze.md`, `prompts/sandbox-render.md`,
-   `prompts/sandbox-repair.md`, and `prompts/templates/Dockerfile.base` to the
-   managed files list (fetched from upstream, tracked in `.manifest`).
-2. Creates `.ralph/sandbox/` directory.
-3. Adds `sandbox/.env` to `.ralph/.gitignore`.
+   `prompts/sandbox-repair.md`, `prompts/templates/Dockerfile.base`, and
+   `prompts/playbooks/*.md` to the managed files list (fetched from upstream,
+   tracked in `.manifest`).
+2. Creates `sandbox-preferences.sh` starter script (user-customizable).
+3. Creates `.ralph/sandbox/` directory.
+4. Adds `sandbox/.env` to `.ralph/.gitignore`.
 
 The installer does **not** run `ralph sandbox setup` automatically — that requires
 an agent and API key, which may not be configured at install time.
@@ -364,8 +370,8 @@ an agent and API key, which may not be configured at install time.
 ## Updater Changes (`update.sh`)
 
 Add `prompts/sandbox-analyze.md`, `prompts/sandbox-render.md`,
-`prompts/sandbox-repair.md`, and `prompts/templates/Dockerfile.base` to the
-`MANAGED_FILES` array. No other changes.
+`prompts/sandbox-repair.md`, `prompts/templates/Dockerfile.base`, and
+`prompts/playbooks/*.md` to the `MANAGED_FILES` array. No other changes.
 The generated sandbox files (`Dockerfile`, `docker-compose.yml`, `entrypoint.sh`,
 `.env.example`) are project-owned and never touched by the updater.
 
