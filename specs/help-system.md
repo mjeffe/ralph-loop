@@ -90,9 +90,24 @@ Cover:
 
 ### `ralph help sandbox`
 
-The existing `sandbox_help()` content, moved into the help system, plus a
-troubleshooting entry for multi-checkout collisions — accessed via
-`ralph help sandbox`.
+Cover:
+- Multi-container architecture: the app container runs the project code;
+  service containers (database, cache, mail, etc.) run in their own
+  containers using official Docker images
+- Setup workflow: `ralph sandbox setup` runs a multi-pass pipeline —
+  analysis → generation → validation — to produce the sandbox configuration
+- `--render-only` flag: edit `project-profile.json` to fix wrong detections,
+  then run `ralph sandbox setup --render-only --force` to regenerate the
+  sandbox from the corrected profile without re-analyzing
+- `sandbox-preferences.sh`: how to customize the sandbox environment — edit
+  the script with extra packages or configuration, then rebuild with
+  `ralph sandbox up`
+- Multi-checkout port collisions: when running multiple checkouts of the
+  same project, remap exposed ports in each checkout's `.env` to avoid
+  conflicts
+- Troubleshooting: the base image is auto-refreshed on `ralph sandbox up`,
+  so changes from `ralph update` take effect automatically — no manual
+  image rebuild needed
 
 The troubleshooting section should include an entry like:
 

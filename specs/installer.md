@@ -34,7 +34,7 @@ The installer script lives at the root of the ralph-loop repository so the curl 
    ├── ralph               (executable)
    ├── config
    ├── dependencies         (system package dependencies)
-   ├── sandbox-preferences.md (user sandbox environment preferences)
+   ├── sandbox-preferences.sh (user sandbox environment preferences, executable)
    ├── README.md           (overview of how Ralph works)
    ├── implementation_plan.md (empty template)
    ├── agents/
@@ -44,7 +44,16 @@ The installer script lives at the root of the ralph-loop repository so the curl 
    │   └── codex.sh
    ├── prompts/
    │   ├── plan.md
-   │   └── build.md
+   │   ├── build.md
+   │   ├── sandbox-analyze.md
+   │   ├── sandbox-render.md
+   │   ├── sandbox-repair.md
+   │   ├── align-specs.md
+   │   ├── templates/
+   │   │   └── Dockerfile.base
+   │   └── playbooks/
+   │       ├── php-laravel.md
+   │       └── ...
    ├── logs/
    └── .gitignore
    ```
@@ -53,9 +62,11 @@ The installer script lives at the root of the ralph-loop repository so the curl 
     - Copy `ralph` script (make executable)
     - Copy default `config` template
     - Copy `dependencies` file (system package dependencies for ralph runtime)
-    - Copy `sandbox-preferences.md` (user sandbox environment preferences)
+    - Copy `sandbox-preferences.sh` (user sandbox environment preferences, make executable)
     - Copy agent scripts from `agents/` (canonical source in ralph-loop repo)
-    - Copy prompt templates from `prompts/` (canonical source in ralph-loop repo)
+    - Copy prompt templates from `prompts/` including sandbox-analyze.md, sandbox-render.md, sandbox-repair.md, align-specs.md
+    - Copy `prompts/templates/Dockerfile.base`
+    - Copy playbooks directory (`prompts/playbooks/`)
     - Copy `specs/overview.md` as `README.md` (overview of how Ralph works)
     - Create empty `implementation_plan.md` template
     - Create `.ralph/.gitignore`
