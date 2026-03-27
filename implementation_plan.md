@@ -183,7 +183,7 @@ layer cache makes this instant when nothing has changed. All 123 tests pass.
 ---
 
 ### Task 7: Fix `sandbox_reset()` to match spec
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-cli.md
 
 The current `sandbox_reset()` implementation diverges from the spec in the non-`--all` case.
@@ -199,6 +199,12 @@ What to do:
 - Update the user messaging to match spec language about "codebase volume" and
   "service volumes"
 - Run tests (`./tests/test_ralph.sh`)
+
+**Completed:** Fixed non-`--all` branch to `stop app` / `volume rm` / `up -d --build app`
+instead of `down` / `up -d --build` (which stopped and rebuilt all services). Moved
+`up -d --build` inside the `else` branch so `--all` only does `down -v` without restart.
+Updated user messaging to match spec language ("sandbox volumes", "app codebase volume",
+"Service volumes"). All 123 tests pass.
 
 ---
 

@@ -1353,21 +1353,23 @@ sandbox_reset() {
     fi
 
     if [[ "$reset_all" == true ]]; then
-        echo "This will delete ALL sandbox data (codebase AND database)."
+        echo "This will delete ALL sandbox volumes (codebase, database, cache, etc.)."
     else
-        echo "This will delete the sandbox codebase and re-clone from git."
-        echo "Database data will be preserved."
+        echo "This will delete the app codebase volume and re-clone from git."
+        echo "Service volumes (database, cache, etc.) will be preserved."
     fi
     read -p "Continue? [y/N] " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         if [[ "$reset_all" == true ]]; then
+            # Remove all containers and all volumes across every service
             docker compose -f "$compose_file" down -v
         else
-            docker compose -f "$compose_file" down
+            # Stop only the app service, remove its codebase volume
+            docker compose -f "$compose_file" stop app
             docker volume rm "${project_name}_sandbox-codebase" 2>/dev/null || true
+            docker compose -f "$compose_file" up -d --build app
         fi
-        docker compose -f "$compose_file" up -d --build
         echo "Sandbox reset complete."
     fi
 }
