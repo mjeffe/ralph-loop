@@ -168,21 +168,17 @@ All 123 tests pass.
 ---
 
 ### Task 6: Update `sandbox_up()` with base image auto-refresh
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-cli.md
 
 The spec requires `sandbox_up()` to auto-refresh the base image on every invocation by
 copying `Dockerfile.base` and `sandbox-preferences.sh` from managed sources and rebuilding
 `ralph-sandbox-base`. The current implementation does not do this.
 
-What to do:
-- Add base image auto-refresh logic to `sandbox_up()` before `docker compose up`:
-  ```
-  cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$RALPH_DIR/sandbox/Dockerfile.base"
-  cp "$RALPH_DIR/sandbox-preferences.sh" "$RALPH_DIR/sandbox/sandbox-preferences.sh"
-  docker build -t ralph-sandbox-base -f "$RALPH_DIR/sandbox/Dockerfile.base" "$RALPH_DIR/sandbox/"
-  ```
-- Run tests (`./tests/test_ralph.sh`)
+**Completed:** Added three-line auto-refresh block before `docker compose up`: copies
+`Dockerfile.base` from `prompts/templates/` and `sandbox-preferences.sh` from the ralph
+dir into the sandbox build context, then runs `docker build -t ralph-sandbox-base`. Docker
+layer cache makes this instant when nothing has changed. All 123 tests pass.
 
 ---
 

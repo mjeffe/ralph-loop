@@ -1317,6 +1317,12 @@ sandbox_up() {
         exit 1
     fi
 
+    # Auto-refresh base image and sandbox-preferences from managed sources.
+    # Docker layer cache makes this instant when nothing has changed.
+    cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$RALPH_DIR/sandbox/Dockerfile.base"
+    cp "$RALPH_DIR/sandbox-preferences.sh" "$RALPH_DIR/sandbox/sandbox-preferences.sh"
+    docker build -t ralph-sandbox-base -f "$RALPH_DIR/sandbox/Dockerfile.base" "$RALPH_DIR/sandbox/"
+
     docker compose -f "$compose_file" up -d --build "$@"
     echo ""
     echo "Sandbox is starting. First build may take several minutes."
