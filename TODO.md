@@ -5,6 +5,8 @@ thoughs, reminders, ideas, things to watch for, etc.
 
 ## List of Items to Implement or Refactor
 
+- process-planner-prompt-improvements.md is unimplemented but has been updated with advice from an analysis. The agent said:
+  "The proposed changes in the doc are raw prompt text — they were written before the canonical template moved into the spec. The implementing agent will need to adapt them to the spec's structure (prose + embedded template) rather than copy-pasting the code blocks directly."
 - How can I monitor/track the % of context window used during an iteration?
 - how can we reduce token usage. These iterations can get expensive
 - tdd approach: write tests before implementation?
