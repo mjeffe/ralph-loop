@@ -209,7 +209,7 @@ Updated user messaging to match spec language ("sandbox volumes", "app codebase 
 ---
 
 ### Task 8: Fix `sandbox_container_name()` to accept service name argument
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-cli.md
 
 The spec shows `sandbox_container_name()` takes a service argument (e.g., `sandbox_container_name "app"`),
@@ -219,6 +219,12 @@ What to do:
 - Update `sandbox_container_name()` to accept an optional service name argument
 - Update the call in `sandbox_shell()` to pass `"app"`
 - Run tests (`./tests/test_ralph.sh`)
+
+**Completed:** Updated `sandbox_container_name()` to accept an optional service name
+argument (defaults to `"app"`). Changed jq query to look up the specific service by
+name instead of grabbing the first entry. Updated fallback to derive container name as
+`${project_name}-${service}-1`. Updated `sandbox_shell()` to pass `"app"` explicitly
+as the spec requires. All 123 tests pass.
 
 ---
 

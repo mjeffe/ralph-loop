@@ -332,19 +332,21 @@ sandbox_ensure_name() {
 }
 
 sandbox_container_name() {
+    local service="${1:-app}"
     local compose_file="$RALPH_DIR/sandbox/docker-compose.yml"
     local name
     name=$(docker compose -f "$compose_file" config --format json \
-        | jq -r '.services | to_entries[0].value.container_name // empty' 2>/dev/null)
+        | jq -r --arg svc "$service" '.services[$svc].container_name // empty' 2>/dev/null)
     if [[ -z "$name" ]]; then
-        name=$(docker compose -f "$compose_file" config --format json \
+        local project_name
+        project_name=$(docker compose -f "$compose_file" config --format json \
             | jq -r '.name // empty' 2>/dev/null)
-        if [[ -n "$name" ]]; then
-            name="${name}-sandbox-1"
+        if [[ -n "$project_name" ]]; then
+            name="${project_name}-${service}-1"
         fi
     fi
     if [[ -z "$name" ]]; then
-        echo "Error: could not determine container name from compose file." >&2
+        echo "Error: could not determine container name for service '$service' from compose file." >&2
         exit 1
     fi
     echo "$name"
@@ -1377,7 +1379,7 @@ sandbox_reset() {
 sandbox_shell() {
     sandbox_ensure_name
     local container_name
-    container_name=$(sandbox_container_name)
+    container_name=$(sandbox_container_name "app")
     docker exec -it -u ralph "$container_name" bash
 }
 
