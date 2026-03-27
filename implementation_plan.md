@@ -246,7 +246,7 @@ tests pass.
 ---
 
 ### Task 10: Add `ralph help retro` topic
-**Status:** planned
+**Status:** complete
 **Spec:** specs/help-system.md
 
 The spec defines `retro` as a help topic covering post-cycle retrospective guidance. The
@@ -254,18 +254,12 @@ current `ralph` script already has `help_retro()` implemented and `retro` is alr
 the `ralph_help()` dispatcher. However, it should be verified against the spec and the
 help index should include `retro`.
 
-What to do:
-- Verify `help_retro()` content covers all spec requirements: when to retro, what to review,
-  common failure patterns, where to apply fixes, retro checklist, agent-assisted analysis
-  prompt, sanitized feedback prompt
-- Verify `help_index()` includes `retro` topic
-- Verify `ralph_help()` routes `retro` correctly
-- Add test for `ralph help retro` if not present
-- Run tests (`./tests/test_ralph.sh`)
-
-**Note:** After reviewing the codebase, the help_retro() function already exists with
-comprehensive content. The help_index() already lists retro. This task may be confirmed
-as already satisfied — the build agent should verify and mark complete if so.
+**Completed:** Verified `help_retro()` covers all spec requirements (when to retro, what
+to review, common failure patterns, where to apply fixes, retro checklist, agent-assisted
+analysis prompt, sanitized feedback prompt). Verified `help_index()` includes `retro` and
+`ralph_help()` routes it correctly. Added `test_help_retro_shows_content()` with 8
+assertions covering all major sections. Updated `test_help_shows_topic_index()` to verify
+`retro` appears in the index. All 132 tests pass.
 
 ---
 

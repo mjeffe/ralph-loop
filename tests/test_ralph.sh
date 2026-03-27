@@ -414,6 +414,7 @@ test_help_shows_topic_index() {
     assert_contains "index shows specs topic" "specs" "$output"
     assert_contains "index shows build topic" "build" "$output"
     assert_contains "index shows sandbox topic" "sandbox" "$output"
+    assert_contains "index shows retro topic" "retro" "$output"
 }
 
 test_help_plan_shows_content() {
@@ -666,6 +667,20 @@ test_usage_shows_align_specs() {
     local output
     output=$("$RALPH_DIR/ralph" --help 2>&1)
     assert_contains "shows align-specs mode" "align-specs" "$output"
+}
+
+test_help_retro_shows_content() {
+    echo "--- ralph help retro shows retro content ---"
+    local output
+    output=$("$RALPH_DIR/ralph" help retro 2>&1)
+    assert_contains "retro help shows header" "RETROSPECTIVE" "$output"
+    assert_contains "retro help shows when" "WHEN TO DO A RETRO" "$output"
+    assert_contains "retro help shows what to review" "WHAT TO REVIEW" "$output"
+    assert_contains "retro help shows failure patterns" "COMMON FAILURE PATTERNS" "$output"
+    assert_contains "retro help shows where to apply" "WHERE TO APPLY FIXES" "$output"
+    assert_contains "retro help shows checklist" "RETRO CHECKLIST" "$output"
+    assert_contains "retro help shows agent-assisted" "AGENT-ASSISTED ANALYSIS" "$output"
+    assert_contains "retro help shows feedback sharing" "SHARING FEEDBACK" "$output"
 }
 
 test_help_align_specs_shows_content() {
@@ -1020,6 +1035,7 @@ main() {
     test_align_specs_requires_process_plan
     test_align_specs_requires_completed_tasks
     test_usage_shows_align_specs
+    test_help_retro_shows_content
     test_help_align_specs_shows_content
     test_help_index_shows_align_specs
     test_installer_creates_originals
