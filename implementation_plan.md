@@ -15,7 +15,7 @@ sandbox lifecycle commands.
 ---
 
 ### Task 1: Rename `sandbox-preferences.md` to `sandbox-preferences.sh`
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-cli.md, specs/sandbox-setup-prompt.md, specs/project-structure.md, specs/installer.md
 
 The specs consistently refer to `sandbox-preferences.sh` (an executable bash script), but the
@@ -34,6 +34,12 @@ What to do:
 - Update `prompts/sandbox-setup.md` references from `sandbox-preferences.md` to
   `sandbox-preferences.sh`
 - Run tests (`./tests/test_ralph.sh`)
+
+**Completed:** Renamed `sandbox-preferences.md` → `sandbox-preferences.sh`, converted markdown
+prose to an executable bash script (apt-get install, bashrc append, vim config via curl, gitconfig
+creation), made executable, updated `MANAGED_FILES`/`SOURCE_PATHS` in both `install.sh` and
+`update.sh`, updated all four references in `prompts/sandbox-setup.md`, added `chmod +x` for the
+file in the installer. All 108 tests pass.
 
 ---
 

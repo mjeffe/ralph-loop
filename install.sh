@@ -19,7 +19,7 @@ MANAGED_FILES=(
     ralph
     config
     dependencies
-    sandbox-preferences.md
+    sandbox-preferences.sh
     agents/amp.sh
     agents/claude.sh
     agents/cline.sh
@@ -39,7 +39,7 @@ declare -A SOURCE_PATHS=(
     [ralph]="ralph"
     [config]="config"
     [dependencies]="dependencies"
-    [sandbox-preferences.md]="sandbox-preferences.md"
+    [sandbox-preferences.sh]="sandbox-preferences.sh"
     [agents/amp.sh]="agents/amp.sh"
     [agents/claude.sh]="agents/claude.sh"
     [agents/cline.sh]="agents/cline.sh"
@@ -181,6 +181,7 @@ install_ralph_dir() {
         fetch_file "$src_path" "$RALPH_DIR/$file"
     done
     chmod +x "$RALPH_DIR/ralph"
+    chmod +x "$RALPH_DIR/sandbox-preferences.sh"
 
     # Create implementation_plan.md template
     cat > "$RALPH_DIR/implementation_plan.md" <<'EOF'

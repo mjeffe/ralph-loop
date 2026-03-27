@@ -59,7 +59,7 @@ versions, package names, and startup commands.
   empty secrets that must be generated for tests to pass
 - Git remote URL (for GIT_REPO default)
 - ${RALPH_HOME}/dependencies for ralph's own system package requirements
-- ${RALPH_HOME}/sandbox-preferences.md for user-defined environment preferences
+- ${RALPH_HOME}/sandbox-preferences.sh for user-defined environment preferences
 
 **Conclusions to extract:**
 - Primary runtime(s) and version(s)
@@ -127,7 +127,7 @@ Responsibilities:
 - ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
 - WORKDIR: /var/www/html for PHP projects, /app for others
 - EXPOSE only ports for services that are actually provisioned
-- Apply user preferences from sandbox-preferences.md — when running fetched
+- Apply user preferences from sandbox-preferences.sh — when running fetched
   scripts in `RUN` commands, strip `/dev/tty` references (see Appendix D)
 
 ### 2. entrypoint.sh
@@ -281,7 +281,7 @@ Before finishing, verify:
 - [ ] entrypoint.sh is copied to a location in PATH (e.g., /usr/local/bin/)
 - [ ] User ralph has correct permissions for workdir and home directory
 - [ ] All packages from ${RALPH_HOME}/dependencies are installed
-- [ ] User preferences from ${RALPH_HOME}/sandbox-preferences.md are applied
+- [ ] User preferences from ${RALPH_HOME}/sandbox-preferences.sh are applied
 - [ ] If test environment files exist, secrets are populated
 - [ ] No app-config vars (DB_*, MAIL_*, etc.) in docker-compose.yml environment
 
@@ -351,7 +351,7 @@ Quote any entry whose value contains a colon:
 
 ## Appendix D: Non-Interactive Docker Builds
 
-Docker builds have no TTY. When `sandbox-preferences.md` or other sources specify
+Docker builds have no TTY. When `sandbox-preferences.sh` or other sources specify
 scripts fetched via `curl | bash`, pipe them through sed to strip `</dev/tty`
 redirects before execution. Use this template:
 

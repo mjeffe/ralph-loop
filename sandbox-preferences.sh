@@ -1,18 +1,21 @@
+#!/bin/bash
 # Sandbox Preferences
+#
+# User-defined preferences for the sandbox environment. This script is COPY'd
+# into the Docker build context and executed during image build to apply
+# packages, shell configuration, editor setup, and git config.
 
-User-defined preferences for the sandbox environment. The agent reads this
-file during `ralph sandbox setup` and incorporates these preferences into
-the generated Dockerfile and related files.
+set -euo pipefail
 
-## Packages
+# --- Packages ---
+apt-get update -qq
+apt-get install -y --no-install-recommends vim bash-completion
+rm -rf /var/lib/apt/lists/*
 
-- Install `vim` (full version, not vim-tiny)
-- Install `bash-completion`
+# --- User Environment ---
 
-## User Environment
-
-- Add the following preferences to the bottom of the user's `~/.bashrc` so they override existing defaults.
-```
+# Bashrc customizations (appended so they override existing defaults)
+cat >> /home/ralph/.bashrc <<'BASHRC'
 
 # -------------------------------
 # bash customizations
@@ -40,16 +43,14 @@ alias ralph='./.ralph/ralph'
 
 export EDITOR=vim
 export VISUAL=vim
+BASHRC
 
-```
+# Vim configuration
+curl -fsSL https://raw.githubusercontent.com/mjeffe/nix-profile/master/vim-config/install.sh \
+    | sed 's|</dev/tty||g' | bash -s min
 
-- Install my vim configuraion using:
-```
-curl -fsSL https://raw.githubusercontent.com/mjeffe/nix-profile/master/vim-config/install.sh | bash -s min
-```
-
-- Add a `~/.gitconfig` with the following contents:
-```
+# Git configuration
+cat > /home/ralph/.gitconfig <<'GITCONFIG'
 [push]
 	default = simple
 [pull]
@@ -72,6 +73,6 @@ curl -fsSL https://raw.githubusercontent.com/mjeffe/nix-profile/master/vim-confi
 	hlog = log --stat -p
 	# history follow log (follows renames, deletes, etc)
 	fhlog = log --oneline --find-renames --stat --follow
-```
+GITCONFIG
 
-
+chown ralph:ralph /home/ralph/.bashrc /home/ralph/.gitconfig

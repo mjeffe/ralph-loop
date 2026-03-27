@@ -18,7 +18,7 @@ MANAGED_FILES=(
     ralph
     config
     dependencies
-    sandbox-preferences.md
+    sandbox-preferences.sh
     agents/amp.sh
     agents/claude.sh
     agents/cline.sh
@@ -38,7 +38,7 @@ declare -A SOURCE_PATHS=(
     [ralph]="ralph"
     [config]="config"
     [dependencies]="dependencies"
-    [sandbox-preferences.md]="sandbox-preferences.md"
+    [sandbox-preferences.sh]="sandbox-preferences.sh"
     [agents/amp.sh]="agents/amp.sh"
     [agents/claude.sh]="agents/claude.sh"
     [agents/cline.sh]="agents/cline.sh"
