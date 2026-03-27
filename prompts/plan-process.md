@@ -10,10 +10,12 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 - You may split a step into multiple tasks or combine adjacent steps within the same phase, but must not cross phase boundaries or violate explicit sequencing.
 - If it is unclear whether a step sequence is mandatory and the ambiguity affects safe execution, preserve written order and add a `Process gap:` note.
 - You have full autonomy in how you decompose each phase into build-iteration-sized tasks.
-- Never split a destructive change (dropping a column, removing a shared interface, deleting a public API) from the code that references it. Bundle the removal and all dependent code updates into a single task — splitting them guarantees a broken intermediate state.
-- When multiple process specs cover the same phase or step at different levels of detail, the most detailed spec is authoritative for decomposition. Higher-level specs provide context and define phases not covered elsewhere.
 - **Do not implement product code** — process planning produces only the implementation plan and commits.
 - Commit your plan updates at the end of each iteration with a descriptive commit message.
+
+## Testing Strategy Extraction
+
+If a process spec includes explicit testing rules (testing strategy, testing approach, or equivalent), treat them as phase-specific planning constraints. Create a standalone prerequisite task only when the spec explicitly requires pre-refactor or lock-in tests before implementation. Preserve conditional language from the spec (e.g., "if coverage is thin, add tests first" stays conditional). Do not add separate test tasks when the spec says the existing suite is sufficient.
 
 ## Context
 
@@ -91,15 +93,33 @@ At the top of the plan, include:
 
 Structure the main body using phase headings (e.g., `## Phase 0 — Inventory and safety rails`). Each phase should include its source process spec traceability and an optional `Depends on:` line when helpful.
 
-Each task needs at minimum:
-- A short title
-- A brief description of what needs to be done
+Each task must include enough context for a build agent starting with fresh context and no memory of prior iterations. At minimum:
+- A short title and brief description
 - The **process spec and phase/step** it traces to (e.g., `specs/process/migration-plan.md — Phase 0a, Step 1`)
 - A **status**: `planned` | `blocked` | `complete`
-- Enough context for a build agent to start work without re-reading the full process spec
-- An optional `Depends on:` line when the dependency is not obvious from placement
+- **Files/directories** to inspect and change
+- **Key symbols** (classes, methods, routes, config keys) if known from survey
+- **End state** — what the code should look like after (e.g., "method removed", "column dropped", "getter returns X")
+- A **`Verify:`** block (see Verification below)
+- `Exclusions:` only when the spec or plan forbids tempting adjacent changes
+- `Deferred work:` only when related cleanup is intentionally handled by a later task (cite which task)
+- Do not emit empty placeholder fields
+
+For any explicitly ordered sequence, every task after the first must include `Depends on: Task N`. Do not rely on document placement alone to convey ordering. Do not add dependency chains to unordered sibling tasks within the same phase.
 
 Order tasks to match the phase ordering from the process specs.
+
+### Verification
+
+Every planned task must include a `Verify:` block. Prefer the most specific repo-grounded check you can support. Never invent test names, commands, or symbols not observed during the codebase survey.
+
+Acceptable forms:
+- A specific test command or filter grounded in observed tooling (e.g., "Run tests filtered to UserCreateTest")
+- A grep/search with expected result (e.g., "`grep -r 'ClassName' src/` — zero hits")
+- A build or migration command with expected output
+- For blocked, manual, or investigation tasks: completion evidence or the exact manual procedure
+
+Not acceptable: bare "Run tests" or "Verify it works" without qualification.
 
 ### Decomposition Ledger
 
@@ -123,6 +143,8 @@ The ledger is the resumable work queue. On each iteration, read it, skip files m
 - If a step is too small, combine it with adjacent steps in the same phase — but only if they would logically be committed together. Include small adjacent help/docs/prompt updates triggered by the main change in the same task.
 - Each task should be completable in one build iteration and committable as a single logical unit.
 - Do not create build tasks whose sole purpose is to verify whether an apparently implemented requirement is already done when planning can answer that from repo evidence. If the evidence is insufficient, create a focused investigation task and note the uncertainty.
+- Never split a destructive change (dropping a column, removing a shared interface, deleting a public API) from the code that references it. Bundle the removal and all dependent code updates into a single task — splitting them guarantees a broken intermediate state.
+- Split when a task mixes concerns with different verification surfaces (e.g., migration/schema checks vs UI behavior vs config/build validation vs dead-code grep), unless keeping them together is necessary to preserve a working intermediate state. Combine adjacent steps when they serve one narrow concern, share verification, and would naturally ship as one commit.
 
 ## Discovered Work
 
