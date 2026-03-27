@@ -238,16 +238,17 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 3. Read the referenced spec and inspect relevant code and tests.
 4. Implement the task.
 5. Add or update targeted tests when appropriate — especially for bug fixes and user-visible behavior changes. Use judgment: skip brittle or high-setup tests for pure refactors or trivial wiring; if you skip meaningful coverage, note it in the plan.
-6. Run the project's required validation from AGENTS.md. Fix failures caused by your changes. If unrelated failures are quick, fix them too. If they are substantial, mark the task `blocked` and document the issue rather than expanding scope.
-7. Update `${RALPH_HOME}/implementation_plan.md`:
+6. If the task includes a `Verify:` block, execute its checks after implementation. If verification fails, fix the issue before proceeding. If it cannot be fixed within the task's scope, mark the task `blocked`.
+7. Run the project's required validation from AGENTS.md. Fix failures caused by your changes. If unrelated failures are quick, fix them too. If they are substantial, mark the task `blocked` and document the issue rather than expanding scope.
+8. Update `${RALPH_HOME}/implementation_plan.md`:
    - Mark the task `complete`
    - Add a brief note on what changed
    - Add any newly discovered tasks (note which task surfaced them)
    - Adjust any remaining tasks that are now obsolete, incorrect, or mis-ordered
-8. Commit all changes with a descriptive commit message.
-9. If all tasks are `complete` (none `planned` or `blocked`), output the completion signal (see Exit Signals).
-10. If only `blocked` tasks remain (no `planned` work available), output the replan signal (see Exit Signals).
-11. If the plan needs major restructuring, output the replan signal (see Exit Signals).
+9. Commit all changes with a descriptive commit message.
+10. If all tasks are `complete` (none `planned` or `blocked`), output the completion signal (see Exit Signals).
+11. If only `blocked` tasks remain (no `planned` work available), output the replan signal (see Exit Signals).
+12. If the plan needs major restructuring, output the replan signal (see Exit Signals).
 
 ## Exit Signals
 

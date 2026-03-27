@@ -129,12 +129,17 @@ At the top of `${RALPH_HOME}/implementation_plan.md`, include:
 - `Plan Type: gap-driven`
 - `Plan Command: ralph plan`
 
-Each task needs at minimum:
-- A short title
-- A brief description of what needs to be done
+Each task must include enough context for a build agent starting with fresh context. At minimum:
+- A short title and brief description
 - The **spec** that drives it (e.g., `specs/feature.md`)
 - A **status**: `planned` | `blocked` | `complete`
-- Enough context for a build agent to start work without re-surveying the entire project
+- **Files/directories** to inspect and change
+- **Key symbols** (classes, methods, routes, config keys) if known from survey
+- **End state** — what the code should look like after
+- A **`Verify:`** block with at least one concrete check. Prefer repo-grounded commands (specific test filter, grep with expected result, build command). Never invent test names or symbols not observed during the survey. For investigation tasks, state the completion evidence instead. Bare "Run tests" or "Verify it works" is not acceptable.
+- `Exclusions:` only when tempting adjacent changes should be avoided
+- `Deferred work:` only when related cleanup is handled by a later task (cite which)
+- Do not emit empty placeholder fields
 
 Order tasks by priority. Structure and format beyond that are up to you.
 
