@@ -70,7 +70,7 @@ to `mkdir -p "$RALPH_DIR/prompts/templates"` which also creates the parent). All
 ---
 
 ### Task 3: Create multi-pass sandbox prompt templates
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-setup-prompt.md
 
 The specs call for three separate prompt files replacing the single `prompts/sandbox-setup.md`:
@@ -78,27 +78,20 @@ The specs call for three separate prompt files replacing the single `prompts/san
 - `prompts/sandbox-render.md` — Pass 2: generate sandbox files from profile
 - `prompts/sandbox-repair.md` — Pass 3: fix validation failures
 
-What to do:
-- Create `prompts/sandbox-analyze.md` following the spec's guidance for Pass 1 (analysis
-  prompt content — project scanning, profile schema, output format)
-- Create `prompts/sandbox-render.md` following the spec's guidance for Pass 2 (generation
-  prompt — reads profile, generates Dockerfile, entrypoint.sh, docker-compose.yml,
-  .env.example)
-- Create `prompts/sandbox-repair.md` following the spec's guidance for Pass 3 (repair
-  prompt — reads validation failures and generated files, makes targeted fixes)
-- Keep `prompts/sandbox-setup.md` for now (it will be removed when managed files are updated)
-- Add `prompts/sandbox-analyze.md`, `prompts/sandbox-render.md`, and
-  `prompts/sandbox-repair.md` to `MANAGED_FILES` and `SOURCE_PATHS` in both `install.sh`
-  and `update.sh`
-- Remove `prompts/sandbox-setup.md` from `MANAGED_FILES` and `SOURCE_PATHS` in both
-  `install.sh` and `update.sh`
-- Run tests (`./tests/test_ralph.sh`)
-
-**Note:** The prompt content should be derived from the detailed specifications in
-`specs/sandbox-setup-prompt.md`. The analyze prompt includes sources to read, decision rules,
-and the profile schema. The render prompt includes hard constraints, file responsibilities,
-and appendices for git credentials, YAML syntax, idempotency, and non-interactive builds.
-The repair prompt receives validation failures and asks for targeted fixes.
+**Completed:** Created all three prompt files derived from the spec:
+- `prompts/sandbox-analyze.md` — sources to read, conclusions to extract, decision rules,
+  full profile schema (required/optional fields), PHP/Laravel example profile, multi-container
+  model constraints, uses `${RALPH_HOME}` and `${STACK_PLAYBOOK}` template vars
+- `prompts/sandbox-render.md` — profile-only generation rules, four output file templates
+  (Dockerfile, entrypoint.sh, docker-compose.yml, .env.example), hard constraints, all four
+  appendices (git credentials, YAML syntax, idempotency, non-interactive builds),
+  self-validation checklist
+- `prompts/sandbox-repair.md` — concise targeted repair prompt using `${VALIDATION_FAILURES}`
+  template var, reads generated files and profile, makes minimal fixes
+- Updated `MANAGED_FILES` and `SOURCE_PATHS` in both `install.sh` and `update.sh`: removed
+  `prompts/sandbox-setup.md`, added the three new prompts
+- `prompts/sandbox-setup.md` kept on disk for Task 9 cleanup
+- All 108 tests pass
 
 ---
 

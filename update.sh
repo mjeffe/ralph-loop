@@ -26,7 +26,9 @@ MANAGED_FILES=(
     prompts/plan.md
     prompts/plan-process.md
     prompts/build.md
-    prompts/sandbox-setup.md
+    prompts/sandbox-analyze.md
+    prompts/sandbox-render.md
+    prompts/sandbox-repair.md
     prompts/align-specs.md
     prompts/templates/Dockerfile.base
     prompts/playbooks/php-laravel.md
@@ -48,7 +50,9 @@ declare -A SOURCE_PATHS=(
     [prompts/plan-process.md]="prompts/plan-process.md"
     [prompts/build.md]="prompts/build.md"
     [prompts/align-specs.md]="prompts/align-specs.md"
-    [prompts/sandbox-setup.md]="prompts/sandbox-setup.md"
+    [prompts/sandbox-analyze.md]="prompts/sandbox-analyze.md"
+    [prompts/sandbox-render.md]="prompts/sandbox-render.md"
+    [prompts/sandbox-repair.md]="prompts/sandbox-repair.md"
     [prompts/templates/Dockerfile.base]="prompts/templates/Dockerfile.base"
     [prompts/playbooks/php-laravel.md]="prompts/playbooks/php-laravel.md"
     [README.md]="specs/overview.md"
