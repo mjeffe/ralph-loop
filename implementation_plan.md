@@ -229,20 +229,19 @@ as the spec requires. All 123 tests pass.
 ---
 
 ### Task 9: Remove `sandbox-setup.md` prompt and clean up managed files
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-setup-prompt.md, specs/installer.md, specs/updater.md
 
 After the multi-pass prompts are created (Task 3), the old single-pass prompt
 `prompts/sandbox-setup.md` should be removed. The managed files list needs to reflect
 all current specs: add the three new prompts, `Dockerfile.base`, and remove the old one.
 
-What to do:
-- Delete `prompts/sandbox-setup.md`
-- Verify `MANAGED_FILES` and `SOURCE_PATHS` in `install.sh` and `update.sh` are correct
-  (should already be updated by Tasks 1, 2, 3 — this task is the final verification)
-- Ensure the `test_managed_files_in_sync` test still passes
-- Add `prompts/templates/` directory creation to `install.sh` if not already present
-- Run tests (`./tests/test_ralph.sh`)
+**Completed:** Deleted `prompts/sandbox-setup.md`. Verified `MANAGED_FILES`/`SOURCE_PATHS`
+in both `install.sh` and `update.sh` are already correct (no stale references). Verified
+`prompts/templates/` directory creation already present in `install.sh`. Updated README.md
+project structure tree to reflect the current prompt files (sandbox-analyze, sandbox-render,
+sandbox-repair, align-specs, templates/Dockerfile.base, playbooks/php-laravel.md). All 123
+tests pass.
 
 ---
 
