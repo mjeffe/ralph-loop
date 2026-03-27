@@ -984,6 +984,146 @@ DOCK
     rm -rf "$sdir"
 }
 
+test_sandbox_setup_render_only_requires_profile() {
+    echo "--- sandbox setup --render-only requires existing profile ---"
+    local sdir="$TMP_DIR/project/sandbox"
+    mkdir -p "$sdir"
+    rm -f "$sdir/project-profile.json"
+
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" sandbox setup --render-only 2>&1) || rc=$?
+    assert_eq "--render-only without profile exits 1" "1" "$rc"
+    assert_contains "error mentions missing profile" "no project profile found" "$output"
+    assert_contains "suggests running without --render-only" "without --render-only" "$output"
+
+    rm -rf "$sdir"
+}
+
+test_sandbox_validate_entrypoint_structural() {
+    echo "--- sandbox_validate: entrypoint structural checks ---"
+    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local sdir="$TMP_DIR/sandbox_entrypoint_test"
+    mkdir -p "$sdir"
+
+    # Create Dockerfile to avoid those errors
+    cat > "$sdir/Dockerfile" <<'DOCK'
+FROM ralph-sandbox-base
+COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
+RUN bash /tmp/sandbox-preferences.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
+WORKDIR /var/www/html
+DOCK
+
+    # Create a bad entrypoint missing required elements
+    cat > "$sdir/entrypoint.sh" <<'ENTRY'
+#!/bin/bash
+echo "hello"
+ENTRY
+
+    local output
+    output=$(sandbox_validate "$sdir")
+    assert_contains "catches wrong shebang" "does not start with #!/usr/bin/env bash" "$output"
+    assert_contains "catches missing set -euo" "missing set -euo pipefail" "$output"
+    assert_contains "catches missing git credential" "missing git credential configuration" "$output"
+    assert_contains "catches missing clone logic" "missing clone logic" "$output"
+    assert_contains "catches missing exec supervisord" "does not end with exec supervisord" "$output"
+
+    rm -rf "$sdir"
+}
+
+test_sandbox_validate_compose_structural() {
+    echo "--- sandbox_validate: docker-compose.yml structural checks ---"
+    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local sdir="$TMP_DIR/sandbox_compose_test"
+    mkdir -p "$sdir"
+
+    # Provide valid Dockerfile and entrypoint so we isolate compose checks
+    cat > "$sdir/Dockerfile" <<'DOCK'
+FROM ralph-sandbox-base
+COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
+RUN bash /tmp/sandbox-preferences.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
+WORKDIR /var/www/html
+DOCK
+    cat > "$sdir/entrypoint.sh" <<'ENTRY'
+#!/usr/bin/env bash
+set -euo pipefail
+git credential approve <<< "host=github.com"
+if [[ ! -f .git/HEAD ]]; then
+    git clone "$REPO" .
+fi
+exec supervisord -n -c /etc/supervisor/supervisord.conf
+ENTRY
+
+    # Create a compose file missing required elements
+    cat > "$sdir/docker-compose.yml" <<'COMPOSE'
+services:
+  web:
+    image: nginx
+COMPOSE
+
+    local output
+    output=$(sandbox_validate "$sdir")
+    assert_contains "catches missing app service" "missing app service" "$output"
+    assert_contains "catches missing env_file" "missing env_file" "$output"
+    assert_contains "catches missing tty" "missing tty: true" "$output"
+    assert_contains "catches missing stdin_open" "missing stdin_open: true" "$output"
+
+    rm -rf "$sdir"
+}
+
+test_sandbox_validate_cross_file_env_vars() {
+    echo "--- sandbox_validate: cross-file env var checks ---"
+    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local sdir="$TMP_DIR/sandbox_crossfile_test"
+    mkdir -p "$sdir"
+
+    # Minimal valid files
+    cat > "$sdir/Dockerfile" <<'DOCK'
+FROM ralph-sandbox-base
+COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
+RUN bash /tmp/sandbox-preferences.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
+WORKDIR /app
+DOCK
+    cat > "$sdir/entrypoint.sh" <<'ENTRY'
+#!/usr/bin/env bash
+set -euo pipefail
+git credential approve <<< "host=github.com"
+if [[ ! -f .git/HEAD ]]; then
+    git clone "$REPO" .
+fi
+exec supervisord -n -c /etc/supervisor/supervisord.conf
+ENTRY
+    cat > "$sdir/docker-compose.yml" <<'COMPOSE'
+services:
+  app:
+    build: .
+    env_file: .env
+    tty: true
+    stdin_open: true
+    environment:
+      - DB_HOST=${DB_HOST}
+      - SECRET_KEY=${SECRET_KEY}
+COMPOSE
+    # .env.example only has DB_HOST, missing SECRET_KEY
+    cat > "$sdir/.env.example" <<'ENV'
+DB_HOST=localhost
+ENV
+
+    local output
+    output=$(sandbox_validate "$sdir")
+    assert_contains "catches undocumented env var" "SECRET_KEY not documented in .env.example" "$output"
+
+    rm -rf "$sdir"
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -1050,6 +1190,10 @@ main() {
     test_sandbox_validate_profile_service_missing_fields
     test_sandbox_validate_profile_invalid_json
     test_sandbox_validate_structural
+    test_sandbox_setup_render_only_requires_profile
+    test_sandbox_validate_entrypoint_structural
+    test_sandbox_validate_compose_structural
+    test_sandbox_validate_cross_file_env_vars
 
     teardown
 
