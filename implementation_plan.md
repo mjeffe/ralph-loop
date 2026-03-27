@@ -96,7 +96,7 @@ The specs call for three separate prompt files replacing the single `prompts/san
 ---
 
 ### Task 4: Implement `sandbox_validate_profile()` and `sandbox_validate()` in `ralph`
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-setup-prompt.md
 
 The specs define two validation functions that run between pipeline passes:
@@ -112,6 +112,19 @@ What to do:
   as specified in the Machine Validator section of the spec
 - Both functions output failure messages to stdout (empty = pass)
 - Run tests (`./tests/test_ralph.sh`)
+
+**Completed:** Implemented both functions in the `ralph` script, placed between
+`detect_stack()` and `sandbox_setup()`. `sandbox_validate_profile()` checks all 14
+required top-level fields, schema_version == 1, non-empty runtimes/supervisor_programs,
+and service entry required fields (name, image, port/ports, reason).
+`sandbox_validate()` performs syntax checks (bash -n, docker compose config), structural
+checks on Dockerfile (FROM, ENTRYPOINT, WORKDIR, sandbox-preferences.sh, entrypoint.sh),
+entrypoint.sh (shebang, set -euo pipefail, git credentials, .git/HEAD clone logic,
+exec supervisord), docker-compose.yml (app service, list env syntax, named volumes,
+env_file, tty, stdin_open), cross-file consistency (EXPOSE ports, env vars in
+.env.example), and profile consistency (services match). Added 7 test functions covering
+valid profile, missing fields, bad schema_version, empty runtimes, service field
+validation, invalid JSON, and structural file checks. All 123 tests pass.
 
 ---
 

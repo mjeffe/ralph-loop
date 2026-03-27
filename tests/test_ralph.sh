@@ -778,6 +778,197 @@ test_updater_has_merge_logic() {
     assert_contains "update.sh reports CONFLICT status" "CONFLICT" "$updater"
 }
 
+test_sandbox_validate_profile_valid() {
+    echo "--- sandbox_validate_profile: valid profile ---"
+    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local profile="$TMP_DIR/valid-profile.json"
+    cat > "$profile" <<'EOF'
+{
+    "schema_version": 1,
+    "stack": "php-laravel",
+    "runtimes": [{"name": "php", "version": "8.3", "evidence": ["composer.json"]}],
+    "package_managers": [{"name": "composer", "install_command": "composer install"}],
+    "services": [{"name": "postgres", "image": "postgres:16", "port": 5432, "reason": "DB_CONNECTION=pgsql"}],
+    "system_packages": ["libpq-dev"],
+    "git_provider": "github",
+    "git_remote": "https://github.com/example/project.git",
+    "workdir": "/var/www/html",
+    "env_overrides": {"DB_HOST": "db"},
+    "bootstrap": {"secret_generation": null, "migration": null, "seeder": null, "post_install": []},
+    "supervisor_programs": [{"name": "web", "command": "php artisan serve"}],
+    "compose_ports": {"http": 80},
+    "assumptions": [],
+    "notes": []
+}
+EOF
+
+    local output
+    output=$(sandbox_validate_profile "$profile")
+    assert_eq "valid profile produces no errors" "" "$output"
+}
+
+test_sandbox_validate_profile_missing_fields() {
+    echo "--- sandbox_validate_profile: missing required fields ---"
+    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local profile="$TMP_DIR/missing-fields.json"
+    echo '{"schema_version": 1, "stack": "node"}' > "$profile"
+
+    local output
+    output=$(sandbox_validate_profile "$profile")
+    assert_contains "catches missing runtimes" "missing required field: runtimes" "$output"
+    assert_contains "catches missing services" "missing required field: services" "$output"
+    assert_contains "catches missing supervisor_programs" "missing required field: supervisor_programs" "$output"
+    assert_contains "catches missing workdir" "missing required field: workdir" "$output"
+}
+
+test_sandbox_validate_profile_bad_schema_version() {
+    echo "--- sandbox_validate_profile: wrong schema_version ---"
+    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local profile="$TMP_DIR/bad-version.json"
+    cat > "$profile" <<'EOF'
+{
+    "schema_version": 2,
+    "stack": "node",
+    "runtimes": [{"name": "node", "version": "20", "evidence": ["package.json"]}],
+    "package_managers": [{"name": "npm", "install_command": "npm ci"}],
+    "services": [],
+    "system_packages": [],
+    "git_provider": "github",
+    "git_remote": "https://github.com/example/project.git",
+    "workdir": "/app",
+    "env_overrides": {},
+    "bootstrap": {"secret_generation": null, "migration": null, "seeder": null, "post_install": []},
+    "supervisor_programs": [{"name": "keepalive", "command": "sleep infinity"}],
+    "compose_ports": {},
+    "assumptions": [],
+    "notes": []
+}
+EOF
+
+    local output
+    output=$(sandbox_validate_profile "$profile")
+    assert_contains "catches bad schema_version" "schema_version must be 1" "$output"
+}
+
+test_sandbox_validate_profile_empty_runtimes() {
+    echo "--- sandbox_validate_profile: empty runtimes ---"
+    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local profile="$TMP_DIR/empty-runtimes.json"
+    cat > "$profile" <<'EOF'
+{
+    "schema_version": 1,
+    "stack": "node",
+    "runtimes": [],
+    "package_managers": [],
+    "services": [],
+    "system_packages": [],
+    "git_provider": "github",
+    "git_remote": "https://github.com/example/project.git",
+    "workdir": "/app",
+    "env_overrides": {},
+    "bootstrap": {"secret_generation": null, "migration": null, "seeder": null, "post_install": []},
+    "supervisor_programs": [{"name": "keepalive", "command": "sleep infinity"}],
+    "compose_ports": {},
+    "assumptions": [],
+    "notes": []
+}
+EOF
+
+    local output
+    output=$(sandbox_validate_profile "$profile")
+    assert_contains "catches empty runtimes" "runtimes must have at least one entry" "$output"
+}
+
+test_sandbox_validate_profile_service_missing_fields() {
+    echo "--- sandbox_validate_profile: service missing required fields ---"
+    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local profile="$TMP_DIR/bad-service.json"
+    cat > "$profile" <<'EOF'
+{
+    "schema_version": 1,
+    "stack": "node",
+    "runtimes": [{"name": "node", "version": "20", "evidence": ["package.json"]}],
+    "package_managers": [{"name": "npm", "install_command": "npm ci"}],
+    "services": [{"name": "postgres"}],
+    "system_packages": [],
+    "git_provider": "github",
+    "git_remote": "https://github.com/example/project.git",
+    "workdir": "/app",
+    "env_overrides": {},
+    "bootstrap": {"secret_generation": null, "migration": null, "seeder": null, "post_install": []},
+    "supervisor_programs": [{"name": "keepalive", "command": "sleep infinity"}],
+    "compose_ports": {},
+    "assumptions": [],
+    "notes": []
+}
+EOF
+
+    local output
+    output=$(sandbox_validate_profile "$profile")
+    assert_contains "catches missing image" "missing required field: image" "$output"
+    assert_contains "catches missing port" "missing required field: port or ports" "$output"
+    assert_contains "catches missing reason" "missing required field: reason" "$output"
+}
+
+test_sandbox_validate_profile_invalid_json() {
+    echo "--- sandbox_validate_profile: invalid JSON ---"
+    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local profile="$TMP_DIR/bad.json"
+    echo "not json at all" > "$profile"
+
+    local output
+    output=$(sandbox_validate_profile "$profile")
+    assert_contains "catches invalid JSON" "not valid JSON" "$output"
+}
+
+test_sandbox_validate_structural() {
+    echo "--- sandbox_validate: structural checks ---"
+    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local sdir="$TMP_DIR/sandbox_validate_test"
+    mkdir -p "$sdir"
+
+    # Missing all files
+    local output
+    output=$(sandbox_validate "$sdir")
+    assert_contains "catches missing entrypoint" "entrypoint.sh not found" "$output"
+    assert_contains "catches missing Dockerfile" "Dockerfile not found" "$output"
+    assert_contains "catches missing compose" "docker-compose.yml not found" "$output"
+
+    # Create minimal valid entrypoint
+    cat > "$sdir/entrypoint.sh" <<'ENTRY'
+#!/usr/bin/env bash
+set -euo pipefail
+git credential approve <<< "host=github.com"
+if [[ ! -f .git/HEAD ]]; then
+    git clone "$REPO" .
+fi
+exec supervisord -n -c /etc/supervisor/supervisord.conf
+ENTRY
+
+    # Create minimal Dockerfile
+    cat > "$sdir/Dockerfile" <<'DOCK'
+FROM ralph-sandbox-base
+COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
+RUN bash /tmp/sandbox-preferences.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
+WORKDIR /var/www/html
+DOCK
+
+    output=$(sandbox_validate "$sdir")
+    # entrypoint and Dockerfile should pass structural checks; compose still missing
+    assert_contains "still catches missing compose" "docker-compose.yml not found" "$output"
+
+    rm -rf "$sdir"
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -836,6 +1027,13 @@ main() {
     test_updater_three_way_merge_conflict
     test_updater_originals_in_gitignore
     test_updater_has_merge_logic
+    test_sandbox_validate_profile_valid
+    test_sandbox_validate_profile_missing_fields
+    test_sandbox_validate_profile_bad_schema_version
+    test_sandbox_validate_profile_empty_runtimes
+    test_sandbox_validate_profile_service_missing_fields
+    test_sandbox_validate_profile_invalid_json
+    test_sandbox_validate_structural
 
     teardown
 

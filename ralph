@@ -929,6 +929,213 @@ detect_stack() {
     echo ""
 }
 
+sandbox_validate_profile() {
+    local profile_file="$1"
+    local failures=""
+
+    if [[ ! -f "$profile_file" ]]; then
+        echo "[FAIL] profile file not found: $profile_file"
+        return
+    fi
+
+    if ! jq empty "$profile_file" 2>/dev/null; then
+        echo "[FAIL] profile is not valid JSON"
+        return
+    fi
+
+    local required_fields=(schema_version stack runtimes package_managers services
+        system_packages git_provider git_remote workdir env_overrides bootstrap
+        supervisor_programs compose_ports assumptions notes)
+
+    for field in "${required_fields[@]}"; do
+        if ! jq -e "has(\"$field\")" "$profile_file" >/dev/null 2>&1; then
+            failures+="[FAIL] missing required field: $field"$'\n'
+        fi
+    done
+
+    local schema_version
+    schema_version=$(jq -r '.schema_version // empty' "$profile_file" 2>/dev/null)
+    if [[ -n "$schema_version" && "$schema_version" != "1" ]]; then
+        failures+="[FAIL] schema_version must be 1, got: $schema_version"$'\n'
+    fi
+
+    local runtime_count
+    runtime_count=$(jq '.runtimes | length' "$profile_file" 2>/dev/null || echo 0)
+    if [[ "$runtime_count" -eq 0 ]]; then
+        failures+="[FAIL] runtimes must have at least one entry"$'\n'
+    fi
+
+    local supervisor_count
+    supervisor_count=$(jq '.supervisor_programs | length' "$profile_file" 2>/dev/null || echo 0)
+    if [[ "$supervisor_count" -eq 0 ]]; then
+        failures+="[FAIL] supervisor_programs must have at least one entry"$'\n'
+    fi
+
+    local service_count
+    service_count=$(jq '.services | length' "$profile_file" 2>/dev/null || echo 0)
+    if [[ "$service_count" -gt 0 ]]; then
+        local service_errors
+        service_errors=$(jq -r '
+            .services | to_entries[] |
+            ( if .value.name == null then "[FAIL] services[\(.key)] missing required field: name" else empty end ),
+            ( if .value.image == null then "[FAIL] services[\(.key)] missing required field: image" else empty end ),
+            ( if (.value.port == null and .value.ports == null) then "[FAIL] services[\(.key)] missing required field: port or ports" else empty end ),
+            ( if .value.reason == null then "[FAIL] services[\(.key)] missing required field: reason" else empty end )
+        ' "$profile_file" 2>/dev/null)
+        if [[ -n "$service_errors" ]]; then
+            failures+="$service_errors"$'\n'
+        fi
+    fi
+
+    # Output failures (empty = pass)
+    if [[ -n "$failures" ]]; then
+        echo -n "$failures"
+    fi
+}
+
+sandbox_validate() {
+    local sandbox_dir="$1"
+    local failures=""
+
+    # --- Syntax checks ---
+    if [[ -f "$sandbox_dir/entrypoint.sh" ]]; then
+        if bash -n "$sandbox_dir/entrypoint.sh" 2>/dev/null; then
+            : # pass
+        else
+            failures+="[FAIL] entrypoint.sh syntax error"$'\n'
+        fi
+    else
+        failures+="[FAIL] entrypoint.sh not found"$'\n'
+    fi
+
+    if [[ -f "$sandbox_dir/docker-compose.yml" ]]; then
+        if docker compose -f "$sandbox_dir/docker-compose.yml" config >/dev/null 2>&1; then
+            : # pass
+        else
+            failures+="[FAIL] docker-compose.yml syntax error"$'\n'
+        fi
+    else
+        failures+="[FAIL] docker-compose.yml not found"$'\n'
+    fi
+
+    if [[ -f "$sandbox_dir/sandbox-preferences.sh" ]]; then
+        if bash -n "$sandbox_dir/sandbox-preferences.sh" 2>/dev/null; then
+            : # pass
+        else
+            failures+="[FAIL] sandbox-preferences.sh syntax error"$'\n'
+        fi
+    fi
+
+    # --- Structural: Dockerfile ---
+    if [[ -f "$sandbox_dir/Dockerfile" ]]; then
+        if ! grep -q 'FROM ralph-sandbox-base' "$sandbox_dir/Dockerfile"; then
+            failures+="[FAIL] Dockerfile missing FROM ralph-sandbox-base"$'\n'
+        fi
+        if ! grep -q 'ENTRYPOINT.*tini' "$sandbox_dir/Dockerfile"; then
+            failures+="[FAIL] Dockerfile ENTRYPOINT does not use tini"$'\n'
+        fi
+        if ! grep -q 'entrypoint.sh' "$sandbox_dir/Dockerfile"; then
+            failures+="[FAIL] Dockerfile does not copy entrypoint.sh"$'\n'
+        fi
+        if ! grep -q 'WORKDIR' "$sandbox_dir/Dockerfile"; then
+            failures+="[FAIL] Dockerfile missing WORKDIR"$'\n'
+        fi
+        if ! grep -q 'sandbox-preferences.sh' "$sandbox_dir/Dockerfile"; then
+            failures+="[FAIL] Dockerfile does not COPY sandbox-preferences.sh"$'\n'
+        fi
+    else
+        failures+="[FAIL] Dockerfile not found"$'\n'
+    fi
+
+    # --- Structural: entrypoint.sh ---
+    if [[ -f "$sandbox_dir/entrypoint.sh" ]]; then
+        local first_line second_line
+        first_line=$(head -n1 "$sandbox_dir/entrypoint.sh")
+        second_line=$(sed -n '2p' "$sandbox_dir/entrypoint.sh")
+        if [[ "$first_line" != "#!/usr/bin/env bash" ]]; then
+            failures+="[FAIL] entrypoint.sh does not start with #!/usr/bin/env bash"$'\n'
+        fi
+        if [[ "$second_line" != "set -euo pipefail" ]]; then
+            failures+="[FAIL] entrypoint.sh missing set -euo pipefail on line 2"$'\n'
+        fi
+        if ! grep -q 'git.*credential\|credential.*git' "$sandbox_dir/entrypoint.sh"; then
+            failures+="[FAIL] entrypoint.sh missing git credential configuration"$'\n'
+        fi
+        if ! grep -q '\.git/HEAD' "$sandbox_dir/entrypoint.sh"; then
+            failures+="[FAIL] entrypoint.sh missing clone logic (.git/HEAD check)"$'\n'
+        fi
+        if ! grep -q 'exec supervisord' "$sandbox_dir/entrypoint.sh"; then
+            failures+="[FAIL] entrypoint.sh does not end with exec supervisord"$'\n'
+        fi
+    fi
+
+    # --- Structural: docker-compose.yml ---
+    if [[ -f "$sandbox_dir/docker-compose.yml" ]]; then
+        if ! grep -q 'app:' "$sandbox_dir/docker-compose.yml"; then
+            failures+="[FAIL] docker-compose.yml missing app service"$'\n'
+        fi
+        if grep -qE '^\s+environment:' "$sandbox_dir/docker-compose.yml"; then
+            # Check for map syntax (KEY: value) vs list syntax (- KEY=value) under environment
+            if grep -A 20 'environment:' "$sandbox_dir/docker-compose.yml" | grep -qE '^\s+[A-Z_]+:'; then
+                failures+="[FAIL] docker-compose.yml uses map syntax for environment (should use list syntax)"$'\n'
+            fi
+        fi
+        if grep -q 'volumes:' "$sandbox_dir/docker-compose.yml" && grep -qE '^\s+-\s+[./]' "$sandbox_dir/docker-compose.yml"; then
+            failures+="[FAIL] docker-compose.yml uses bind mounts (should use named volumes only)"$'\n'
+        fi
+        if ! grep -q 'env_file' "$sandbox_dir/docker-compose.yml"; then
+            failures+="[FAIL] docker-compose.yml missing env_file directive"$'\n'
+        fi
+        if ! grep -q 'tty: true\|tty:true' "$sandbox_dir/docker-compose.yml"; then
+            failures+="[FAIL] docker-compose.yml missing tty: true for app service"$'\n'
+        fi
+        if ! grep -q 'stdin_open: true\|stdin_open:true' "$sandbox_dir/docker-compose.yml"; then
+            failures+="[FAIL] docker-compose.yml missing stdin_open: true for app service"$'\n'
+        fi
+    fi
+
+    # --- Cross-file: ports ---
+    if [[ -f "$sandbox_dir/Dockerfile" && -f "$sandbox_dir/docker-compose.yml" ]]; then
+        local exposed_ports
+        exposed_ports=$(grep -oP 'EXPOSE\s+\K\d+' "$sandbox_dir/Dockerfile" 2>/dev/null || true)
+        for port in $exposed_ports; do
+            if ! grep -q "$port" "$sandbox_dir/docker-compose.yml"; then
+                failures+="[FAIL] Dockerfile EXPOSE $port has no corresponding port mapping in docker-compose.yml"$'\n'
+            fi
+        done
+    fi
+
+    # --- Cross-file: env vars in compose documented in .env.example ---
+    if [[ -f "$sandbox_dir/docker-compose.yml" && -f "$sandbox_dir/.env.example" ]]; then
+        local compose_vars
+        compose_vars=$(grep -oP '\$\{?\K[A-Z_]+' "$sandbox_dir/docker-compose.yml" 2>/dev/null | sort -u || true)
+        for var in $compose_vars; do
+            if ! grep -q "^${var}=" "$sandbox_dir/.env.example" 2>/dev/null; then
+                failures+="[FAIL] compose env var $var not documented in .env.example"$'\n'
+            fi
+        done
+    fi
+
+    # --- Profile consistency ---
+    if [[ -f "$sandbox_dir/project-profile.json" ]]; then
+        # Services in compose match profile
+        if [[ -f "$sandbox_dir/docker-compose.yml" ]]; then
+            local profile_services
+            profile_services=$(jq -r '.services[].name' "$sandbox_dir/project-profile.json" 2>/dev/null || true)
+            for svc in $profile_services; do
+                if ! grep -q "${svc}:" "$sandbox_dir/docker-compose.yml" 2>/dev/null; then
+                    failures+="[FAIL] profile service '$svc' not found in docker-compose.yml"$'\n'
+                fi
+            done
+        fi
+    fi
+
+    # Output failures (empty = pass)
+    if [[ -n "$failures" ]]; then
+        echo -n "$failures"
+    fi
+}
+
 sandbox_setup() {
     local sandbox_dir="$RALPH_DIR/sandbox"
     local prompt_template="$RALPH_DIR/prompts/sandbox-setup.md"
