@@ -1138,12 +1138,13 @@ sandbox_validate() {
 
 sandbox_setup() {
     local sandbox_dir="$RALPH_DIR/sandbox"
-    local prompt_template="$RALPH_DIR/prompts/sandbox-setup.md"
     local force=0
+    local render_only=0
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --force) force=1; shift ;;
+            --render-only) render_only=1; shift ;;
             *) echo "Error: unknown option for sandbox setup: $1" >&2; exit 1 ;;
         esac
     done
@@ -1162,15 +1163,18 @@ sandbox_setup() {
         exit 1
     fi
 
-    if [[ ! -f "$prompt_template" ]]; then
-        echo "Error: sandbox setup prompt not found: $prompt_template" >&2
+    # --render-only requires an existing profile
+    if [[ "$render_only" -eq 1 && ! -f "$sandbox_dir/project-profile.json" ]]; then
+        echo "Error: no project profile found at $sandbox_dir/project-profile.json" >&2
+        echo "Run 'ralph sandbox setup' first (without --render-only)." >&2
         exit 1
     fi
 
+    # Handle existing sandbox files
     if [[ -f "$sandbox_dir/Dockerfile" ]]; then
         if [[ "$force" -eq 0 ]]; then
             echo "Sandbox files already exist in $sandbox_dir/"
-            echo "Delete them first or use --force to regenerate."
+            echo "Use --force to regenerate."
             exit 1
         fi
         # Preserve .env across regeneration (contains user secrets/tokens)
@@ -1179,28 +1183,106 @@ sandbox_setup() {
             saved_env=$(mktemp)
             cp "$sandbox_dir/.env" "$saved_env"
         fi
-        rm -rf "$sandbox_dir"
+        if [[ "$render_only" -eq 1 ]]; then
+            # Preserve profile — only delete generated files
+            local saved_profile
+            saved_profile=$(mktemp)
+            cp "$sandbox_dir/project-profile.json" "$saved_profile"
+            rm -rf "$sandbox_dir"
+            mkdir -p "$sandbox_dir"
+            cp "$saved_profile" "$sandbox_dir/project-profile.json"
+            rm -f "$saved_profile"
+        else
+            rm -rf "$sandbox_dir"
+        fi
     fi
 
     mkdir -p "$sandbox_dir"
 
-    # Detect project stack and resolve playbook for prompt injection
-    local STACK
-    STACK=$(detect_stack)
-    local PLAYBOOK_FILE="$RALPH_DIR/prompts/playbooks/${STACK}.md"
-    if [[ -n "$STACK" && -f "$PLAYBOOK_FILE" ]]; then
-        export STACK_PLAYBOOK="$PLAYBOOK_FILE"
+    # Copy base Dockerfile and sandbox-preferences into build context
+    cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
+    cp "$RALPH_DIR/sandbox-preferences.sh" "$sandbox_dir/sandbox-preferences.sh"
+
+    # Build base image (deterministic, no LLM involved)
+    echo "Building sandbox base image..."
+    docker build -t ralph-sandbox-base \
+        -f "$sandbox_dir/Dockerfile.base" \
+        "$sandbox_dir/"
+
+    if [[ "$render_only" -eq 0 ]]; then
+        # Detect stack and resolve playbook
+        local STACK
+        STACK=$(detect_stack)
+        local PLAYBOOK_FILE="$RALPH_DIR/prompts/playbooks/${STACK}.md"
+        if [[ -n "$STACK" && -f "$PLAYBOOK_FILE" ]]; then
+            export STACK_PLAYBOOK="$PLAYBOOK_FILE"
+        else
+            export STACK_PLAYBOOK=""
+        fi
+
+        # Pass 1: Analyze project → project profile
+        echo "Analyzing project..."
+        local analyze_prompt
+        analyze_prompt=$(mktemp)
+        prepare_prompt "$RALPH_DIR/prompts/sandbox-analyze.md" "$analyze_prompt"
+        agent_invoke "$analyze_prompt" | agent_format_display
+        rm -f "$analyze_prompt"
+
+        if [[ ! -f "$sandbox_dir/project-profile.json" ]]; then
+            echo "Error: analysis did not produce project-profile.json" >&2
+            exit 1
+        fi
     else
-        export STACK_PLAYBOOK=""
+        echo "Using existing project profile (--render-only)."
     fi
 
-    local tmp_prompt
-    tmp_prompt=$(mktemp)
-    prepare_prompt "$prompt_template" "$tmp_prompt"
-    agent_invoke "$tmp_prompt" | agent_format_display
-    rm -f "$tmp_prompt"
+    # Validate profile schema before Pass 2
+    local profile_errors
+    profile_errors=$(sandbox_validate_profile "$sandbox_dir/project-profile.json")
+    if [[ -n "$profile_errors" ]]; then
+        echo "Error: project profile has schema errors:" >&2
+        echo "$profile_errors" >&2
+        exit 1
+    fi
 
-    # Restore .env if it was preserved from a previous setup
+    # Pass 2: Generate files from profile
+    echo "Generating sandbox files..."
+    local render_prompt
+    render_prompt=$(mktemp)
+    prepare_prompt "$RALPH_DIR/prompts/sandbox-render.md" "$render_prompt"
+    agent_invoke "$render_prompt" | agent_format_display
+    rm -f "$render_prompt"
+
+    # Validate generated files
+    local validation_failures
+    validation_failures=$(sandbox_validate "$sandbox_dir")
+    if [[ -n "$validation_failures" ]]; then
+        echo ""
+        echo "Validation found issues:"
+        echo "$validation_failures"
+
+        # Pass 3: Repair
+        echo ""
+        echo "Attempting automated repair..."
+        export VALIDATION_FAILURES="$validation_failures"
+        local repair_prompt
+        repair_prompt=$(mktemp)
+        prepare_prompt "$RALPH_DIR/prompts/sandbox-repair.md" "$repair_prompt"
+        agent_invoke "$repair_prompt" | agent_format_display
+        rm -f "$repair_prompt"
+
+        # Re-validate
+        validation_failures=$(sandbox_validate "$sandbox_dir")
+        if [[ -n "$validation_failures" ]]; then
+            echo ""
+            echo "Remaining issues after repair:"
+            echo "$validation_failures"
+            echo ""
+            echo "Please fix these manually before running 'ralph sandbox up'."
+        fi
+    fi
+
+    # Restore .env if preserved from --force
     if [[ -n "${saved_env:-}" && -f "$saved_env" ]]; then
         cp "$saved_env" "$sandbox_dir/.env"
         rm -f "$saved_env"
@@ -1217,9 +1299,6 @@ sandbox_setup() {
         echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN and AMP_API_KEY"
         echo "  3. Run 'ralph sandbox up' to start the sandbox"
     fi
-    echo ""
-    echo "Note: If your AGENTS.md has environment-specific commands, you may need"
-    echo "to add sandbox variants. Run 'ralph help sandbox' for details."
 }
 
 sandbox_up() {

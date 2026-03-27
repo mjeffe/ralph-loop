@@ -129,7 +129,7 @@ validation, invalid JSON, and structural file checks. All 123 tests pass.
 ---
 
 ### Task 5: Rewrite `sandbox_setup()` for multi-pass pipeline with `--render-only`
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-setup-prompt.md, specs/sandbox-cli.md
 
 The current `sandbox_setup()` function uses a single-pass approach with
@@ -156,6 +156,14 @@ What to do:
 - The spec in sandbox-setup-prompt.md provides the full reference implementation for
   `sandbox_setup()` — follow it closely
 - Run tests (`./tests/test_ralph.sh`)
+
+**Completed:** Rewrote `sandbox_setup()` to match the spec's reference implementation.
+Added `--render-only` flag parsing, `--render-only` profile existence check, profile
+preservation during `--render-only --force`, base image build step (copy Dockerfile.base
+and sandbox-preferences.sh then docker build), multi-pass pipeline (analyze → profile
+validate → render → file validate → repair), and spec-matching error messages/next-steps
+guidance. Removed old single-prompt-template reference and the AGENTS.md note at the end.
+All 123 tests pass.
 
 ---
 
