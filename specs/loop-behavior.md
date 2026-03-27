@@ -23,7 +23,7 @@ ralph <mode> [max_iterations]
 - `plan --process [max_iterations]` - Run sequence-constrained plan mode iterations (from process specs). Requires `PROCESS_DIR` in config. See `specs/process-planning.md`.
 - `build [max_iterations]` - Run build mode iterations
 - `prompt <file> [max_iterations]` - Run an ad-hoc prompt in the loop
-- `help [topic]` - Show operational guidance (plan, specs, build, sandbox)
+- `help [topic]` - Show operational guidance (specs, plan, build, prompt, sandbox, align-specs, retro)
 
 The `--process` flag is only valid with `plan`. If used with `build`, `prompt`, or other
 modes, ralph exits with an error: "--process is only valid with 'ralph plan'."

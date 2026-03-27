@@ -39,13 +39,14 @@ usage() {
 Usage: ralph <mode> [max_iterations]
 
 Modes:
+  help                                 List available help topics
+  help   [topic]                       Show operational guidance on a topic
   plan   [max_iterations]              Run gap-driven plan mode iterations
   plan   --process [max_iterations]    Run process plan mode iterations
   build  [max_iterations]              Run build mode iterations
   align-specs [max_iterations]         Update target-state specs after process migration
   prompt <file> [max_iterations]       Run an ad-hoc prompt from file in the loop
   update                               Update ralph to the latest upstream version
-  help   [topic]                       Show operational guidance (topics: plan, specs, build, sandbox)
   sandbox setup [--force]              Generate sandbox files by prompting the agent
   sandbox up                           Start the sandbox container
   sandbox down                         Stop the sandbox container
@@ -54,10 +55,11 @@ Modes:
   sandbox status                       Show sandbox container status
 
 Examples:
+  ralph help
+  ralph help sandbox
   ralph plan
   ralph build 20
   ralph prompt prompts/my-prompt.md
-  ralph help plan
 EOF
 }
 
@@ -359,9 +361,10 @@ help_index() {
     cat <<'EOF'
 Ralph Help — run 'ralph help <topic>' for details.
 
-  plan         Planning modes: gap-driven vs sequence-constrained vs prompt, when to use each
   specs        Writing specs: target-state vs process, lifecycle, best practices
+  plan         Planning modes: gap-driven vs sequence-constrained vs prompt, when to use each
   build        Build mode: task selection, signals, mid-implementation guidance
+  prompt       Ad-hoc prompts: when and how to use ralph prompt
   sandbox      Sandbox lifecycle: setup, daily workflow, troubleshooting
   align-specs  Updating target-state specs after process-spec migrations
   retro        Post-cycle retrospective: reviewing results and improving inputs
@@ -506,13 +509,79 @@ MID-IMPLEMENTATION DISCOVERIES
 EOF
 }
 
+help_prompt() {
+    cat <<'EOF'
+AD-HOC PROMPTS
+==============
+
+  ralph prompt <file> [max_iterations]
+
+Run a custom prompt through ralph's iteration loop — no planner, no task
+selection, no implementation plan. Your prompt file replaces the built-in
+plan/build prompts with a custom workflow while still leveraging the loop's
+iteration, logging, and exit-signal machinery.
+
+WHEN TO USE
+-----------
+
+  - Work that benefits from multiple iterations but doesn't fit the
+    planner's task-decomposition model (spec review, test analysis,
+    document assembly, codebase audits)
+  - You want to define your own iteration strategy, progress tracking,
+    and completion criteria
+  - Quick one-shot jobs that just need one iteration
+
+WHEN NOT TO USE
+---------------
+
+  - The work has phases or ordering constraints → ralph plan --process
+  - The work is defined by target-state specs → ralph plan
+  - You need the planner to decompose the work into tasks → use a planning mode
+
+WRITING A MULTI-ITERATION PROMPT
+---------------------------------
+
+  Each iteration starts with fresh context — the agent has no memory of
+  prior iterations. Effective multi-iteration prompts include:
+
+  - A progress tracking file the agent reads first and updates last,
+    serving as durable memory across iterations
+  - A "fresh context" reminder so the agent treats repo files as the
+    sole source of truth
+  - Iteration sizing guidance (how much work per iteration)
+  - Clear rules about what the agent should and should not modify
+
+  CRITICAL: Your prompt MUST instruct the agent to output exactly
+  <promise>COMPLETE</promise> when all work is done. This is the only
+  way the loop knows to stop. Without it, ralph will keep iterating
+  until max_iterations is reached.
+
+  The built-in prompts in .ralph/prompts/ are good starting templates.
+  Study prompts/build.md or prompts/plan.md for structure and conventions.
+
+EXAMPLES
+--------
+
+  Single iteration:
+
+    ralph prompt prompts/my-refactor.md
+
+  Multi-iteration with a cap:
+
+    ralph prompt prompts/spec-review.md 20
+EOF
+}
+
 help_sandbox() {
     cat <<'EOF'
 SANDBOX USAGE GUIDE
 ===================
 
-The sandbox is an isolated, all-in-one Docker container where AI coding agents
-can work safely without affecting your local environment.
+The sandbox provides an isolated, multi-container Docker environment where
+AI coding agents can work safely. The agent works in an "app" container with
+its own copy of the codebase (cloned via git). Services (database, cache,
+mail, etc.) run in their own containers using official Docker images, managed
+by docker compose. Code flows in and out exclusively through git.
 
 FIRST-TIME SETUP
 ----------------
@@ -520,6 +589,13 @@ FIRST-TIME SETUP
   1. Generate sandbox files (Dockerfile, entrypoint, compose config):
 
        ralph sandbox setup
+
+     Setup runs a multi-pass pipeline:
+       - Analyze: scans the project and produces project-profile.json
+       - Render: generates Dockerfile, docker-compose.yml, entrypoint.sh,
+         and .env.example from the profile
+       - Validate: checks generated files for structural correctness
+       - Repair: if validation fails, attempts automated fixes
 
   2. Create your .env with tokens:
 
@@ -531,8 +607,8 @@ FIRST-TIME SETUP
 
        ralph sandbox up
 
-     The first build takes several minutes (installs PHP, Node, PostgreSQL,
-     clones the repo, runs migrations). Subsequent starts are fast.
+     The first build takes several minutes (builds app image, pulls service
+     images, clones the repo, runs migrations). Subsequent starts are fast.
 
   4. Open a shell inside the sandbox:
 
@@ -541,9 +617,9 @@ FIRST-TIME SETUP
 DAILY WORKFLOW
 --------------
 
-  ralph sandbox up           Start the sandbox (rebuilds image if files changed)
+  ralph sandbox up           Start the sandbox (rebuilds if files changed)
   ralph sandbox shell        Open a bash shell as the "ralph" user
-  ralph sandbox status       Check if the container is running and healthy
+  ralph sandbox status       Check container status and service health
   ralph sandbox down         Stop the sandbox (preserves volumes)
 
 REGENERATING SANDBOX FILES
@@ -551,22 +627,64 @@ REGENERATING SANDBOX FILES
 
   ralph sandbox setup --force
 
-  Re-runs the AI agent to regenerate Dockerfile, entrypoint.sh,
-  docker-compose.yml, and .env.example from scratch. Your .env file
-  (containing tokens) is automatically preserved and restored.
+  Re-runs the full multi-pass pipeline to regenerate all sandbox files from
+  scratch. Your .env file (containing tokens) is automatically preserved.
 
   After regenerating, review .env.example for any new variables that
   may need to be added to your .env.
 
+FIXING WRONG DETECTIONS (--render-only)
+---------------------------------------
+
+  The --render-only flag skips the analysis pass and reuses the existing
+  project-profile.json. The --force flag allows overwriting existing sandbox
+  files. They are independent flags but typically used together.
+
+  If setup detected the wrong stack, runtime version, or services, edit
+  .ralph/sandbox/project-profile.json to correct it, then regenerate:
+
+    ralph sandbox setup --render-only --force
+
+  Also useful after updating prompt templates — regenerate sandbox files
+  from the same profile without re-analyzing the project.
+
+CUSTOMIZING THE SANDBOX (sandbox-preferences.sh)
+-------------------------------------------------
+
+  Edit .ralph/sandbox-preferences.sh to add extra packages, tools, or
+  configuration to the sandbox. This script runs during "docker build"
+  and is applied byte-for-byte — no LLM interpretation.
+
+  After editing, rebuild with:
+
+    ralph sandbox up
+
 RESETTING THE SANDBOX
 ---------------------
 
-  ralph sandbox reset        Re-clone the codebase (database data preserved)
-  ralph sandbox reset --all  Delete everything (codebase AND database volumes)
+  ralph sandbox reset        Wipe app volume (service data preserved)
+  ralph sandbox reset --all  Wipe all volumes (app + database + cache)
 
-  Use "reset" when you want a fresh git clone but want to keep your database.
-  Use "reset --all" for a complete clean-room rebuild — the entrypoint will
-  re-clone, reinstall dependencies, and re-run migrations from scratch.
+  A reset deletes the app container's codebase volume, then restarts it.
+  On restart, the entrypoint re-clones from git, reinstalls dependencies,
+  and re-runs migrations — a fresh working state from the same config.
+
+  Use "reset" when the codebase is corrupted but database data is fine.
+  Use "reset --all" for a complete clean-room rebuild — all volumes are
+  deleted and everything is reconstructed from scratch.
+
+RESETTING VS REGENERATING
+-------------------------
+
+  "setup" and "reset" operate at different layers:
+
+  - "setup" regenerates the sandbox configuration files (Dockerfile,
+    docker-compose.yml, entrypoint.sh). Use when the sandbox definition
+    is wrong — wrong stack, missing service, or updated prompts.
+
+  - "reset" wipes runtime data (Docker volumes) but leaves configuration
+    files untouched. Use when the agent corrupted the codebase or you
+    need a fresh start from the existing configuration.
 
 TROUBLESHOOTING
 ---------------
@@ -588,6 +706,10 @@ TROUBLESHOOTING
   Multiple checkouts of the same project?
     SANDBOX_NAME is auto-derived from the checkout path to avoid collisions.
     Override it in .ralph/sandbox/.env if the auto-generated name is not suitable.
+
+  Base image out of date?
+    The base image is auto-refreshed on every "ralph sandbox up", so changes
+    from "ralph update" take effect automatically — no manual rebuild needed.
 
 UPDATING AGENTS.md FOR SANDBOX COMMANDS
 ---------------------------------------
@@ -857,9 +979,10 @@ ralph_help() {
     local topic="${1:-}"
     case "$topic" in
         "")          help_index ;;
-        plan)        help_plan ;;
         specs)       help_specs ;;
+        plan)        help_plan ;;
         build)       help_build ;;
+        prompt)      help_prompt ;;
         sandbox)     help_sandbox ;;
         align-specs) help_align_specs ;;
         retro)       help_retro ;;

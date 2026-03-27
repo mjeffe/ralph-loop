@@ -413,8 +413,19 @@ test_help_shows_topic_index() {
     assert_contains "index shows plan topic" "plan" "$output"
     assert_contains "index shows specs topic" "specs" "$output"
     assert_contains "index shows build topic" "build" "$output"
+    assert_contains "index shows prompt topic" "prompt" "$output"
     assert_contains "index shows sandbox topic" "sandbox" "$output"
+    assert_contains "index shows align-specs topic" "align-specs" "$output"
     assert_contains "index shows retro topic" "retro" "$output"
+}
+
+test_help_prompt_shows_content() {
+    echo "--- ralph help prompt shows prompt content ---"
+    local output
+    output=$("$RALPH_DIR/ralph" help prompt 2>&1)
+    assert_contains "prompt help shows iteration loop" "iteration loop" "$output"
+    assert_contains "prompt help shows COMPLETE signal" "COMPLETE" "$output"
+    assert_contains "prompt help shows starting templates" "prompts/" "$output"
 }
 
 test_help_plan_shows_content() {
