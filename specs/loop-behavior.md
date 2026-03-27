@@ -50,8 +50,9 @@ modes, ralph exits with an error: "--process is only valid with 'ralph plan'."
    - Git repository exists
    - Agent CLI is available
    - Required directories exist
-3. Create session log file: `logs/session-YYYYMMDD-HHMMSS.log` (relative to ralph script directory)
-4. Initialize iteration counter
+3. Validate mode-specific prerequisites (e.g., implementation plan exists for build mode)
+4. Create session log file: `logs/session-YYYYMMDD-HHMMSS-MODE.log` (relative to ralph script directory). The log file is created **after** all validation passes, immediately before entering the loop. This prevents empty log files from early-exit validation failures. Modes that do not use the loop (`update`, `sandbox`, `help`) do not create log files.
+5. Initialize iteration counter
 
 ### Iteration Flow
 

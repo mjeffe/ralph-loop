@@ -1526,8 +1526,6 @@ if [[ "$MODE" == "help" ]]; then
     exit 0
 fi
 
-init_session_log
-
 case "$MODE" in
     plan)
         if [[ "$PROCESS_FLAG" -eq 1 ]]; then
@@ -1563,6 +1561,7 @@ case "$MODE" in
             echo "Error: plan prompt template not found: $PROMPT_TEMPLATE" >&2
             exit 1
         fi
+        init_session_log
         run_loop "$PROMPT_TEMPLATE"
         ;;
 
@@ -1576,6 +1575,7 @@ case "$MODE" in
             echo "Error: build prompt template not found: $PROMPT_TEMPLATE" >&2
             exit 1
         fi
+        init_session_log
         run_loop "$PROMPT_TEMPLATE"
         ;;
 
@@ -1605,6 +1605,7 @@ case "$MODE" in
             echo "Error: align-specs prompt template not found: $PROMPT_TEMPLATE" >&2
             exit 1
         fi
+        init_session_log
         run_loop "$PROMPT_TEMPLATE"
         ;;
 
@@ -1622,6 +1623,7 @@ case "$MODE" in
             echo "Error: prompt file must contain <promise>COMPLETE</promise>" >&2
             exit 1
         fi
+        init_session_log
         run_loop "$PROMPT_FILE"
         ;;
 
