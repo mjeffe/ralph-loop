@@ -1,0 +1,34 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# System essentials
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl git jq gettext-base sudo \
+    tini supervisor \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node.js (for Amp CLI)
+RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Amp CLI
+# TODO: Make agent-configurable. Consider adding agent_install() to the
+# agents/*.sh script interface so each agent defines its own install command.
+RUN npm install -g @sourcegraph/amp
+
+# Ralph dependencies from dependencies file are covered above (git, curl,
+# jq, gettext-base). If dependencies file grows, this section must be
+# updated to match.
+
+# Handle UID 1000 conflict (ubuntu user in base image)
+RUN userdel --remove ubuntu 2>/dev/null || true
+
+# Non-root user
+RUN groupadd -g 1000 ralph \
+    && useradd -m -u 1000 -g 1000 -s /bin/bash ralph \
+    && echo 'ralph ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/ralph
+
+USER ralph
+WORKDIR /home/ralph

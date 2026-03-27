@@ -29,6 +29,7 @@ MANAGED_FILES=(
     prompts/build.md
     prompts/sandbox-setup.md
     prompts/align-specs.md
+    prompts/templates/Dockerfile.base
     prompts/playbooks/php-laravel.md
     README.md
     .gitignore
@@ -49,6 +50,7 @@ declare -A SOURCE_PATHS=(
     [prompts/build.md]="prompts/build.md"
     [prompts/align-specs.md]="prompts/align-specs.md"
     [prompts/sandbox-setup.md]="prompts/sandbox-setup.md"
+    [prompts/templates/Dockerfile.base]="prompts/templates/Dockerfile.base"
     [prompts/playbooks/php-laravel.md]="prompts/playbooks/php-laravel.md"
     [README.md]="specs/overview.md"
     [.gitignore]=".gitignore"
@@ -167,7 +169,7 @@ install_ralph_dir() {
     info "Creating .ralph/ directory structure..."
 
     mkdir -p "$RALPH_DIR/agents"
-    mkdir -p "$RALPH_DIR/prompts"
+    mkdir -p "$RALPH_DIR/prompts/templates"
     mkdir -p "$RALPH_DIR/logs"
     mkdir -p "$RALPH_DIR/sandbox"
     mkdir -p "$RALPH_DIR/.originals"

@@ -28,6 +28,7 @@ MANAGED_FILES=(
     prompts/build.md
     prompts/sandbox-setup.md
     prompts/align-specs.md
+    prompts/templates/Dockerfile.base
     prompts/playbooks/php-laravel.md
     README.md
     .gitignore
@@ -48,6 +49,7 @@ declare -A SOURCE_PATHS=(
     [prompts/build.md]="prompts/build.md"
     [prompts/align-specs.md]="prompts/align-specs.md"
     [prompts/sandbox-setup.md]="prompts/sandbox-setup.md"
+    [prompts/templates/Dockerfile.base]="prompts/templates/Dockerfile.base"
     [prompts/playbooks/php-laravel.md]="prompts/playbooks/php-laravel.md"
     [README.md]="specs/overview.md"
     [.gitignore]=".gitignore"

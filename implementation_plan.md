@@ -44,7 +44,7 @@ file in the installer. All 108 tests pass.
 ---
 
 ### Task 2: Create `prompts/templates/Dockerfile.base`
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-setup-prompt.md, specs/sandbox-cli.md
 
 The specs define a managed base image Dockerfile at `prompts/templates/Dockerfile.base`.
@@ -60,6 +60,12 @@ What to do:
   `install.sh` and `update.sh`
 - Ensure `install.sh` creates the `prompts/templates/` directory during installation
 - Run tests (`./tests/test_ralph.sh`)
+
+**Completed:** Created `prompts/templates/Dockerfile.base` with the exact content from the
+spec (ubuntu:24.04, system essentials, Node.js LTS, Amp CLI, UID 1000 ralph user). Added
+to `MANAGED_FILES` and `SOURCE_PATHS` in both `install.sh` and `update.sh`. Updated
+`install.sh` to create `prompts/templates/` directory (changed `mkdir -p "$RALPH_DIR/prompts"`
+to `mkdir -p "$RALPH_DIR/prompts/templates"` which also creates the parent). All 108 tests pass.
 
 ---
 
