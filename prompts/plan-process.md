@@ -120,8 +120,9 @@ The ledger is the resumable work queue. On each iteration, read it, skip files m
 
 - If a process spec step is completable in one build iteration, make it one task.
 - If a step is too large (touches multiple independently testable concerns), split it into child tasks. Keep child tasks adjacent and ordered within their parent phase.
-- If a step is too small, combine it with adjacent steps in the same phase — but only if they would logically be committed together.
+- If a step is too small, combine it with adjacent steps in the same phase — but only if they would logically be committed together. Include small adjacent help/docs/prompt updates triggered by the main change in the same task.
 - Each task should be completable in one build iteration and committable as a single logical unit.
+- Do not create build tasks whose sole purpose is to verify whether an apparently implemented requirement is already done when planning can answer that from repo evidence. If the evidence is insufficient, create a focused investigation task and note the uncertainty.
 
 ## Discovered Work
 

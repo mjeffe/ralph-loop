@@ -23,7 +23,7 @@ Work through these phases in order. For small projects, complete all phases in o
 
 1. **Read inputs** — Study `AGENTS.md`, `${SPECS_DIR}/README.md`, and all specs. If `${RALPH_HOME}/implementation_plan.md` exists, read it to understand prior progress.
 2. **Inventory** — Survey the codebase and identify key modules, components, and areas.
-3. **Spec alignment** — For each spec, identify gaps between desired behavior and current state.
+3. **Spec alignment** — For each spec requirement, assess whether the current repo satisfies it in all material ways. Check both the implementation and any directly affected artifacts that describe or guide that behavior (help/usage text, README sections, prompt templates, error strings, contract comments). If a materially relevant artifact is stale or misleading, the requirement is not fully satisfied. Mark a requirement as `Already Satisfied` only when repo evidence confirms the behavior and its descriptive artifacts match the spec semantically — cite the evidence briefly. Structural existence alone is insufficient; minor wording differences that do not change meaning are acceptable.
 4. **Task decomposition** — Break gaps into discrete, ordered tasks (see Task Format below).
 5. **Dependency ordering** — Order tasks by dependencies, then by logical sequence. Use a stable heuristic: foundational/infrastructure first, then core features, then refinements.
 6. **Write the plan** — Create or update `${RALPH_HOME}/implementation_plan.md`. If the plan already contains tasks marked `complete` (from prior build iterations), rebuild the task list from scratch — you may carry forward useful notes but the task list and ordering are rebuilt fresh. If the plan contains only planning-phase progress (inventory, gap notes, partial task list with no `complete` tasks), continue from where it left off.
@@ -53,10 +53,11 @@ Order tasks by priority. Structure and format beyond that are up to you.
 ## Task Sizing
 
 Group by **logical cohesion** rather than maximizing granularity:
-- **Group related changes** that serve a single purpose into one task
+- **Group related changes** that produce one coherent outcome or share one acceptance criterion into one task — including small adjacent help/docs/prompt updates triggered by the main change
 - **Reserve separate tasks** for things that are independently testable or have distinct complexity
 - **Ask: "Would I commit these together?"** — if yes, they belong in one task
 - Each task should be completable in one build iteration and committable as a single logical unit
+- Do not create build tasks whose sole purpose is to verify whether an apparently implemented requirement is already done when planning can answer that from repo evidence. If the evidence is insufficient, create a focused investigation task and note the uncertainty.
 
 ## Planning Discoveries
 

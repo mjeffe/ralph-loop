@@ -17,7 +17,7 @@ Plan mode can complete in a single iteration for small projects, or span multipl
 The plan prompt describes these phases as guidance:
 
 1. **Inventory** - Identify key modules, components, and areas of the codebase
-2. **Spec Alignment** - For each spec, identify gaps between desired and current behavior
+2. **Spec Alignment** - For each spec requirement, assess whether the repo satisfies it in all material ways — checking both implementation and directly affected descriptive artifacts (help text, README, prompts, error strings). Cite evidence for "Already Satisfied" determinations; structural existence alone is insufficient.
 3. **Task Decomposition** - Break gaps into discrete, ordered tasks with clear steps
 4. **Dependency Ordering** - Order tasks based on dependencies and logical sequence
 
@@ -111,7 +111,7 @@ Work through these phases in order. For small projects, complete all phases in o
 
 1. **Read inputs** — Study `AGENTS.md`, `${SPECS_DIR}/README.md`, and all specs. If `${RALPH_HOME}/implementation_plan.md` exists, read it to understand prior progress.
 2. **Inventory** — Survey the codebase and identify key modules, components, and areas.
-3. **Spec alignment** — For each spec, identify gaps between desired behavior and current state.
+3. **Spec alignment** — For each spec requirement, assess whether the current repo satisfies it in all material ways. Check both the implementation and any directly affected artifacts that describe or guide that behavior (help/usage text, README sections, prompt templates, error strings, contract comments). If a materially relevant artifact is stale or misleading, the requirement is not fully satisfied. Mark a requirement as `Already Satisfied` only when repo evidence confirms the behavior and its descriptive artifacts match the spec semantically — cite the evidence briefly. Structural existence alone is insufficient; minor wording differences that do not change meaning are acceptable.
 4. **Task decomposition** — Break gaps into discrete, ordered tasks (see Task Format below).
 5. **Dependency ordering** — Order tasks by dependencies, then by logical sequence. Use a stable heuristic: foundational/infrastructure first, then core features, then refinements.
 6. **Write the plan** — Create or update `${RALPH_HOME}/implementation_plan.md`. If the plan already contains tasks marked `complete` (from prior build iterations), rebuild the task list from scratch — you may carry forward useful notes but the task list and ordering are rebuilt fresh. If the plan contains only planning-phase progress (inventory, gap notes, partial task list with no `complete` tasks), continue from where it left off.
@@ -141,10 +141,11 @@ Order tasks by priority. Structure and format beyond that are up to you.
 ## Task Sizing
 
 Group by **logical cohesion** rather than maximizing granularity:
-- **Group related changes** that serve a single purpose into one task
+- **Group related changes** that produce one coherent outcome or share one acceptance criterion into one task — including small adjacent help/docs/prompt updates triggered by the main change
 - **Reserve separate tasks** for things that are independently testable or have distinct complexity
 - **Ask: "Would I commit these together?"** — if yes, they belong in one task
 - Each task should be completable in one build iteration and committable as a single logical unit
+- Do not create build tasks whose sole purpose is to verify whether an apparently implemented requirement is already done when planning can answer that from repo evidence. If the evidence is insufficient, create a focused investigation task and note the uncertainty.
 
 ## Planning Discoveries
 
@@ -184,14 +185,18 @@ The agent uses its judgment on how to break up the work across iterations.
 
 When decomposing work into tasks, group by **logical cohesion** rather than maximizing granularity:
 
-- **Group related file creation/edits** that serve a single purpose into one task (e.g., creating
-  a directory, its files, and verifying a `.gitignore` entry are all "set up supporting files")
+- **Group related changes** that produce one coherent outcome or share one acceptance criterion
+  into one task — including small adjacent help/docs/prompt updates triggered by the main change
 - **Reserve separate tasks** for things that are independently testable or have distinct complexity
 - **Ask: "Would I commit these together?"** — if yes, they belong in one task
 
 A task that is "create file X" where X is a simple template copy is too small on its own — combine
 it with related setup work. A task that is "implement the full ralph script" is appropriately sized
 because it's a single coherent deliverable even if it's complex.
+
+Do not create build tasks whose sole purpose is to verify whether an apparently implemented
+requirement is already done when planning can answer that from repo evidence. If the evidence
+is insufficient, create a focused investigation task and note the uncertainty.
 
 Each task should be:
 - Completable in one build iteration
