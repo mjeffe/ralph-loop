@@ -19,6 +19,16 @@ thoughs, reminders, ideas, things to watch for, etc.
   `alignment_ledger.md`, `last_agent_output`, etc., do not clutter ralph's root dir.
 - Discuss pros and cons of converting the sandbox to multi-service rather than a single monolitic container.
 
+## Update bug (`ralph update`)
+
+If the `ralph` script itself has been changed and a project with ralph-loop
+installed runs `ralph update`, it will finish with something like:
+```
+./ralph: line 1663: unexpected EOF while looking for matching `''
+```
+I'm fairly certain this happens because the running script (`ralph`) is
+modified as part of the update itself.
+
 ## Automated Retrospective (`ralph retro`)
 
 `ralph help retro` provides a manual retro process with sample prompts for
