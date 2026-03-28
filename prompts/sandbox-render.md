@@ -85,8 +85,7 @@ RUN <gh-install-commands>
 
 # User preferences (deterministic — no LLM involvement)
 COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
-RUN sed -E 's|<\s*/dev/tty||g' /tmp/sandbox-preferences.sh | bash \
-    && rm -f /tmp/sandbox-preferences.sh
+RUN bash /tmp/sandbox-preferences.sh && rm -f /tmp/sandbox-preferences.sh
 
 RUN chown -R ralph:ralph /home/ralph
 USER ralph
@@ -423,13 +422,10 @@ Quote any entry whose value contains a colon:
 
 ## Appendix D: Non-Interactive Docker Builds
 
-Docker builds have no TTY. The `sandbox-preferences.sh` COPY/RUN block uses
-`sed -E 's|<\s*/dev/tty||g'` to strip TTY references (with or without
-spaces) that would hang a non-interactive build.
+Docker builds have no TTY. The `sandbox-preferences.sh` script runs
+non-interactively — it is the user's responsibility to ensure commands are
+Docker-build-compatible (no `/dev/tty` references, no interactive prompts).
+The script's header comments include workaround examples.
 
-**Important:** The `<` redirect operator is part of the pattern — it must be
-included in the sed substitution. Stripping only `/dev/tty` (without the `<`)
-leaves a bare `<` which is a shell syntax error that fails the Docker build.
-
-The fixed block in the Dockerfile handles this automatically — emit it exactly
-as specified in the Dockerfile section above.
+Emit the fixed COPY/RUN block exactly as specified in the Dockerfile section
+above — do not add any sed wrappers or TTY workarounds.

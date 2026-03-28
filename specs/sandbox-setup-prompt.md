@@ -197,8 +197,7 @@ RUN apt-get update && apt-get install -y php8.3-cli php8.3-fpm ...
 
 # User preferences (deterministic — no LLM involvement)
 COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
-RUN sed -E 's|<\s*/dev/tty||g' /tmp/sandbox-preferences.sh | bash \
-    && rm -f /tmp/sandbox-preferences.sh
+RUN bash /tmp/sandbox-preferences.sh && rm -f /tmp/sandbox-preferences.sh
 
 RUN chown -R ralph:ralph /home/ralph
 USER ralph
@@ -211,10 +210,10 @@ EXPOSE 80
 
 **User preferences are applied via `sandbox-preferences.sh`** — a user-maintained
 bash script that ralph COPY's into the build context and executes during
-`docker build`. Ralph wraps execution with `sed -E 's|<\s*/dev/tty||g'` to strip
-TTY references that would hang a non-interactive build. The LLM does not read,
-interpret, or translate this file — it emits the fixed COPY/RUN block above.
-See the "Sandbox Preferences" section for details.
+`docker build`. The script runs non-interactively (no TTY), so users must ensure
+their commands are Docker-build-compatible. The LLM does not read, interpret, or
+translate this file — it emits the fixed COPY/RUN block above. See the "Sandbox
+Preferences" section for details.
 
 ## Multi-Pass Prompt Pipeline
 
@@ -525,8 +524,7 @@ RUN <gh-install-commands>
 
 # User preferences (deterministic — no LLM involvement)
 COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
-RUN sed -E 's|<\s*/dev/tty||g' /tmp/sandbox-preferences.sh | bash \
-    && rm -f /tmp/sandbox-preferences.sh
+RUN bash /tmp/sandbox-preferences.sh && rm -f /tmp/sandbox-preferences.sh
 
 RUN chown -R ralph:ralph /home/ralph
 USER ralph
@@ -819,8 +817,7 @@ final `USER ralph` / `ENTRYPOINT` layers.
 4. The generated Dockerfile contains a fixed COPY/RUN block:
    ```dockerfile
    COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
-   RUN sed -E 's|<\s*/dev/tty||g' /tmp/sandbox-preferences.sh | bash \
-       && rm -f /tmp/sandbox-preferences.sh
+   RUN bash /tmp/sandbox-preferences.sh && rm -f /tmp/sandbox-preferences.sh
    ```
 5. The LLM never reads, interprets, or translates this file. Content is
    applied byte-for-byte.
@@ -834,12 +831,31 @@ of common tasks:
 #!/usr/bin/env bash
 # Sandbox Preferences
 #
-# This script runs as root during `docker build` to customize the sandbox
-# environment. Edit it to install packages, configure dotfiles, set up
-# editors, or anything else you want in your sandbox container.
+# User-defined preferences for the sandbox environment. This script runs as
+# root during `docker build` to install packages, configure dotfiles, set up
+# editors, and apply any other customizations you want in your container.
 #
-# Ralph runs this script non-interactively. Scripts that read from /dev/tty
-# are automatically patched — no action needed on your part.
+# How it works:
+# - Runs during image build, not on every container start. Changes are baked
+#   into the Docker image layer.
+# - Every `ralph sandbox up` copies this file into the build context and
+#   rebuilds with --build. Docker's layer cache skips re-execution if the
+#   file hasn't changed. Edit this file and run `sandbox up` to apply changes.
+# - Runs as root, so apt-get install, writing to /home/ralph, etc. all work.
+#   Ownership of /home/ralph is fixed after this script runs.
+#
+# IMPORTANT: This script runs non-interactively — there is no TTY during
+# `docker build`. Commands that read from /dev/tty will fail. This includes
+# commands in scripts fetched via curl. Common patterns and workarounds:
+#
+#   Problem:  vim +PlugInstall +qall </dev/tty
+#   Fix:      vim -es -u ~/.vimrc +PlugInstall +qall
+#
+#   Problem:  curl -fsSL https://example.com/setup.sh | bash  # script uses /dev/tty internally
+#   Fix:      curl -fsSL https://example.com/setup.sh | sed 's|</dev/tty||g' | bash
+#
+#   Problem:  read -p "Continue? " answer </dev/tty
+#   Fix:      Remove interactive prompts, or default to "yes" in Docker builds
 #
 # This file is user-owned — `ralph update` will never overwrite it.
 #
@@ -864,7 +880,7 @@ of common tasks:
 #     rebase = true
 # GITCONFIG
 #
-# --- Install editor plugins (fetched scripts are auto-patched for /dev/tty) ---
+# --- Install editor plugins ---
 # curl -fsSL https://example.com/vim-setup.sh | bash -s min
 ```
 

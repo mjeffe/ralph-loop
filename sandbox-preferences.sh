@@ -1,12 +1,31 @@
 #!/bin/bash
 # Sandbox Preferences
 #
-# User-defined preferences for the sandbox environment. This script is COPY'd
-# into the Docker build context and executed during image build to apply
-# packages, shell configuration, editor setup, and git config.
+# User-defined preferences for the sandbox environment. This script runs as
+# root during `docker build` to install packages, configure dotfiles, set up
+# editors, and apply any other customizations you want in your container.
 #
-# TTY note: The Dockerfile strips `< /dev/tty` references automatically before
-# executing this script, so commands that read from /dev/tty will work as-is.
+# How it works:
+# - Runs during image build, not on every container start. Changes are baked
+#   into the Docker image layer.
+# - Every `ralph sandbox up` copies this file into the build context and
+#   rebuilds with --build. Docker's layer cache skips re-execution if the
+#   file hasn't changed. Edit this file and run `sandbox up` to apply changes.
+# - Runs as root, so apt-get install, writing to /home/ralph, etc. all work.
+#   Ownership of /home/ralph is fixed after this script runs.
+#
+# IMPORTANT: This script runs non-interactively — there is no TTY during
+# `docker build`. Commands that read from /dev/tty will fail. This includes
+# commands in scripts fetched via curl. Common patterns and workarounds:
+#
+#   Problem:  vim +PlugInstall +qall </dev/tty
+#   Fix:      vim -es -u ~/.vimrc +PlugInstall +qall
+#
+#   Problem:  curl -fsSL https://example.com/setup.sh | bash  # script uses /dev/tty internally
+#   Fix:      curl -fsSL https://example.com/setup.sh | sed 's|</dev/tty||g' | bash
+#
+#   Problem:  read -p "Continue? " answer </dev/tty
+#   Fix:      Remove interactive prompts, or default to "yes" in Docker builds
 
 set -euo pipefail
 
