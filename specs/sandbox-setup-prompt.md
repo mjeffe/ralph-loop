@@ -379,7 +379,7 @@ prompt provides:
   on a runtime that happens to exist in `ralph-sandbox-base`.
 - Make runtime selection a Dockerfile concern, not an entrypoint concern.
   Prefer stable install locations plus `ENV PATH=...`. Do not source shell
-  init scripts in the entrypoint (e.g., `nvm.sh`, `pyenv init`). If a version
+  init scripts in the entrypoint (e.g., `nvm.sh`, `pyenv init`, `rbenv init`). If a version
   manager is used, it must be fully installed and initialized in the Dockerfile
   so the selected runtime is already on PATH before the entrypoint runs.
 
