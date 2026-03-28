@@ -1336,8 +1336,9 @@ sandbox_setup() {
 
     mkdir -p "$sandbox_dir"
 
-    # Copy base Dockerfile and sandbox-preferences into build context
+    # Copy base Dockerfile, wait-for-db, and sandbox-preferences into build context
     cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
+    cp "$RALPH_DIR/prompts/templates/wait-for-db" "$sandbox_dir/wait-for-db"
     cp "$RALPH_DIR/sandbox-preferences.sh" "$sandbox_dir/sandbox-preferences.sh"
 
     # Build base image (deterministic, no LLM involved)
