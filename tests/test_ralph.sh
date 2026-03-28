@@ -1157,6 +1157,68 @@ ENV
     rm -rf "$sdir"
 }
 
+test_sandbox_validate_runtime_manager_refs() {
+    echo "--- sandbox_validate: unprovisioned runtime manager checks ---"
+    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local sdir="$TMP_DIR/sandbox_rtmgr_test"
+    mkdir -p "$sdir"
+
+    # Minimal valid files — entrypoint references nvm.sh but Dockerfile doesn't install it
+    cat > "$sdir/Dockerfile" <<'DOCK'
+FROM ralph-sandbox-base
+COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
+RUN bash /tmp/sandbox-preferences.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
+WORKDIR /app
+DOCK
+    cat > "$sdir/entrypoint.sh" <<'ENTRY'
+#!/usr/bin/env bash
+set -euo pipefail
+git credential approve <<< "host=github.com"
+if [[ ! -f .git/HEAD ]]; then
+    git clone "$REPO" .
+fi
+source /usr/local/nvm/nvm.sh
+nvm use 12
+npm ci
+exec supervisord -n -c /etc/supervisor/supervisord.conf
+ENTRY
+    cat > "$sdir/docker-compose.yml" <<'COMPOSE'
+services:
+  app:
+    build: .
+    env_file: .env
+    tty: true
+    stdin_open: true
+    environment:
+      - SANDBOX=1
+COMPOSE
+    cat > "$sdir/.env.example" <<'ENV'
+SANDBOX=1
+ENV
+
+    local output
+    output=$(sandbox_validate "$sdir")
+    assert_contains "catches unprovisioned nvm.sh" "nvm.sh" "$output"
+
+    # Now add nvm install to Dockerfile — should pass
+    cat > "$sdir/Dockerfile" <<'DOCK'
+FROM ralph-sandbox-base
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash && source /usr/local/nvm/nvm.sh && nvm install 12
+COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
+RUN bash /tmp/sandbox-preferences.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
+WORKDIR /app
+DOCK
+    output=$(sandbox_validate "$sdir")
+    assert_not_contains "accepts provisioned nvm.sh" "nvm.sh" "$output"
+
+    rm -rf "$sdir"
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -1227,6 +1289,7 @@ main() {
     test_sandbox_validate_entrypoint_structural
     test_sandbox_validate_compose_structural
     test_sandbox_validate_cross_file_env_vars
+    test_sandbox_validate_runtime_manager_refs
 
     teardown
 
