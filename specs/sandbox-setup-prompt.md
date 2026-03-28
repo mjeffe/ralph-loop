@@ -197,7 +197,7 @@ RUN apt-get update && apt-get install -y php8.3-cli php8.3-fpm ...
 
 # User preferences (deterministic — no LLM involvement)
 COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
-RUN sed 's|</dev/tty||g' /tmp/sandbox-preferences.sh | bash \
+RUN sed -E 's|<\s*/dev/tty||g' /tmp/sandbox-preferences.sh | bash \
     && rm -f /tmp/sandbox-preferences.sh
 
 RUN chown -R ralph:ralph /home/ralph
@@ -211,7 +211,7 @@ EXPOSE 80
 
 **User preferences are applied via `sandbox-preferences.sh`** — a user-maintained
 bash script that ralph COPY's into the build context and executes during
-`docker build`. Ralph wraps execution with `sed 's|</dev/tty||g'` to strip
+`docker build`. Ralph wraps execution with `sed -E 's|<\s*/dev/tty||g'` to strip
 TTY references that would hang a non-interactive build. The LLM does not read,
 interpret, or translate this file — it emits the fixed COPY/RUN block above.
 See the "Sandbox Preferences" section for details.
@@ -523,7 +523,7 @@ RUN <gh-install-commands>
 
 # User preferences (deterministic — no LLM involvement)
 COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
-RUN sed 's|</dev/tty||g' /tmp/sandbox-preferences.sh | bash \
+RUN sed -E 's|<\s*/dev/tty||g' /tmp/sandbox-preferences.sh | bash \
     && rm -f /tmp/sandbox-preferences.sh
 
 RUN chown -R ralph:ralph /home/ralph
@@ -817,7 +817,7 @@ final `USER ralph` / `ENTRYPOINT` layers.
 4. The generated Dockerfile contains a fixed COPY/RUN block:
    ```dockerfile
    COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
-   RUN sed 's|</dev/tty||g' /tmp/sandbox-preferences.sh | bash \
+   RUN sed -E 's|<\s*/dev/tty||g' /tmp/sandbox-preferences.sh | bash \
        && rm -f /tmp/sandbox-preferences.sh
    ```
 5. The LLM never reads, interprets, or translates this file. Content is

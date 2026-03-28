@@ -4,6 +4,9 @@
 # User-defined preferences for the sandbox environment. This script is COPY'd
 # into the Docker build context and executed during image build to apply
 # packages, shell configuration, editor setup, and git config.
+#
+# TTY note: The Dockerfile strips `< /dev/tty` references automatically before
+# executing this script, so commands that read from /dev/tty will work as-is.
 
 set -euo pipefail
 
@@ -47,7 +50,7 @@ BASHRC
 
 # Vim configuration
 curl -fsSL https://raw.githubusercontent.com/mjeffe/nix-profile/master/vim-config/install.sh \
-    | sed 's|</dev/tty||g' | bash -s min
+    | bash -s min
 
 # Git configuration
 cat > /home/ralph/.gitconfig <<'GITCONFIG'

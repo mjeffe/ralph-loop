@@ -85,7 +85,7 @@ RUN <gh-install-commands>
 
 # User preferences (deterministic — no LLM involvement)
 COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
-RUN sed 's|</dev/tty||g' /tmp/sandbox-preferences.sh | bash \
+RUN sed -E 's|<\s*/dev/tty||g' /tmp/sandbox-preferences.sh | bash \
     && rm -f /tmp/sandbox-preferences.sh
 
 RUN chown -R ralph:ralph /home/ralph
@@ -424,8 +424,8 @@ Quote any entry whose value contains a colon:
 ## Appendix D: Non-Interactive Docker Builds
 
 Docker builds have no TTY. The `sandbox-preferences.sh` COPY/RUN block uses
-`sed 's|</dev/tty||g'` to strip TTY references that would hang a
-non-interactive build.
+`sed -E 's|<\s*/dev/tty||g'` to strip TTY references (with or without
+spaces) that would hang a non-interactive build.
 
 **Important:** The `<` redirect operator is part of the pattern — it must be
 included in the sed substitution. Stripping only `/dev/tty` (without the `<`)
