@@ -374,6 +374,14 @@ prompt provides:
   env overrides, bootstrap commands).
 - Emit the fixed COPY/RUN block for `sandbox-preferences.sh` — do not read
   or interpret the script's contents.
+- For each entry in `profile.runtimes`, the Dockerfile must explicitly
+  provision that runtime version and make it the default on PATH. Never rely
+  on a runtime that happens to exist in `ralph-sandbox-base`.
+- Make runtime selection a Dockerfile concern, not an entrypoint concern.
+  Prefer stable install locations plus `ENV PATH=...`. Do not source shell
+  init scripts in the entrypoint (e.g., `nvm.sh`, `pyenv init`). If a version
+  manager is used, it must be fully installed and initialized in the Dockerfile
+  so the selected runtime is already on PATH before the entrypoint runs.
 
 This separation means the render agent has a much simpler job: translate a
 structured specification into Docker files. The decisions are already made.
@@ -472,6 +480,10 @@ generated files for structural correctness. Run automatically after Pass 2
   (commented-out entries count as documented — optional vars like
   `SANDBOX_NAME` are intentionally commented)
 - Service ports in compose healthchecks match the service images' default ports
+- If entrypoint.sh references a runtime manager init script or command
+  (`nvm.sh`, `pyenv init`, `rbenv init`, `.asdf/asdf.sh`, `sdkman-init.sh`,
+  `volta`), the Dockerfile must also reference it (i.e., install and configure
+  it). Catches entrypoints that source tools the Dockerfile never installed.
 
 **Profile consistency:**
 - Services in compose match `services` array in project profile
@@ -937,7 +949,10 @@ examining:
 
 The agent must extract these conclusions from the sources above:
 
-- Primary runtime(s) and version(s)
+- All runtimes required by the project's install, build, run, or test
+  commands — not just the primary framework runtime. Include secondary
+  runtimes used only for asset builds or tooling (e.g., Laravel + Vue,
+  Rails + webpack).
 - Package manager(s) — prefer lockfiles over manifests for tool choice
 - Required services as compose services (DB, cache, search, mail, etc.) —
   each becomes a separate container using official Docker images
@@ -962,6 +977,10 @@ The agent must extract these conclusions from the sources above:
 - Include Mailpit only when mail is used by the project or implied by framework.
 - For ambiguous cases (monorepos, multiple runtimes), optimize for the primary
   app; note limitations in `assumptions` or `notes`.
+- For each runtime, prefer explicit version pins from project files (`.nvmrc`,
+  `.node-version`, `.python-version`, `.ruby-version`, `.tool-versions`, manifest
+  engine fields). Use CI config or existing Dockerfiles only as fallback. Record
+  pinned old/EOL versions exactly; do not upgrade them.
 
 ## Stack Playbooks
 

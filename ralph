@@ -1241,6 +1241,18 @@ sandbox_validate() {
         done
     fi
 
+    # --- Cross-file: entrypoint references unprovisioned runtime managers ---
+    if [[ -f "$sandbox_dir/entrypoint.sh" && -f "$sandbox_dir/Dockerfile" ]]; then
+        local runtime_managers="nvm\.sh|pyenv init|rbenv init|\.asdf/asdf\.sh|sdkman-init\.sh|volta"
+        local entrypoint_refs
+        entrypoint_refs=$(grep -oP "$runtime_managers" "$sandbox_dir/entrypoint.sh" 2>/dev/null || true)
+        for ref in $entrypoint_refs; do
+            if ! grep -q "$ref" "$sandbox_dir/Dockerfile" 2>/dev/null; then
+                failures+="[FAIL] entrypoint.sh references '$ref' but Dockerfile does not install it"$'\n'
+            fi
+        done
+    fi
+
     # --- Profile consistency ---
     if [[ -f "$sandbox_dir/project-profile.json" ]]; then
         # Services in compose match profile

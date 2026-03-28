@@ -36,7 +36,9 @@ commands.
 
 ## Conclusions to Extract
 
-- Primary runtime(s) and version(s)
+- All runtimes required by the project's install, build, run, or test commands —
+  not just the primary framework runtime. Include secondary runtimes used only
+  for asset builds or tooling (e.g., Laravel + Vue, Rails + webpack).
 - Package manager(s) — prefer lockfiles over manifests for tool choice
 - Required services as compose services (DB, cache, search, mail, etc.) —
   each becomes a separate container using official Docker images
@@ -61,6 +63,10 @@ commands.
 - Include Mailpit only when mail is used by the project or implied by framework.
 - For ambiguous cases (monorepos, multiple runtimes), optimize for the primary
   app; note limitations in `assumptions` or `notes`.
+- For each runtime, prefer explicit version pins from project files (`.nvmrc`,
+  `.node-version`, `.python-version`, `.ruby-version`, `.tool-versions`, manifest
+  engine fields). Use CI config or existing Dockerfiles only as fallback. Record
+  pinned old/EOL versions exactly; do not upgrade them.
 
 ## Multi-Container Model
 

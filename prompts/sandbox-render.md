@@ -42,6 +42,15 @@ These are non-negotiable:
   already healthy via `depends_on` with healthcheck.
 - **Service hostnames** — use compose service names (`db`, `mail`, `redis`)
   instead of `127.0.0.1`.
+- **For each entry in `profile.runtimes`, the Dockerfile must explicitly
+  provision that runtime version and make it the default on PATH.** Never
+  rely on a runtime that happens to exist in `ralph-sandbox-base`.
+- **Make runtime selection a Dockerfile concern, not an entrypoint concern.**
+  Prefer stable install locations plus `ENV PATH=...`. Do not source shell
+  init scripts in the entrypoint (e.g., `nvm.sh`, `pyenv init`, `rbenv init`).
+  If a version manager is used, it must be fully installed and initialized in
+  the Dockerfile so the selected runtime is already on PATH before the
+  entrypoint runs.
 - **No app-config vars in docker-compose.yml** — `DB_*`, `MAIL_*`,
   `CACHE_STORE`, `APP_KEY`, `JWT_SECRET`, etc. are hardcoded in the
   entrypoint and written to the project's `.env` on first boot. They must
@@ -354,6 +363,8 @@ Before finishing, verify:
 - [ ] Git credential snippets use exact code from Appendix A
 - [ ] No `initdb`, `pg_ctl`, or DB server start/stop in entrypoint
 - [ ] Sentinel files are in `${RALPH_HOME}/.sandbox/`
+- [ ] Every entry in `profile.runtimes` has a corresponding runtime provisioning step in the Dockerfile
+- [ ] Entrypoint does not reference custom runtime paths or version-manager files unless the Dockerfile creates and configures them
 
 ## Rules
 
