@@ -222,9 +222,10 @@ sandbox_up() {
         exit 1
     fi
 
-    # Auto-refresh base image and sandbox-preferences from managed sources.
+    # Auto-refresh base image, wait-for-db, and sandbox-preferences from managed sources.
     # Docker layer cache makes this instant when nothing has changed.
     cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$RALPH_DIR/sandbox/Dockerfile.base"
+    cp "$RALPH_DIR/prompts/templates/wait-for-db" "$RALPH_DIR/sandbox/wait-for-db"
     cp "$RALPH_DIR/sandbox-preferences.sh" "$RALPH_DIR/sandbox/sandbox-preferences.sh"
     docker build -t ralph-sandbox-base -f "$RALPH_DIR/sandbox/Dockerfile.base" "$RALPH_DIR/sandbox/"
 

@@ -30,5 +30,9 @@ RUN groupadd -g 1000 ralph \
     && useradd -m -u 1000 -g 1000 -s /bin/bash ralph \
     && echo 'ralph ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/ralph
 
+# wait-for-db — retry loop for cross-container TCP readiness
+COPY wait-for-db /usr/local/bin/wait-for-db
+RUN chmod +x /usr/local/bin/wait-for-db
+
 USER ralph
 WORKDIR /home/ralph

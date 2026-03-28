@@ -31,6 +31,7 @@ MANAGED_FILES=(
     prompts/sandbox-repair.md
     prompts/align-specs.md
     prompts/templates/Dockerfile.base
+    prompts/templates/wait-for-db
     prompts/playbooks/php-laravel.md
     README.md
     .gitignore
@@ -54,6 +55,7 @@ declare -A SOURCE_PATHS=(
     [prompts/sandbox-render.md]="prompts/sandbox-render.md"
     [prompts/sandbox-repair.md]="prompts/sandbox-repair.md"
     [prompts/templates/Dockerfile.base]="prompts/templates/Dockerfile.base"
+    [prompts/templates/wait-for-db]="prompts/templates/wait-for-db"
     [prompts/playbooks/php-laravel.md]="prompts/playbooks/php-laravel.md"
     [README.md]="specs/overview.md"
     [.gitignore]=".gitignore"

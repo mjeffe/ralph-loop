@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# wait-for-db — wait for a database to accept TCP connections.
+# Shipped in the base image so entrypoints don't need to generate retry logic.
+#
+# Usage: wait-for-db <host> <port> [max_attempts] [sleep_seconds]
+#
+# Docker Compose depends_on with service_healthy guarantees the DB container's
+# healthcheck passed, but DNS resolution and cross-container TCP routing can
+# lag briefly behind container start. This utility retries until TCP connects.
+
+set -euo pipefail
+
+host="${1:?Usage: wait-for-db <host> <port> [max_attempts] [sleep_seconds]}"
+port="${2:?Usage: wait-for-db <host> <port> [max_attempts] [sleep_seconds]}"
+max_attempts="${3:-30}"
+sleep_seconds="${4:-1}"
+
+echo "[sandbox] Waiting for ${host}:${port}..."
+
+for ((i = 1; i <= max_attempts; i++)); do
+    if bash -c "echo > /dev/tcp/${host}/${port}" 2>/dev/null; then
+        echo "[sandbox] ${host}:${port} is ready."
+        exit 0
+    fi
+    echo "[sandbox] Attempt ${i}/${max_attempts}: ${host}:${port} not ready, retrying in ${sleep_seconds}s..."
+    sleep "$sleep_seconds"
+done
+
+echo "[sandbox] ERROR: ${host}:${port} not reachable after ${max_attempts} attempts." >&2
+exit 1

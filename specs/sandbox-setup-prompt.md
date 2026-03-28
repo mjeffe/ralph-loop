@@ -80,9 +80,11 @@ and named volumes.
 service hostnames instead of `127.0.0.1`.
 
 **Service readiness:** The app container uses `depends_on` with
-`condition: service_healthy` for each service. By the time the app entrypoint
-runs, all services are accepting connections. No `wait-for-it.sh` or retry
-loops needed.
+`condition: service_healthy` for each service. However, Docker Compose
+healthchecks only guarantee the DB container's healthcheck passed — DNS
+resolution and cross-container TCP routing can lag briefly behind container
+start. The base image ships a `wait-for-db` utility that entrypoints must
+call before any database commands.
 
 ### Supervisord Scope
 
@@ -147,6 +149,10 @@ RUN userdel --remove ubuntu 2>/dev/null || true
 RUN groupadd -g 1000 ralph \
     && useradd -m -u 1000 -g 1000 -s /bin/bash ralph \
     && echo 'ralph ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/ralph
+
+# wait-for-db — retry loop for DB readiness (TCP-level, not just healthcheck)
+COPY wait-for-db /usr/local/bin/wait-for-db
+RUN chmod +x /usr/local/bin/wait-for-db
 
 USER ralph
 WORKDIR /home/ralph
@@ -621,8 +627,10 @@ fi
 <secret-generation-command-from-profile>
 
 # --- 4c. Database bootstrap ---
-# DB server runs in its own container and is healthy before this entrypoint
-# starts (depends_on with healthcheck). No server init needed.
+# DB server runs in its own container. depends_on: service_healthy ensures the
+# container is up, but TCP connectivity from the app container can lag briefly.
+wait-for-db "$DB_HOST" "$DB_PORT"
+
 if [ ! -f "${RALPH_HOME}/.sandbox/db-migrated" ]; then
     # Pre-migration prerequisites from profile.pre_migration_sql
     <migration-command-from-profile>
@@ -1201,8 +1209,9 @@ sandbox_setup() {
 
     mkdir -p "$sandbox_dir"
 
-    # Copy base Dockerfile and sandbox-preferences into build context
+    # Copy base Dockerfile, wait-for-db, and sandbox-preferences into build context
     cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
+    cp "$RALPH_DIR/prompts/templates/wait-for-db" "$sandbox_dir/wait-for-db"
     cp "$RALPH_DIR/sandbox-preferences.sh" "$sandbox_dir/sandbox-preferences.sh"
 
     # Build base image (deterministic, no LLM involved)
@@ -1380,6 +1389,7 @@ detect_stack() {
 - `prompts/sandbox-render.md` — Pass 2 generation prompt
 - `prompts/sandbox-repair.md` — Pass 3 repair prompt
 - `prompts/templates/Dockerfile.base` — base image template
+- `prompts/templates/wait-for-db` — DB readiness retry utility (shipped in base image)
 - `sandbox-preferences.sh` — user-customizable starter script
 
 ### Removed managed files

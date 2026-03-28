@@ -56,6 +56,12 @@ These are non-negotiable:
   entrypoint and written to the project's `.env` on first boot. They must
   NOT appear as container environment variables (they would shadow the
   framework's dotenv loader).
+- **wait-for-db before database commands** — the base image ships
+  `/usr/local/bin/wait-for-db`. The entrypoint must call
+  `wait-for-db <host> <port>` before any database command (migrations,
+  seeders, pre-migration SQL). Use the DB host and port from
+  `profile.env_overrides`. This handles TCP routing lag after container
+  start that `depends_on: service_healthy` does not cover.
 
 ## Input
 
@@ -178,9 +184,12 @@ fi
 **4b. App secret generation** — run `profile.bootstrap.secret_generation` if
 non-null.
 
-**4c. Database bootstrap** — the DB server runs in its own container and is
-already healthy. No server init needed.
+**4c. Database bootstrap** — the DB server runs in its own container.
+Call `wait-for-db` before any database commands:
 ```bash
+# Wait for DB — handles TCP routing lag after container start
+wait-for-db "<db-host-from-profile.env_overrides>" "<db-port-from-profile.env_overrides>"
+
 if [ ! -f "${RALPH_HOME}/.sandbox/db-migrated" ]; then
     # Pre-migration prerequisites from profile.pre_migration_sql (if present)
     <migration-command-from-profile.bootstrap.migration>
@@ -362,6 +371,7 @@ Before finishing, verify:
 - [ ] Entrypoint ends with `exec supervisord`
 - [ ] Git credential snippets use exact code from Appendix A
 - [ ] No `initdb`, `pg_ctl`, or DB server start/stop in entrypoint
+- [ ] Entrypoint calls `wait-for-db` before any database command (if profile has DB service)
 - [ ] Sentinel files are in `${RALPH_HOME}/.sandbox/`
 - [ ] Every entry in `profile.runtimes` has a corresponding runtime provisioning step in the Dockerfile
 - [ ] Entrypoint does not reference custom runtime paths or version-manager files unless the Dockerfile creates and configures them
