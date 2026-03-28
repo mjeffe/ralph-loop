@@ -18,6 +18,14 @@ thoughs, reminders, ideas, things to watch for, etc.
 - Make a workdir subdirectory of `.ralph/` so work files such as `implementation_plan.md`,
   `alignment_ledger.md`, `last_agent_output`, etc., do not clutter ralph's root dir.
 - Discuss pros and cons of converting the sandbox to multi-service rather than a single monolitic container.
+- Sandbox integration tests: add `tests/test_sandbox_snippets.sh` that runs
+  the "use exact" entrypoint snippets from prompt appendices inside
+  `docker run --user ralph ralph-sandbox-base` to catch runtime failures
+  (e.g., `su - ralph` hanging). No agent invocation, just Docker + bash.
+- Smoke-test sandbox: ship a fixture `tests/fixtures/hello-project/` with a
+  minimal pre-baked profile and generated files. Test does `docker compose up`,
+  waits for healthy, asserts basics (user is ralph, git works, supervisord is
+  PID 1), then tears down. Gate behind `--integration` flag since it's slow.
 
 ## Update bug (`ralph update`)
 

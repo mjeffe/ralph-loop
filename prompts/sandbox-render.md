@@ -75,6 +75,17 @@ Use this profile as the sole source of truth for all decisions. Every field
 you need is in the profile — runtimes, package managers, services, env
 overrides, bootstrap commands, supervisor programs, ports, git provider.
 
+Read the base image Dockerfile to understand what is already installed:
+
+```
+${RALPH_HOME}/sandbox/Dockerfile.base
+```
+
+Your generated Dockerfile builds `FROM ralph-sandbox-base`. Do not
+re-install packages the base image already provides, and do not assume
+it provides anything it does not (e.g., version managers, language
+runtimes beyond what is explicitly installed in `Dockerfile.base`).
+
 ## Generated Files
 
 Create these four files in `${RALPH_HOME}/sandbox/`:
@@ -389,6 +400,10 @@ When complete, output: <promise>COMPLETE</promise>
 
 The entrypoint must support two credential strategies. Use these exact
 snippets — they contain critical workarounds for known failure modes.
+The canonical source for these snippets is `specs/sandbox-setup-prompt.md`.
+
+The entrypoint already runs as USER ralph — do not use `su` or `sudo` to
+become ralph.
 
 **GitHub path** — when `GITHUB_TOKEN` is set:
 ```bash
@@ -409,18 +424,19 @@ Bitbucket, AWS CodeCommit, self-hosted git, etc.):
 ```bash
 elif [ -n "${GIT_CRED_USER:-}" ] && [ -n "${GIT_CRED_PASS:-}" ]; then
     REPO_HOST=$(echo "${GIT_REPO}" | sed -E 's|https?://([^/]+).*|\1|')
-    ENCODED_USER=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_USER}")
-    ENCODED_PASS=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "${GIT_CRED_PASS}")
+    ENCODED_USER=$(printf '%s' "${GIT_CRED_USER}" | jq -sRr @uri)
+    ENCODED_PASS=$(printf '%s' "${GIT_CRED_PASS}" | jq -sRr @uri)
     printf 'https://%s:%s@%s\n' "${ENCODED_USER}" "${ENCODED_PASS}" "${REPO_HOST}" \
         > /home/ralph/.git-credentials
     chmod 600 /home/ralph/.git-credentials
     chown ralph:ralph /home/ralph/.git-credentials
-    su - ralph -c "git config --global credential.helper 'store --file=/home/ralph/.git-credentials'"
+    git config --global credential.helper 'store --file=/home/ralph/.git-credentials'
 fi
 ```
 Credentials are URL-encoded because some providers (notably AWS CodeCommit)
 generate passwords containing `/`, `+`, and `=` that break the credential
-URL format if written raw.
+URL format if written raw. Uses `jq` (available in the base image) instead
+of `python3` (not in the base image).
 
 ## Appendix B: YAML Environment Variable Syntax
 

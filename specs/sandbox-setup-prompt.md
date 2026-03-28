@@ -365,10 +365,15 @@ a debuggable intermediate artifact that users can inspect and edit.
 The agent reads the project profile and generates the four sandbox files. The
 prompt provides:
 - The locked project profile (read from `.ralph/sandbox/project-profile.json`)
+- The base image Dockerfile (`Dockerfile.base` in the sandbox directory) — the
+  agent reads this to discover what is already installed rather than relying on
+  a static summary. The agent must not assume the base image provides anything
+  not explicitly installed in `Dockerfile.base`.
 - Hard constraints (named volumes, non-root user, tini, git-mediated code flow)
 - File responsibilities (what each file must accomplish)
-- Git credential snippets (Appendix A — these handle known failure modes with
-  `gh auth login` and URL-encoded credentials)
+- Git credential snippets (see the entrypoint template in "Generated Files"
+  below — these handle known failure modes with `gh auth login` and
+  URL-encoded credentials)
 - The stack playbook (if available) for stack-specific code patterns
 - The `sandbox-preferences.sh` script is COPY'd into the build context by
   ralph before the agent runs — the render prompt does not read or interpret it
@@ -579,10 +584,32 @@ RALPH_HOME="${RALPH_HOME:-.ralph}"
 # =============================================
 
 # --- 1a. Git credentials ---
-# Use exact snippets from Appendix A of the render prompt (unchanged from
-# current — these handle known failure modes with gh auth and URL-encoded
-# credentials). GitHub path when GITHUB_TOKEN is set; generic credential
-# store path when GIT_CRED_USER/GIT_CRED_PASS are set.
+# Two strategies. The entrypoint already runs as USER ralph — do not use
+# su or sudo to become ralph.
+
+# GitHub path — gh CLI refuses --with-token when GITHUB_TOKEN is already
+# set as an env var, exiting non-zero under set -euo pipefail.
+# env -u clears it for the login call. Never pass the token on the CLI.
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    TMPFILE=$(mktemp)
+    printf '%s' "$GITHUB_TOKEN" > "$TMPFILE"
+    env -u GITHUB_TOKEN gh auth login --with-token < "$TMPFILE"
+    gh auth setup-git
+    rm -f "$TMPFILE"
+
+# Generic path (GitLab, Bitbucket, AWS CodeCommit, self-hosted git, etc.)
+# Credentials are URL-encoded because some providers generate passwords
+# containing /, +, and = that break the credential URL format if written raw.
+elif [ -n "${GIT_CRED_USER:-}" ] && [ -n "${GIT_CRED_PASS:-}" ]; then
+    REPO_HOST=$(echo "${GIT_REPO}" | sed -E 's|https?://([^/]+).*|\1|')
+    ENCODED_USER=$(printf '%s' "${GIT_CRED_USER}" | jq -sRr @uri)
+    ENCODED_PASS=$(printf '%s' "${GIT_CRED_PASS}" | jq -sRr @uri)
+    printf 'https://%s:%s@%s\n' "${ENCODED_USER}" "${ENCODED_PASS}" "${REPO_HOST}" \
+        > /home/ralph/.git-credentials
+    chmod 600 /home/ralph/.git-credentials
+    chown ralph:ralph /home/ralph/.git-credentials
+    git config --global credential.helper 'store --file=/home/ralph/.git-credentials'
+fi
 
 # --- 1b. Clone repo ---
 if [ ! -f .git/HEAD ]; then
@@ -629,7 +656,7 @@ fi
 # --- 4c. Database bootstrap ---
 # DB server runs in its own container. depends_on: service_healthy ensures the
 # container is up, but TCP connectivity from the app container can lag briefly.
-wait-for-db "$DB_HOST" "$DB_PORT"
+wait-for-db <db-host-from-profile.env_overrides> <db-port-from-profile.env_overrides>
 
 if [ ! -f "${RALPH_HOME}/.sandbox/db-migrated" ]; then
     # Pre-migration prerequisites from profile.pre_migration_sql
@@ -699,10 +726,12 @@ services:
       - SANDBOX=1
       - "GIT_REPO=${GIT_REPO}"
       - "AMP_API_KEY=${AMP_API_KEY}"
-      - "GITHUB_TOKEN=${GITHUB_TOKEN}"
+      # Credential vars based on profile.git_provider:
+      # GitHub: GITHUB_TOKEN
+      # Other: GIT_CRED_USER, GIT_CRED_PASS
       - "GIT_CONFIG_COUNT=1"
-      - "GIT_CONFIG_KEY_0=url.https://github.com/.insteadOf"
-      - "GIT_CONFIG_VALUE_0=git@github.com:"
+      - "GIT_CONFIG_KEY_0=url.https://<git-host>/.insteadOf"
+      - "GIT_CONFIG_VALUE_0=git@<git-host>:"
     volumes:
       - sandbox-codebase:/var/www/html
     ports:
