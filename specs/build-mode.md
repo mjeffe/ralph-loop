@@ -63,14 +63,7 @@ If implementation breaks existing tests:
 
 ### Git Commit
 
-The agent is responsible for committing its own work at the end of each successful iteration:
-
-```bash
-git add -A
-git commit -m "build: <short description of what was implemented>"
-```
-
-The commit message should describe what was implemented, not just the task number. The agent should not commit until all tests pass.
+The agent is responsible for committing its own work at the end of each successful iteration. The commit message should describe what was implemented, not just the task number. Do not use `git add -A` or `git add .` — stage files explicitly. The agent should not commit until all tests pass.
 
 ### Plan Updates
 

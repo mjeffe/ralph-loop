@@ -11,7 +11,7 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 - Complete **exactly one task** this iteration.
 - Before editing, inspect the current code and tests — do not assume the task is unimplemented.
 - All project validation (tests, lint, build — see AGENTS.md) must pass before you commit.
-- Do not commit broken or partial code.
+- Do not commit broken or partial code. Do not use `git add -A` or `git add .` — stage files explicitly.
 - If blocked, mark the task `blocked`, document why in the plan, and stop. Do not commit incomplete implementation — commit only safe changes (plan updates, docs) with passing validation, or revert.
 - Implement functionality completely. Placeholders and stubs waste time redoing the same work.
 
