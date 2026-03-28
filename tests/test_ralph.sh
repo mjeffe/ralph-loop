@@ -43,6 +43,20 @@ assert_contains() {
     fi
 }
 
+assert_not_contains() {
+    local label="$1" needle="$2" haystack="$3"
+    TESTS=$(( TESTS + 1 ))
+    if ! echo "$haystack" | grep -qF -- "$needle"; then
+        echo "  PASS: $label"
+        PASS=$(( PASS + 1 ))
+    else
+        echo "  FAIL: $label"
+        echo "    expected NOT to contain: $needle"
+        echo "    actual: $haystack"
+        FAIL=$(( FAIL + 1 ))
+    fi
+}
+
 assert_exit_code() {
     local label="$1" expected="$2"
     shift 2
@@ -1131,6 +1145,14 @@ ENV
     local output
     output=$(sandbox_validate "$sdir")
     assert_contains "catches undocumented env var" "SECRET_KEY not documented in .env.example" "$output"
+
+    # Commented-out entries should count as documented
+    cat > "$sdir/.env.example" <<'ENV'
+DB_HOST=localhost
+# SECRET_KEY=my-secret
+ENV
+    output=$(sandbox_validate "$sdir")
+    assert_not_contains "accepts commented-out env var" "SECRET_KEY not documented" "$output"
 
     rm -rf "$sdir"
 }

@@ -470,6 +470,8 @@ generated files for structural correctness. Run automatically after Pass 2
 - Every service in compose has a corresponding env override in entrypoint
   (e.g., postgres service → DB_HOST=db)
 - Every env var referenced in compose is documented in `.env.example`
+  (commented-out entries count as documented — optional vars like
+  `SANDBOX_NAME` are intentionally commented)
 - Service ports in compose healthchecks match the service images' default ports
 
 **Profile consistency:**

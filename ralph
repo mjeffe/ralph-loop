@@ -1235,7 +1235,7 @@ sandbox_validate() {
         local compose_vars
         compose_vars=$(grep -oP '\$\{?\K[A-Z_]+' "$sandbox_dir/docker-compose.yml" 2>/dev/null | sort -u || true)
         for var in $compose_vars; do
-            if ! grep -q "^${var}=" "$sandbox_dir/.env.example" 2>/dev/null; then
+            if ! grep -qP "^#?\s*${var}=" "$sandbox_dir/.env.example" 2>/dev/null; then
                 failures+="[FAIL] compose env var $var not documented in .env.example"$'\n'
             fi
         done
