@@ -31,7 +31,9 @@ These are non-negotiable:
 - **Multi-container architecture** — app container plus service containers
   from the profile. No single-container monolith.
 - **Named volumes** — for codebase and service data. Never bind mounts.
-- **Non-root user** named "ralph" (UID 1000, GID 1000) with passwordless sudo.
+- **Root entrypoint, ralph shell user.** The entrypoint runs as root. Supervisord
+  programs use `user=ralph`. `ralph sandbox shell` connects as ralph. The ralph
+  user (UID 1000, GID 1000) exists in the base image with passwordless sudo.
 - **tini** as PID 1 init process.
 - **supervisord** manages only app-level processes (from
   `profile.supervisor_programs`). Infrastructure services run in their own
@@ -114,9 +116,9 @@ COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
 RUN bash /tmp/sandbox-preferences.sh && rm -f /tmp/sandbox-preferences.sh
 
 RUN chown -R ralph:ralph /home/ralph
-USER ralph
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
 WORKDIR <workdir-from-profile>
 EXPOSE <ports-from-profile>
@@ -153,8 +155,8 @@ GitHub path or generic path based on `profile.git_provider`.
 **1b. Clone repo** — clone into workdir if `.git/HEAD` is missing:
 ```bash
 if [ ! -f .git/HEAD ]; then
-    sudo chown ralph:ralph "$(pwd)"
     git clone "$GIT_REPO" .
+    chown -R ralph:ralph .
 fi
 ```
 
@@ -219,7 +221,7 @@ fi
 **5a. Generate supervisord program configs** — one conf file per entry in
 `profile.supervisor_programs`:
 ```bash
-sudo tee /etc/supervisor/conf.d/<name>.conf > /dev/null <<'EOF'
+tee /etc/supervisor/conf.d/<name>.conf > /dev/null <<'EOF'
 [program:<name>]
 command=<command-from-profile>
 directory=<workdir-from-profile>
@@ -402,8 +404,8 @@ The entrypoint must support two credential strategies. Use these exact
 snippets — they contain critical workarounds for known failure modes.
 The canonical source for these snippets is `specs/sandbox-setup-prompt.md`.
 
-The entrypoint already runs as USER ralph — do not use `su` or `sudo` to
-become ralph.
+The entrypoint runs as root. Git credentials are configured for the ralph
+user.
 
 **GitHub path** — when `GITHUB_TOKEN` is set:
 ```bash

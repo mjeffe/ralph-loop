@@ -54,6 +54,13 @@ the user ever runs `docker compose up`.
    user-maintained bash script (`sandbox-preferences.sh`) that runs during
    `docker build`. Ralph COPY's and executes it without LLM interpretation —
    the content is applied byte-for-byte, not parsed or translated by an agent.
+8. **Root entrypoint, ralph shell.** The entrypoint runs as root — the
+   standard Docker pattern for containers that need privileged setup (port
+   binding, log directories, ownership fixups). Supervisord programs drop to
+   `user=ralph` so app processes run as a normal user. `ralph sandbox shell`
+   connects as ralph (via `docker exec -u ralph`), giving the agent a
+   realistic non-root development experience. The container itself is the
+   security boundary — the user inside is irrelevant to containment.
 
 ## Architecture
 
@@ -206,9 +213,9 @@ COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
 RUN bash /tmp/sandbox-preferences.sh && rm -f /tmp/sandbox-preferences.sh
 
 RUN chown -R ralph:ralph /home/ralph
-USER ralph
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
 WORKDIR /var/www/html
 EXPOSE 80
@@ -369,7 +376,7 @@ prompt provides:
   agent reads this to discover what is already installed rather than relying on
   a static summary. The agent must not assume the base image provides anything
   not explicitly installed in `Dockerfile.base`.
-- Hard constraints (named volumes, non-root user, tini, git-mediated code flow)
+- Hard constraints (named volumes, root entrypoint with ralph shell user, tini, git-mediated code flow)
 - File responsibilities (what each file must accomplish)
 - Git credential snippets (see the entrypoint template in "Generated Files"
   below — these handle known failure modes with `gh auth login` and
@@ -550,9 +557,9 @@ COPY sandbox-preferences.sh /tmp/sandbox-preferences.sh
 RUN bash /tmp/sandbox-preferences.sh && rm -f /tmp/sandbox-preferences.sh
 
 RUN chown -R ralph:ralph /home/ralph
-USER ralph
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
 WORKDIR <workdir-from-profile>
 EXPOSE <ports-from-profile>
@@ -584,8 +591,8 @@ RALPH_HOME="${RALPH_HOME:-.ralph}"
 # =============================================
 
 # --- 1a. Git credentials ---
-# Two strategies. The entrypoint already runs as USER ralph — do not use
-# su or sudo to become ralph.
+# Two strategies. The entrypoint runs as root.
+# Git credentials are configured for the ralph user.
 
 # GitHub path — gh CLI refuses --with-token when GITHUB_TOKEN is already
 # set as an env var, exiting non-zero under set -euo pipefail.
@@ -613,8 +620,8 @@ fi
 
 # --- 1b. Clone repo ---
 if [ ! -f .git/HEAD ]; then
-    sudo chown ralph:ralph "$(pwd)"
     git clone "$GIT_REPO" .
+    chown -R ralph:ralph .
 fi
 
 # =============================================
@@ -677,7 +684,7 @@ fi
 # --- 5a. Supervisord programs (app-level processes only) ---
 # Generate one conf file per entry in profile.supervisor_programs.
 # Each uses autorestart=true, startsecs=5, stdout/stderr to /dev/stdout.
-sudo tee /etc/supervisor/conf.d/<name>.conf > /dev/null <<'EOF'
+tee /etc/supervisor/conf.d/<name>.conf > /dev/null <<'EOF'
 [program:<name>]
 command=<command-from-profile>
 directory=<workdir-from-profile>
@@ -855,7 +862,7 @@ app-config vars.** Do not include `DB_*`, `MAIL_*`, `CACHE_STORE`, `APP_KEY`,
 User preferences for the sandbox environment are defined in
 `sandbox-preferences.sh` — a user-maintained bash script that runs as root
 during `docker build`, after the project runtime is installed and before the
-final `USER ralph` / `ENTRYPOINT` layers.
+`ENTRYPOINT` layer.
 
 ### How It Works
 
@@ -877,7 +884,7 @@ The installer creates `sandbox-preferences.sh` with commented-out examples
 of common tasks:
 
 ```bash
-#!/usr/bin/env bash
+#!/bin/bash
 # Sandbox Preferences
 #
 # User-defined preferences for the sandbox environment. This script runs as

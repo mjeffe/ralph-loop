@@ -25,7 +25,9 @@ RUN npm install -g @sourcegraph/amp
 # Handle UID 1000 conflict (ubuntu user in base image)
 RUN userdel --remove ubuntu 2>/dev/null || true
 
-# Non-root user
+# Ralph user — used for interactive shells (docker exec -u ralph) and as the
+# user= in supervisord program blocks. The entrypoint runs as root; the
+# project Dockerfile overrides USER back to root for the entrypoint.
 RUN groupadd -g 1000 ralph \
     && useradd -m -u 1000 -g 1000 -s /bin/bash ralph \
     && echo 'ralph ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/ralph
