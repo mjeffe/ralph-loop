@@ -36,7 +36,7 @@ continue to run ralph on the host unchanged.
    runs identically to the host. There are no config flags, no conditional agent
    invocation, no sandbox-specific code paths in the loop.
 3. **Lifecycle only.** Ralph's sandbox support is limited to lifecycle commands
-   (`up`, `down`, `reset`, `setup`, `shell`, `status`) that wrap docker compose.
+   (`up`, `stop`, `reset`, `setup`, `shell`, `status`) that wrap docker compose.
    These commands only run on the host.
 4. **Everything under `.ralph/`.** The sandbox directory lives at `.ralph/sandbox/`,
    consistent with ralph's self-contained installation model.
@@ -117,7 +117,7 @@ sandbox_ensure_name() {
 ```
 
 This function is called at the top of every sandbox lifecycle function:
-`sandbox_up`, `sandbox_down`, `sandbox_reset`, `sandbox_shell`, and
+`sandbox_up`, `sandbox_stop`, `sandbox_reset`, `sandbox_shell`, and
 `sandbox_status`. The exported `SANDBOX_NAME` is then available to
 `docker compose` via variable substitution in `docker-compose.yml`.
 
@@ -137,7 +137,7 @@ ralph prints an error and exits.
 ralph sandbox help             Show detailed sandbox usage guide
 ralph sandbox setup [--force] [--render-only]  Generate sandbox files
 ralph sandbox up               Start the sandbox container (build if needed)
-ralph sandbox down             Stop the sandbox container
+ralph sandbox stop             Stop the sandbox container (preserves container state)
 ralph sandbox reset            Re-clone codebase (preserves database volumes)
 ralph sandbox reset --all      Delete all volumes (codebase + database) and restart
 ralph sandbox shell            Open a bash shell inside the container
@@ -236,11 +236,32 @@ sandbox_up() {
 }
 ```
 
-## `ralph sandbox down`
+## `ralph sandbox stop`
+
+### Why `stop` instead of `down`
+
+The sandbox uses `docker compose stop` (not `docker compose down`) deliberately:
+
+1. **Preserves in-container setup work.** The entrypoint performs expensive
+   one-time work (git clone, dependency install, database migrations, asset
+   builds). `docker compose down` destroys the container, forcing a full
+   rebuild on every `up`/`down` cycle. `stop` pauses the container so `up`
+   resumes where you left off.
+2. **CLI maps to Docker semantics.** Docker-savvy users expect `stop` to
+   pause and `down` to destroy. Ralph's CLI matches: `sandbox stop` pauses,
+   `sandbox reset` handles the destructive cases.
+3. **Image updates still apply.** `sandbox_up()` always passes `--build`,
+   which rebuilds the image and recreates the container when the image hash
+   changes (e.g., after `ralph update` delivers a new `Dockerfile.base`).
+   Stopped containers are automatically replaced when their image changes.
+4. **`reset` covers the destructive cases.** `sandbox reset` re-clones the
+   codebase volume; `sandbox reset --all` removes all volumes and containers.
+   There is no need for a separate destructive `down` command.
 
 ```bash
-sandbox_down() {
-    docker compose -f "$RALPH_DIR/sandbox/docker-compose.yml" down "$@"
+sandbox_stop() {
+    sandbox_ensure_name
+    docker compose -f "$RALPH_DIR/sandbox/docker-compose.yml" stop "$@"
 }
 ```
 
@@ -329,12 +350,12 @@ sandbox)
         help)   shift; sandbox_help ;;
         setup)  shift; sandbox_setup "$@" ;;
         up)     shift; sandbox_up "$@" ;;
-        down)   shift; sandbox_down "$@" ;;
+        stop)   shift; sandbox_stop "$@" ;;
         reset)  shift; sandbox_reset "$@" ;;
         shell)  shift; sandbox_shell "$@" ;;
         status) shift; sandbox_status "$@" ;;
         *)
-            echo "Usage: ralph sandbox <help|setup|up|down|reset|shell|status>"
+            echo "Usage: ralph sandbox <help|setup|up|stop|reset|shell|status>"
             exit 1
             ;;
     esac
@@ -404,7 +425,7 @@ cp .ralph/sandbox/.env.example .ralph/sandbox/.env
 
 # 7. When done
 exit
-.ralph/ralph sandbox down
+.ralph/ralph sandbox stop
 ```
 
 ## Updating AGENTS.md for Sandbox Commands

@@ -87,7 +87,7 @@ See `specs/project-structure.md` for full details.
 
 Ralph supports an optional Docker-based sandbox for isolated agent execution. The sandbox uses a multi-container architecture: the agent works in an app container with its own copy of the codebase (via git clone), while services (database, cache, mail, etc.) run in their own containers using official Docker images. Only the bare minimum credentials are injected. Code changes flow in and out exclusively through git.
 
-Ralph itself has no runtime awareness of the sandbox — inside the container, `ralph` runs identically to the host. Ralph's sandbox support is limited to lifecycle commands (`ralph sandbox up`, `down`, `reset`, `shell`, `status`, `setup`) that wrap docker compose and only run on the host. The sandbox directory lives at `.ralph/sandbox/`.
+Ralph itself has no runtime awareness of the sandbox — inside the container, `ralph` runs identically to the host. Ralph's sandbox support is limited to lifecycle commands (`ralph sandbox up`, `stop`, `reset`, `shell`, `status`, `setup`) that wrap docker compose and only run on the host. The sandbox directory lives at `.ralph/sandbox/`.
 
 The `ralph sandbox setup` command invokes an agent to generate project-specific sandbox files (Dockerfile, entrypoint, compose config) so that ralph remains project-agnostic.
 

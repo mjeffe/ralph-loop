@@ -7,7 +7,7 @@
 #   ralph align-specs [max_iterations]
 #   ralph prompt <file> [max_iterations]
 #   ralph update
-#   ralph sandbox <setup|up|down|reset|shell|status>
+#   ralph sandbox <setup|up|stop|reset|shell|status>
 
 set -euo pipefail
 
@@ -49,7 +49,7 @@ Modes:
   update                               Update ralph to the latest upstream version
   sandbox setup [--force]              Generate sandbox files by prompting the agent
   sandbox up                           Start the sandbox container
-  sandbox down                         Stop the sandbox container
+  sandbox stop                         Stop the sandbox container
   sandbox reset [--all]                Re-clone codebase (--all: delete all volumes)
   sandbox shell                        Open a bash shell inside the container
   sandbox status                       Show sandbox container status
@@ -620,7 +620,7 @@ DAILY WORKFLOW
   ralph sandbox up           Start the sandbox (rebuilds if files changed)
   ralph sandbox shell        Open a bash shell as the "ralph" user
   ralph sandbox status       Check container status and service health
-  ralph sandbox down         Stop the sandbox (preserves volumes)
+  ralph sandbox stop         Stop the sandbox (preserves container state)
 
 REGENERATING SANDBOX FILES
 --------------------------
@@ -1467,9 +1467,9 @@ sandbox_up() {
     echo "Use 'ralph sandbox shell' to connect once ready."
 }
 
-sandbox_down() {
+sandbox_stop() {
     sandbox_ensure_name
-    docker compose -f "$RALPH_DIR/sandbox/docker-compose.yml" down "$@"
+    docker compose -f "$RALPH_DIR/sandbox/docker-compose.yml" stop "$@"
 }
 
 sandbox_reset() {
@@ -1656,12 +1656,12 @@ case "$MODE" in
         case "$sandbox_sub" in
             setup)  sandbox_setup "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             up)     sandbox_up "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
-            down)   sandbox_down "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
+            stop)   sandbox_stop "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             reset)  sandbox_reset "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             shell)  sandbox_shell "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             status) sandbox_status "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             *)
-                echo "Usage: ralph sandbox <setup|up|down|reset|shell|status>"
+                echo "Usage: ralph sandbox <setup|up|stop|reset|shell|status>"
                 exit 1
                 ;;
         esac

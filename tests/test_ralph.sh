@@ -337,7 +337,7 @@ test_sandbox_usage_output() {
     output=$("$RALPH_DIR/ralph" --help 2>&1)
     assert_contains "shows sandbox setup" "sandbox setup" "$output"
     assert_contains "shows sandbox up" "sandbox up" "$output"
-    assert_contains "shows sandbox down" "sandbox down" "$output"
+    assert_contains "shows sandbox stop" "sandbox stop" "$output"
     assert_contains "shows sandbox reset" "sandbox reset" "$output"
     assert_contains "shows sandbox shell" "sandbox shell" "$output"
     assert_contains "shows sandbox status" "sandbox status" "$output"
