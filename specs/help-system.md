@@ -130,6 +130,9 @@ Cover:
 - Resetting vs regenerating: `setup` regenerates configuration files
   (Dockerfile, docker-compose.yml, entrypoint.sh); `reset` wipes runtime
   data (Docker volumes) but leaves configuration files untouched
+- `sandbox-setup.md`: a user-owned file for documenting sandbox fixes and
+  bootstrap steps. Created by `sandbox setup`, never overwritten. Reference
+  it from `AGENTS.md` if you want agents to act on the notes.
 - Troubleshooting: the base image is auto-refreshed on `ralph sandbox up`,
   so changes from `ralph update` take effect automatically — no manual
   image rebuild needed

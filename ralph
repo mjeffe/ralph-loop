@@ -730,6 +730,23 @@ UPDATING AGENTS.md FOR SANDBOX COMMANDS
 
     How to detect: check the SANDBOX environment variable.
     If SANDBOX=1, run commands directly. Otherwise, use the host prefix.
+
+DOCUMENTING FIXES (sandbox-setup.md)
+-------------------------------------
+
+  sandbox setup creates a sandbox-setup.md file for documenting fixes and
+  bootstrap steps that the setup agent missed or got wrong. Two sections:
+
+  - Host-Side Fixes: corrections to generated sandbox files (Dockerfile,
+    entrypoint, docker-compose.yml). Reference these when regenerating
+    with "sandbox setup --force".
+
+  - In-Sandbox Bootstrap: steps for agents inside a fresh sandbox after
+    "sandbox reset" or first "sandbox up" (db migrations, test db setup,
+    seed data, etc).
+
+  This file is never overwritten by ralph. Reference it from AGENTS.md
+  if you want agents to act on the notes.
 EOF
 }
 
@@ -1420,6 +1437,24 @@ sandbox_setup() {
         fi
     fi
 
+    # Create sandbox-setup.md if it doesn't exist (user-owned, never overwritten)
+    local setup_notes="$RALPH_DIR/sandbox-setup.md"
+    if [[ ! -f "$setup_notes" ]]; then
+        cat > "$setup_notes" <<'NOTES'
+# Sandbox Setup Notes
+
+## Host-Side Fixes
+<!-- Corrections to generated sandbox files (Dockerfile, entrypoint,
+     docker-compose.yml) that `ralph sandbox setup` got wrong.
+     Reference these when regenerating with `sandbox setup --force`. -->
+
+## In-Sandbox Bootstrap
+<!-- Steps for getting the application working inside a fresh sandbox
+     (after `sandbox reset` or first `sandbox up`): database migrations,
+     test database setup, seed data, dev server config, etc. -->
+NOTES
+    fi
+
     # Restore .env if preserved from --force
     if [[ -n "${saved_env:-}" && -f "$saved_env" ]]; then
         cp "$saved_env" "$sandbox_dir/.env"
@@ -1437,6 +1472,9 @@ sandbox_setup() {
         echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN and AMP_API_KEY"
         echo "  3. Run 'ralph sandbox up' to start the sandbox"
     fi
+    echo ""
+    echo "Tip: Use $RALPH_HOME/sandbox-setup.md to document sandbox fixes and bootstrap steps."
+    echo "     See 'ralph help sandbox' for details."
 }
 
 sandbox_up() {

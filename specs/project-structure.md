@@ -18,6 +18,7 @@ ralph-loop/                         # Project root = Ralph's home
 ├── config                          # Ralph configuration
 ├── dependencies                    # System package dependencies (apt)
 ├── sandbox-preferences.sh          # User sandbox environment preferences
+├── sandbox-setup.md                # User sandbox fixes and bootstrap notes
 ├── implementation_plan.md          # Current implementation plan
 ├── agents/                         # Agent scripts (one per supported agent)
 │   ├── amp.sh
@@ -59,6 +60,7 @@ parent-project/
 │   ├── config                      # Ralph configuration
 │   ├── dependencies                # System package dependencies (apt)
 │   ├── sandbox-preferences.sh      # User sandbox environment preferences
+│   ├── sandbox-setup.md            # User sandbox fixes and bootstrap notes
 │   ├── README.md                   # Overview of how Ralph works
 │   ├── implementation_plan.md      # Current implementation plan
 │   ├── agents/                     # Agent scripts (one per supported agent)

@@ -61,6 +61,7 @@ After `ralph sandbox setup` generates the project-specific files:
 │   ├── .env                  # gitignored — contains tokens (GITHUB_TOKEN, AMP_API_KEY, etc.)
 │   └── .env.example          # committed — template for .env
 ├── sandbox-preferences.sh    # user-customizable sandbox preferences
+├── sandbox-setup.md          # user-owned — sandbox fixes and bootstrap notes
 ├── prompts/
 │   ├── sandbox-analyze.md    # managed upstream — prompt for project analysis pass
 │   ├── sandbox-render.md     # managed upstream — prompt for sandbox file rendering pass
@@ -91,6 +92,7 @@ After `ralph sandbox setup` generates the project-specific files:
 | `sandbox/entrypoint.sh` | project | No — generated once by `ralph sandbox setup` |
 | `sandbox/.env.example` | project | No — generated once by `ralph sandbox setup` |
 | `sandbox/.env` | user | No — gitignored, never committed |
+| `sandbox-setup.md` | user | No — created once by `ralph sandbox setup`, never overwritten |
 
 ## Sandbox Name Uniqueness
 
@@ -452,6 +454,46 @@ Otherwise, use the host prefix.
 This is a human responsibility — `ralph sandbox setup` prints a reminder after
 generating sandbox files, but the actual `AGENTS.md` edits are project-specific
 and best done by the developer.
+
+## Sandbox Setup Notes (`sandbox-setup.md`)
+
+`ralph sandbox setup` creates a `sandbox-setup.md` file in the ralph directory
+if one does not already exist. This file is the user's durable memory for
+sandbox customizations and fixes — knowledge that would otherwise be lost
+between sessions or team members.
+
+The file is never overwritten by setup, update, or any other ralph command.
+It is user-owned documentation, not consumed by ralph or its agents.
+
+### Template
+
+```markdown
+# Sandbox Setup Notes
+
+## Host-Side Fixes
+<!-- Corrections to generated sandbox files (Dockerfile, entrypoint,
+     docker-compose.yml) that `ralph sandbox setup` got wrong.
+     Reference these when regenerating with `sandbox setup --force`. -->
+
+## In-Sandbox Bootstrap
+<!-- Steps for getting the application working inside a fresh sandbox
+     (after `sandbox reset` or first `sandbox up`): database migrations,
+     test database setup, seed data, dev server config, etc. -->
+```
+
+### Why this file exists
+
+The sandbox setup agent generates reasonable defaults but cannot anticipate
+every project quirk. Users inevitably discover fixes — a missing PHP
+extension, a migration that needs a manual step, a config file the
+entrypoint didn't create. Without a durable place to record these, the
+knowledge lives in the user's head and must be rediscovered after every
+`sandbox setup --force` or `sandbox reset`.
+
+Users who want agents to act on this information can reference
+`sandbox-setup.md` from their `AGENTS.md` — ralph does not inject it
+into prompts directly, consistent with the "no runtime awareness of the
+sandbox" design principle.
 
 ## Non-Goals
 
