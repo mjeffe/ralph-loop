@@ -731,8 +731,8 @@ services:
         required: false
     environment:
       - SANDBOX=1
-      - "GIT_REPO=${GIT_REPO}"
-      - "AMP_API_KEY=${AMP_API_KEY}"
+      - GIT_REPO
+      - AMP_API_KEY
       # Credential vars based on profile.git_provider:
       # GitHub: GITHUB_TOKEN
       # Other: GIT_CRED_USER, GIT_CRED_PASS
@@ -784,8 +784,11 @@ volumes:
 - `depends_on` with healthchecks — no wait-for-it scripts
 - DB initialization handled entirely by the official postgres image
   (user, password, database created via environment variables)
-- **Environment uses list syntax** (`- KEY=value`), never map syntax. Quote any
-  entry whose value contains a colon.
+- **Environment uses list syntax**, never map syntax. Quote any entry whose
+  value contains a colon. For secret vars that come from `env_file` or the
+  host environment, use **pass-through syntax** (bare name, no `=`):
+  `- GIT_REPO`, `- AMP_API_KEY`, `- GITHUB_TOKEN`. For vars with literal
+  values, use `- KEY=value` syntax: `- SANDBOX=1`.
 - **Only infrastructure vars** — do NOT include app-config vars (`DB_*`,
   `MAIL_*`, `CACHE_STORE`, etc.) which would shadow the framework's dotenv
   loader.

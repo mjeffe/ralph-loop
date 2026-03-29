@@ -260,8 +260,8 @@ services:
         required: false
     environment:
       - SANDBOX=1
-      - "GIT_REPO=${GIT_REPO}"
-      - "AMP_API_KEY=${AMP_API_KEY}"
+      - GIT_REPO
+      - AMP_API_KEY
       # Credential vars based on profile.git_provider:
       # GitHub: GITHUB_TOKEN
       # Other: GIT_CRED_USER, GIT_CRED_PASS
@@ -304,8 +304,11 @@ volumes:
 Key points:
 - `name: ${SANDBOX_NAME:-project-sandbox}` — use this literal string. Compose
   resolves the env var at runtime.
-- **Environment uses list syntax** (`- KEY=value`), never map syntax. Quote
-  any entry whose value contains a colon (see Appendix B).
+- **Environment uses list syntax**, never map syntax. Quote any entry whose
+  value contains a colon (see Appendix B). For secret vars that come from
+  `env_file` or the host environment, use **pass-through syntax** (bare name,
+  no `=`): `- GIT_REPO`, `- AMP_API_KEY`, `- GITHUB_TOKEN`. For vars with
+  literal values, use `- KEY=value` syntax: `- SANDBOX=1`.
 - **Only infrastructure vars** in the app service environment: `SANDBOX=1`,
   `GIT_REPO`, `AMP_API_KEY`, credential vars, `GIT_CONFIG` vars.
 - **No app-config vars** (`DB_*`, `MAIL_*`, `CACHE_STORE`, etc.).
