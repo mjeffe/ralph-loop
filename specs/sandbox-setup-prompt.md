@@ -620,7 +620,11 @@ fi
 
 # --- 1b. Clone repo ---
 if [ ! -f .git/HEAD ]; then
-    git clone "$GIT_REPO" .
+    if [ -n "${GIT_BRANCH:-}" ]; then
+        git clone --branch "$GIT_BRANCH" "$GIT_REPO" .
+    else
+        git clone "$GIT_REPO" .
+    fi
     chown -R ralph:ralph .
 fi
 
@@ -732,6 +736,7 @@ services:
     environment:
       - SANDBOX=1
       - GIT_REPO
+      - GIT_BRANCH
       - AMP_API_KEY
       # Credential vars based on profile.git_provider:
       # GitHub: GITHUB_TOKEN
@@ -828,6 +833,10 @@ Do NOT use Unicode box-drawing characters or padded decorative lines.
 ```bash
 # --- Git Repository ---
 GIT_REPO=https://github.com/example/project.git
+
+# Branch to clone (leave empty for remote default branch)
+# Example: set to a feature branch after 'ralph update' to get the updated ralph version
+GIT_BRANCH=
 
 # --- Credentials ---
 # GitHub token (for GitHub-hosted repos)
