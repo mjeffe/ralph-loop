@@ -52,7 +52,7 @@ Ralph supports two planning strategies:
 
 - **Gap-driven** (`ralph plan`) — You write target-state specs describing what the system should be. The planner compares specs to code and generates tasks to close the gaps. Use this when you know the destination but not the exact steps.
 
-- **Sequence-constrained** (`ralph plan --process`) — You write process specs with explicit phases and ordering (migrations, staged rollouts, phased refactors). The planner decomposes your phases into tasks while preserving your sequencing. Use this when the order of work matters.
+- **Sequence-constrained** (`ralph plan --process`) — You write process specs with explicit phases and ordering (migrations, staged rollouts, phased refactors). The planner decomposes your phases into tasks while preserving your sequencing. Use this when the order of work matters. Be sure to see `ralph help align-specs` for an important follow-up to run after a _sequence-constrained plan/build_ cycle.
 
 Run `ralph help plan` and `ralph help specs` for detailed guidance on choosing between them.
 
