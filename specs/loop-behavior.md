@@ -208,6 +208,7 @@ End Time: ${TIMESTAMP}
 Duration: ${DURATION}
 Iteration Cost: ${ITER_COST} (if usage tracking configured)
 Balance: ${BALANCE} (if usage tracking configured)
+Context: ${TOKENS_USED}/${MAX_TOKENS} tokens (${PCT}%) (if context tracking available)
 Status: ${STATUS}
 ================================================================================
 
@@ -233,12 +234,15 @@ Exit Code: ${EXIT_CODE}
 ## Usage Tracking
 
 Agent scripts may optionally define `agent_pre_iteration` and `agent_post_iteration` hook
-functions to enable per-iteration cost tracking. Ralph checks for these functions at runtime
-and calls them if present. See `specs/agent-scripts.md` for the hook contract and examples.
+functions to enable per-iteration cost and context tracking. Ralph checks for these functions
+at runtime and calls them if present. See `specs/agent-scripts.md` for the hook contract and
+examples.
 
 When hooks are defined, they can query the agent's account balance before and after each
-iteration, compute the cost, and log it using the `log` function provided by ralph. When
-hooks are not defined, no usage information is displayed.
+iteration, compute the cost, and log it using the `log` function provided by ralph. Hooks
+can also extract context window usage from the raw agent output in `last_agent_output` (e.g.,
+token counts and max context window size from the agent's NDJSON stream). When hooks are not
+defined, no usage information is displayed.
 
 ## Error Handling
 

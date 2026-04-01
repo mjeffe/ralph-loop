@@ -129,7 +129,9 @@ agent_pre_iteration() {
 #### `agent_post_iteration`
 
 Called after each agent invocation (regardless of success or failure). Useful for computing
-and logging per-iteration cost.
+and logging per-iteration cost and context window usage. The raw agent output is available
+in `$RALPH_DIR/last_agent_output` for extracting usage metadata (e.g., token counts from
+the agent's NDJSON stream).
 
 ```bash
 agent_post_iteration() {
@@ -139,6 +141,23 @@ agent_post_iteration() {
         local cost
         cost=$(awk "BEGIN {printf \"%.2f\", $_BALANCE_BEFORE - $balance_after}" 2>/dev/null || true)
         log "Iteration Cost: \$${cost}  Balance: \$${balance_after}"
+    fi
+
+    # Extract context window usage from the last assistant message's usage object
+    local usage_line
+    usage_line=$(grep -o '"usage":{[^}]*}' "$RALPH_DIR/last_agent_output" 2>/dev/null | tail -1)
+    if [[ -n "$usage_line" ]]; then
+        local input cache_create cache_read output_tok total max_tok pct
+        input=$(echo "$usage_line" | grep -o '"input_tokens":[0-9]*' | grep -o '[0-9]*')
+        cache_create=$(echo "$usage_line" | grep -o '"cache_creation_input_tokens":[0-9]*' | grep -o '[0-9]*')
+        cache_read=$(echo "$usage_line" | grep -o '"cache_read_input_tokens":[0-9]*' | grep -o '[0-9]*')
+        output_tok=$(echo "$usage_line" | grep -o '"output_tokens":[0-9]*' | grep -o '[0-9]*')
+        max_tok=$(echo "$usage_line" | grep -o '"max_tokens":[0-9]*' | grep -o '[0-9]*')
+        total=$(( ${input:-0} + ${cache_create:-0} + ${cache_read:-0} + ${output_tok:-0} ))
+        if [[ "${max_tok:-0}" -gt 0 ]]; then
+            pct=$(awk "BEGIN {printf \"%.0f\", ($total / $max_tok) * 100}" 2>/dev/null || true)
+            log "Context: ${total}/${max_tok} tokens (${pct}%)"
+        fi
     fi
 }
 ```
@@ -202,6 +221,22 @@ agent_post_iteration() {
         local cost
         cost=$(awk "BEGIN {printf \"%.2f\", $_BALANCE_BEFORE - $balance_after}" 2>/dev/null || true)
         log "Iteration Cost: \$${cost}  Balance: \$${balance_after}"
+    fi
+
+    local usage_line
+    usage_line=$(grep -o '"usage":{[^}]*}' "$RALPH_DIR/last_agent_output" 2>/dev/null | tail -1)
+    if [[ -n "$usage_line" ]]; then
+        local input cache_create cache_read output_tok total max_tok pct
+        input=$(echo "$usage_line" | grep -o '"input_tokens":[0-9]*' | grep -o '[0-9]*')
+        cache_create=$(echo "$usage_line" | grep -o '"cache_creation_input_tokens":[0-9]*' | grep -o '[0-9]*')
+        cache_read=$(echo "$usage_line" | grep -o '"cache_read_input_tokens":[0-9]*' | grep -o '[0-9]*')
+        output_tok=$(echo "$usage_line" | grep -o '"output_tokens":[0-9]*' | grep -o '[0-9]*')
+        max_tok=$(echo "$usage_line" | grep -o '"max_tokens":[0-9]*' | grep -o '[0-9]*')
+        total=$(( ${input:-0} + ${cache_create:-0} + ${cache_read:-0} + ${output_tok:-0} ))
+        if [[ "${max_tok:-0}" -gt 0 ]]; then
+            pct=$(awk "BEGIN {printf \"%.0f\", ($total / $max_tok) * 100}" 2>/dev/null || true)
+            log "Context: ${total}/${max_tok} tokens (${pct}%)"
+        fi
     fi
 }
 ```
