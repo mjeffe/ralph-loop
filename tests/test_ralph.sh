@@ -801,11 +801,13 @@ EOF
     assert_contains "conflict has markers" "<<<<<<<" "$(cat "$test_dir/ours.md")"
 }
 
-test_updater_originals_in_gitignore() {
-    echo "--- .originals/ in .gitignore ---"
+test_updater_originals_not_in_gitignore() {
+    echo "--- .originals/ NOT in .gitignore (must be committed for sandbox persistence) ---"
     local gitignore
     gitignore=$(cat "$RALPH_DIR/.gitignore")
-    assert_contains ".gitignore excludes .originals/" ".originals/" "$gitignore"
+    local has_originals
+    has_originals=$(echo "$gitignore" | grep -c '\.originals/' || true)
+    assert_eq ".gitignore does not exclude .originals/" "0" "$has_originals"
 }
 
 test_updater_has_merge_logic() {
@@ -1276,7 +1278,7 @@ main() {
     test_installer_creates_originals
     test_updater_three_way_merge_clean
     test_updater_three_way_merge_conflict
-    test_updater_originals_in_gitignore
+    test_updater_originals_not_in_gitignore
     test_updater_has_merge_logic
     test_sandbox_validate_profile_valid
     test_sandbox_validate_profile_missing_fields

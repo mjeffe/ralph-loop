@@ -311,7 +311,6 @@ The ralph script must be updated to:
 ### .ralph/.gitignore
 
 Add `*.upstream` pattern to exclude upstream review files from git.
-Add `.originals/` to exclude the originals directory from git.
 
 ## New Files
 
