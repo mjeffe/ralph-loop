@@ -285,7 +285,7 @@ If a process spec includes explicit testing rules (testing strategy, testing app
 1. **Read inputs** — Study `AGENTS.md`, `${SPECS_DIR}/README.md`, all top-level `*.md` files in `${PROCESS_DIR}/` (not subdirectories), and optionally target-state specs in `${SPECS_DIR}/` for background context (domain knowledge, naming conventions, architectural patterns). If `${RALPH_HOME}/implementation_plan.md` exists, read it to understand prior progress.
 2. **Survey the codebase** — Understand the current state of the project, focusing on areas touched by the process specs. Survey enough of the codebase to accurately size remaining phases and identify sequencing-relevant constraints.
 3. **Check for completed specs** — If your survey reveals that all work described by a process spec is already complete, do not generate tasks for it. Instead, note it at the top of the plan: "Process spec `<file>` appears complete — consider moving it to `${PROCESS_DIR}/archive/`."
-4. **Decompose phases** — For each active process spec, determine whether each phase and step fits in a single build iteration or needs splitting. Split based on independently testable concerns, but keep child tasks adjacent within their parent phase. You may emit **discovery/investigation tasks** (inventories, measurements, feasibility assessments) when a phase requires understanding before implementation.
+4. **Decompose phases** — For each active process spec, determine whether each phase and step fits in a single build iteration or needs splitting. Split based on independently verifiable or behaviorally distinct concerns, but keep child tasks adjacent within their parent phase. You may emit **discovery/investigation tasks** (inventories, measurements, feasibility assessments) when a phase requires understanding before implementation.
 5. **Write the plan** — Create or update `${RALPH_HOME}/implementation_plan.md`. If the plan already contains build progress, apply the Regeneration Rules below before writing the updated plan.
 6. **Commit** all changes with a descriptive commit message.
 7. **If planning is complete**, output the completion signal (see Exit Signal).
@@ -310,7 +310,7 @@ At the top of the plan, include:
 - `Plan Command: ralph plan --process`
 - `Primary Process Specs:` comma-separated list of active process spec files
 
-Structure the main body using phase headings (e.g., `## Phase 0 — Inventory and safety rails`). Each phase should include its source process spec traceability and an optional `Depends on:` line when helpful.
+Structure the main body using phase headings (e.g., `## Phase 0 — Inventory and safety rails`). Each phase should include its source process spec traceability and an optional `Depends on:` line when helpful. Use sequential task numbering within each phase (e.g., `### Task 1 — Install Dependencies (1a)`) — the task number is the plan's identifier; the parenthetical is spec traceability.
 
 Each task must include enough context for a build agent starting with fresh context and no memory of prior iterations. At minimum:
 - A short title and brief description
@@ -342,13 +342,38 @@ Not acceptable: bare "Run tests" or "Verify it works" without qualification.
 
 ## Task Sizing
 
-- If a process spec step is completable in one build iteration, make it one task.
-- If a step is too large (touches multiple independently testable concerns), split it into child tasks. Keep child tasks adjacent and ordered within their parent phase.
-- If a step is too small, combine it with adjacent steps in the same phase — but only if they would logically be committed together. Include small adjacent help/docs/prompt updates triggered by the main change in the same task.
+Treat each authored step or sub-phase in the process spec as a **candidate container**, not a presumed task. A step with its own heading, effort label, or verification block may still need multiple build tasks. The spec author organized work by logical concern; your job is to re-slice it into agent-iteration-sized pieces while respecting the spec's sequence and phase boundaries.
+
+"Completable in one build iteration" means a fresh-context build agent can read the needed references, make the code changes, run verification, and produce a coherent commit -- without spanning too many subsystems or independent deliverables. Remember that each build iteration starts with zero memory of prior work and must spend context on reading the plan, studying relevant code, and orienting before writing a single line.
+
+### Sizing rules
+
+- If a step is completable in one build iteration (per the definition above), make it one task.
+- If a step is too large (touches multiple independently verifiable or behaviorally distinct concerns), split it into child tasks. Keep child tasks adjacent and ordered within their parent phase.
+- If a step is too small, combine it with adjacent steps in the same phase -- but only if they would logically be committed together. Include small adjacent help/docs/prompt updates triggered by the main change in the same task.
 - Each task should be completable in one build iteration and committable as a single logical unit.
 - Do not create build tasks whose sole purpose is to verify whether an apparently implemented requirement is already done when planning can answer that from repo evidence. If the evidence is insufficient, create a focused investigation task and note the uncertainty.
-- Never split a destructive change (dropping a column, removing a shared interface, deleting a public API) from the code that references it. Bundle the removal and all dependent code updates into a single task — splitting them guarantees a broken intermediate state.
-- Split when a task mixes concerns with different verification surfaces (e.g., migration/schema checks vs UI behavior vs config/build validation vs dead-code grep), unless keeping them together is necessary to preserve a working intermediate state. Combine adjacent steps when they serve one narrow concern, share verification, and would naturally ship as one commit.
+- Never split a destructive change (dropping a column, removing a shared interface, deleting a public API) from the code that references it. Bundle the removal and all dependent code updates into a single task -- splitting them guarantees a broken intermediate state.
+- Split when a task mixes concerns with different verification surfaces (e.g., migration/schema checks vs UI behavior vs config/build validation vs dead-code grep), unless keeping them together is necessary to preserve a working intermediate state. A shared top-level build or test command does not by itself unify otherwise distinct concerns into a single verification surface. Combine adjacent steps when they serve one narrow concern, share verification, and would naturally ship as one commit.
+
+### Split signals
+
+The following are strong signals that a step should be split into multiple tasks. Any one signal warrants scrutiny; two or more together mean split by default.
+
+- **File volume:** The task requires more than ~5 substantive file creations or edits. Files that are mostly generated or differ only mechanically (boilerplate config, repetitive scaffolding) do not count toward this threshold.
+- **Reference reading burden:** The build agent must study more than ~4 non-trivial existing files to understand behavior before writing new code. Reading cost is real task cost -- it consumes the same context the agent needs for implementation.
+- **Multi-subsystem coordination:** The task combines 3+ distinct concern types -- e.g., routing, auth/session, database migrations, UI/frontend bootstrap, environment/config. Each concern type typically has its own failure modes and verification checks.
+- **Independent components:** The step creates multiple components, pages, or modules that each have their own behavioral contract and could be built and verified independently. Default to groups of 3-5 related items per task rather than one monolithic task for all of them.
+
+### Sizing self-check (mandatory)
+
+Before finalizing each task, evaluate it against the four split signals above and emit a brief sizing justification as a comment block at the end of the task:
+
+```markdown
+<!-- Sizing: files=N, refs=N, subsystems=[list], independent_components=N. Signals fired: N/4. Decision: keep | split. [If keeping despite 2+ signals, explain why.] -->
+```
+
+If 2 or more signals fire and you do not split, you must provide a concrete justification (e.g., "splitting would create a broken intermediate state" or "the files are mechanically identical boilerplate"). "The spec groups them together" is not a valid justification -- the spec organizes by logical concern, not agent iteration size.
 
 ## Discovered Work
 
