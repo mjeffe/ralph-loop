@@ -39,3 +39,29 @@ agent_format_display() {
             else empty end' 2>/dev/null || true
     done
 }
+
+# Extracts context window usage from the raw NDJSON output. Claude Code's
+# stream-json uses the same schema as amp (usage object in assistant messages).
+agent_post_iteration() {
+    local usage_line
+    usage_line=$(grep -o '"usage":{[^}]*}' "$RALPH_DIR/last_agent_output" 2>/dev/null | tail -1)
+    if [[ -n "$usage_line" ]]; then
+        local input cache_create cache_read output_tok total max_tok pct
+        input=$(echo "$usage_line" | grep -o '"input_tokens":[0-9]*' | grep -o '[0-9]*')
+        cache_create=$(echo "$usage_line" | grep -o '"cache_creation_input_tokens":[0-9]*' | grep -o '[0-9]*')
+        cache_read=$(echo "$usage_line" | grep -o '"cache_read_input_tokens":[0-9]*' | grep -o '[0-9]*')
+        output_tok=$(echo "$usage_line" | grep -o '"output_tokens":[0-9]*' | grep -o '[0-9]*')
+        max_tok=$(echo "$usage_line" | grep -o '"max_tokens":[0-9]*' | grep -o '[0-9]*')
+        total=$(( ${input:-0} + ${cache_create:-0} + ${cache_read:-0} + ${output_tok:-0} ))
+        if [[ "${max_tok:-0}" -gt 0 ]]; then
+            pct=$(awk "BEGIN {printf \"%.0f\", ($total / $max_tok) * 100}" 2>/dev/null || true)
+            log "Context: ${total}/${max_tok} tokens (${pct}%)"
+            if [[ "${pct:-0}" -ge "${CONTEXT_WARN_PCT:-80}" ]]; then
+                log "⚠ Context usage high — agent quality may degrade"
+            fi
+            _ITER_CONTEXT_USED=$total
+            _ITER_CONTEXT_MAX=$max_tok
+            _ITER_CONTEXT_PCT=$pct
+        fi
+    fi
+}
