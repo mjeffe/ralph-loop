@@ -77,6 +77,14 @@ updater overwrites or merges a file, it updates the `.originals/` copy with the 
 version. This ensures the originals always reflect the upstream version the user's current
 file was derived from.
 
+### Git tracking
+
+`.originals/` **must be committed to git** — it must not be gitignored. Sandbox environments
+are rebuilt from git-tracked files, so any gitignored directory is wiped on rebuild. Without
+`.originals/`, the updater has no merge base and falls back to SKIPPED for every modified
+file, effectively disabling three-way merges. The directory contains only vanilla upstream
+copies of managed files (no secrets or user data), so committing it is safe.
+
 ## File Classification
 
 Files in `.ralph/` fall into three categories that determine update behavior:
