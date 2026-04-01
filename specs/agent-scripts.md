@@ -133,6 +133,12 @@ and logging per-iteration cost and context window usage. The raw agent output is
 in `$RALPH_DIR/last_agent_output` for extracting usage metadata (e.g., token counts from
 the agent's NDJSON stream).
 
+To enable session-level context aggregation, set `_ITER_CONTEXT_PCT` (integer percentage),
+`_ITER_CONTEXT_USED` (tokens used), and `_ITER_CONTEXT_MAX` (context window size). The loop
+reads these after each iteration to compute min/avg/max for the session summary.
+
+If context usage meets or exceeds `CONTEXT_WARN_PCT` (default: 80), log a warning.
+
 ```bash
 agent_post_iteration() {
     local balance_after
@@ -157,6 +163,12 @@ agent_post_iteration() {
         if [[ "${max_tok:-0}" -gt 0 ]]; then
             pct=$(awk "BEGIN {printf \"%.0f\", ($total / $max_tok) * 100}" 2>/dev/null || true)
             log "Context: ${total}/${max_tok} tokens (${pct}%)"
+            if [[ "${pct:-0}" -ge "${CONTEXT_WARN_PCT:-80}" ]]; then
+                log "⚠ Context usage high — agent quality may degrade"
+            fi
+            _ITER_CONTEXT_USED=$total
+            _ITER_CONTEXT_MAX=$max_tok
+            _ITER_CONTEXT_PCT=$pct
         fi
     fi
 }
@@ -236,6 +248,12 @@ agent_post_iteration() {
         if [[ "${max_tok:-0}" -gt 0 ]]; then
             pct=$(awk "BEGIN {printf \"%.0f\", ($total / $max_tok) * 100}" 2>/dev/null || true)
             log "Context: ${total}/${max_tok} tokens (${pct}%)"
+            if [[ "${pct:-0}" -ge "${CONTEXT_WARN_PCT:-80}" ]]; then
+                log "⚠ Context usage high — agent quality may degrade"
+            fi
+            _ITER_CONTEXT_USED=$total
+            _ITER_CONTEXT_MAX=$max_tok
+            _ITER_CONTEXT_PCT=$pct
         fi
     fi
 }

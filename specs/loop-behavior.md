@@ -226,6 +226,7 @@ Total Iterations: ${TOTAL}
 Successful: ${SUCCESS_COUNT}
 Failed: ${FAIL_COUNT}
 Total Duration: ${TOTAL_DURATION}
+Context: min ${MIN}% / avg ${AVG}% / max ${MAX}%  (window: ${WINDOW} tokens) (if context tracking available)
 Exit Reason: ${EXIT_REASON}
 Exit Code: ${EXIT_CODE}
 ================================================================================
@@ -243,6 +244,16 @@ iteration, compute the cost, and log it using the `log` function provided by ral
 can also extract context window usage from the raw agent output in `last_agent_output` (e.g.,
 token counts and max context window size from the agent's NDJSON stream). When hooks are not
 defined, no usage information is displayed.
+
+### Context Tracking
+
+When `agent_post_iteration` sets `_ITER_CONTEXT_PCT` (and optionally `_ITER_CONTEXT_USED`
+and `_ITER_CONTEXT_MAX`), the loop aggregates context usage across iterations and includes
+min/avg/max percentages in the session summary.
+
+If context usage meets or exceeds `CONTEXT_WARN_PCT` (default: 80), the agent script should
+log a warning. High context usage correlates with degraded agent quality — the fresh-context-
+per-iteration design mitigates this, but large tasks can still push a single iteration high.
 
 ## Error Handling
 

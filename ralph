@@ -272,13 +272,27 @@ run_loop() {
     local prompt_template="$1"
     local session_start iteration=0 success=0 failures=0
     local exit_reason="max iterations reached" exit_code=0
+    local context_min="" context_max="" context_sum=0 context_count=0 context_window=""
     session_start=$(date +%s)
 
     while [[ $iteration -lt $MAX_ITERATIONS ]]; do
         iteration=$(( iteration + 1 ))
+        _ITER_CONTEXT_USED="" _ITER_CONTEXT_MAX="" _ITER_CONTEXT_PCT=""
 
         local rc=0
         run_iteration "$iteration" "$prompt_template" || rc=$?
+
+        if [[ -n "${_ITER_CONTEXT_PCT:-}" ]]; then
+            context_count=$(( context_count + 1 ))
+            context_sum=$(( context_sum + _ITER_CONTEXT_PCT ))
+            context_window="${_ITER_CONTEXT_MAX}"
+            if [[ -z "$context_min" || "$_ITER_CONTEXT_PCT" -lt "$context_min" ]]; then
+                context_min=$_ITER_CONTEXT_PCT
+            fi
+            if [[ -z "$context_max" || "$_ITER_CONTEXT_PCT" -gt "$context_max" ]]; then
+                context_max=$_ITER_CONTEXT_PCT
+            fi
+        fi
 
         case $rc in
             0) success=$(( success + 1 )) ;;
@@ -300,6 +314,11 @@ run_loop() {
     log "================================================================================"
     log "Iterations: ${iteration}  Successful: ${success}  Failed: ${failures}"
     log "Duration: $(( $(date +%s) - session_start ))s"
+    if [[ "$context_count" -gt 0 ]]; then
+        local context_avg
+        context_avg=$(( context_sum / context_count ))
+        log "Context: min ${context_min}% / avg ${context_avg}% / max ${context_max}%  (window: ${context_window} tokens)"
+    fi
     log "Exit: ${exit_reason} (code ${exit_code})"
     log "================================================================================"
 

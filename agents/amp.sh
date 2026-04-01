@@ -76,6 +76,13 @@ agent_post_iteration() {
         if [[ "${max_tok:-0}" -gt 0 ]]; then
             pct=$(awk "BEGIN {printf \"%.0f\", ($total / $max_tok) * 100}" 2>/dev/null || true)
             log "Context: ${total}/${max_tok} tokens (${pct}%)"
+            if [[ "${pct:-0}" -ge "${CONTEXT_WARN_PCT:-80}" ]]; then
+                log "⚠ Context usage high — agent quality may degrade"
+            fi
+            # Export for session summary aggregation in run_loop
+            _ITER_CONTEXT_USED=$total
+            _ITER_CONTEXT_MAX=$max_tok
+            _ITER_CONTEXT_PCT=$pct
         fi
     fi
 }
