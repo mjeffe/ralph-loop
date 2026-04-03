@@ -342,6 +342,15 @@ run_loop() {
 # ---------------------------------------------------------------------------
 sandbox_ensure_name() {
     if [[ -z "${SANDBOX_NAME:-}" ]]; then
+        local env_file="$RALPH_DIR/sandbox/.env"
+        if [[ -f "$env_file" ]]; then
+            local file_val
+            file_val=$(grep -E '^SANDBOX_NAME=' "$env_file" 2>/dev/null | tail -1 | cut -d= -f2-)
+            if [[ -n "$file_val" ]]; then
+                export SANDBOX_NAME="$file_val"
+                return
+            fi
+        fi
         local project_root
         project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
         local hash
@@ -349,6 +358,9 @@ sandbox_ensure_name() {
         local dir_name
         dir_name=$(basename "$project_root")
         export SANDBOX_NAME="${dir_name}-sandbox-${hash}"
+        if [[ -f "$env_file" ]]; then
+            echo "SANDBOX_NAME=${SANDBOX_NAME}" >> "$env_file"
+        fi
     fi
 }
 

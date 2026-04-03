@@ -100,13 +100,29 @@ When a project is checked out in multiple locations on the same host (e.g.,
 `~/src/perkins/` and `~/tmp/perkins/`), the generated `docker-compose.yml` would
 produce collisions — identical project names, container names, and volume names.
 
-The `sandbox_ensure_name()` function auto-derives a unique `SANDBOX_NAME` from the
-checkout path, combining the directory basename with an 8-character hash of the full
-path. Users can override it via the `SANDBOX_NAME` environment variable.
+The `sandbox_ensure_name()` function resolves `SANDBOX_NAME` using the following
+precedence:
+
+1. **Shell environment** — if `SANDBOX_NAME` is already exported, use it as-is.
+2. **`.env` file** — if an uncommented `SANDBOX_NAME=` line exists in
+   `.ralph/sandbox/.env`, use that value.
+3. **Auto-derive** — compute from the checkout path (directory basename + 8-char
+   hash of the full path) and persist the result to `.env` (if the file exists)
+   so that non-ralph tools (e.g., VS Code Dev Containers) resolve the same
+   project name.
 
 ```bash
 sandbox_ensure_name() {
     if [[ -z "${SANDBOX_NAME:-}" ]]; then
+        local env_file="$RALPH_DIR/sandbox/.env"
+        if [[ -f "$env_file" ]]; then
+            local file_val
+            file_val=$(grep -E '^SANDBOX_NAME=' "$env_file" 2>/dev/null | tail -1 | cut -d= -f2-)
+            if [[ -n "$file_val" ]]; then
+                export SANDBOX_NAME="$file_val"
+                return
+            fi
+        fi
         local project_root
         project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
         local hash
@@ -114,6 +130,9 @@ sandbox_ensure_name() {
         local dir_name
         dir_name=$(basename "$project_root")
         export SANDBOX_NAME="${dir_name}-sandbox-${hash}"
+        if [[ -f "$env_file" ]]; then
+            echo "SANDBOX_NAME=${SANDBOX_NAME}" >> "$env_file"
+        fi
     fi
 }
 ```
