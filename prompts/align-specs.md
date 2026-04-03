@@ -27,14 +27,23 @@ implementation plan for build decisions, and the codebase for current reality.
 2. **Identify affected specs** — Determine which target-state specs describe behavior
    that was changed by the migration. Include specs that need updating, new specs that
    need creating, and obsolete specs that should be removed.
-3. **Create the alignment ledger** — Write `${RALPH_HOME}/alignment_ledger.md` listing
+3. **Verify completeness with grep** — Build a short list of concrete, high-signal stale
+   terms from the process specs and implementation plan: old/removed identifiers, column
+   names, filenames, config keys, API fields, and renamed concepts. Prefer exact tokens
+   (e.g., `realm_id`, `realms.csv`) over broad domain words. Search all spec files under
+   `${SPECS_DIR}/` for those terms. Treat each match as a **review candidate**, not an
+   automatic inclusion — add a spec to the affected list only if the match shows that
+   its behavior, terminology, examples, or constraints need updating due to a
+   process-spec phase. This catches specs that *incidentally reference* changed concepts,
+   not just specs that are *about* them.
+4. **Create the alignment ledger** — Write `${RALPH_HOME}/alignment_ledger.md` listing
    all affected specs with status `planned` (or `new` for specs that need creating).
-4. **Begin alignment** — Survey the codebase for affected areas and start updating specs.
+5. **Begin alignment** — Survey the codebase for affected areas and start updating specs.
    For each spec you complete, update its ledger entry to `complete` with a brief summary
    of changes.
-5. **Commit** all changes (spec files + ledger) with a descriptive commit message.
-6. **If all specs are aligned**, output the completion signal (see Exit Signal).
-7. **If work remains**, stop without a signal — the loop will start another iteration.
+6. **Commit** all changes (spec files + ledger) with a descriptive commit message.
+7. **If all specs are aligned**, output the completion signal (see Exit Signal).
+8. **If work remains**, stop without a signal — the loop will start another iteration.
 
 ### Subsequent Iterations (alignment ledger exists)
 
@@ -78,7 +87,9 @@ ledger with a clear reason. Continue aligning non-blocked specs.
 ## Scope
 
 - Only update specs for areas covered by process spec phases. Do not rewrite unrelated
-  specs.
+  specs. Grep verification is a completeness check, not a license to expand scope —
+  incidental references to concepts changed by a process-spec phase are in scope, but
+  unrelated mentions are not.
 - Follow existing spec file boundaries and conventions.
 - Preserve spec sections not affected by the migration.
 - **Do not implement code changes.** This mode only updates spec files and the ledger.
