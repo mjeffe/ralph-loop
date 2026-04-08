@@ -300,7 +300,7 @@ run_loop() {
             3) success=$(( success + 1 )); exit_reason="replan signal"; exit_code=3
                local plan_cmd
                plan_cmd=$(grep -m1 '^Plan Command:' "${RALPH_HOME}/implementation_plan.md" 2>/dev/null \
-                   | sed 's/^Plan Command:[[:space:]]*//')
+                   | sed 's/^Plan Command:[[:space:]]*//' || true)
                [[ -z "$plan_cmd" ]] && plan_cmd="ralph plan"
                log "Agent requested re-planning. Run '${plan_cmd}' to regenerate the implementation plan."
                break ;;
@@ -324,7 +324,7 @@ run_loop() {
 
     if [[ "$MODE" == "build" && "$exit_reason" == "completion signal" ]]; then
         plan_type=$(grep -m1 '^Plan Type:' "$RALPH_HOME/implementation_plan.md" 2>/dev/null \
-            | sed 's/^Plan Type:[[:space:]]*//')
+            | sed 's/^Plan Type:[[:space:]]*//' || true)
         if [[ "$plan_type" == "process" ]]; then
             log ""
             log "╔══════════════════════════════════════════════════════════════════════════════════╗"
@@ -1672,7 +1672,7 @@ case "$MODE" in
             exit 1
         fi
         local_plan_type=$(grep -m1 '^Plan Type:' "$local_plan" 2>/dev/null \
-            | sed 's/^Plan Type:[[:space:]]*//')
+            | sed 's/^Plan Type:[[:space:]]*//' || true)
         if [[ "$local_plan_type" != "process" ]]; then
             echo "Error: align-specs requires a process-type implementation plan. Run 'ralph plan --process' and 'ralph build' first." >&2
             exit 1

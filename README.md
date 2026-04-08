@@ -161,6 +161,18 @@ your-project/
 └── .git/
 ```
 
+## Testing
+
+```bash
+./tests/test_ralph.sh                    # Run all tests
+./tests/test_ralph.sh sandbox            # Run only sandbox tests
+./tests/test_ralph.sh cli core           # Run multiple groups
+```
+
+Available groups: `cli`, `signals`, `core`, `install_update`, `sandbox`.
+
+All tests are deterministic, zero-cost (no agent invocation), and run in under 10 seconds. A pre-push git hook runs the full suite automatically.
+
 ## References
 
 - [Original Ralph post](https://ghuntley.com/ralph/) — Geoffrey Huntley's concept
