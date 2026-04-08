@@ -17,6 +17,9 @@ Run the test suite:
 ./tests/test_ralph.sh
 ```
 
+Tests are structural (grep/sed against source) or isolated function exercises — they never
+run install.sh/update.sh/ralph end-to-end, never call Docker, and never invoke an LLM agent.
+
 Running ralph itself can be expensive and time consuming. If you need to run it for testing
 purposes, ONLY run it after temporarily inserting debug statements or bypasses to
 short-circuit expensive operations.
