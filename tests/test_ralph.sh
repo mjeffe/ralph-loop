@@ -262,6 +262,63 @@ EOF
     assert_eq "detects signal despite malformed lines" "2" "$rc"
 }
 
+test_signal_both_complete_and_replan() {
+    echo "--- Signal detection: COMPLETE wins when both present ---"
+    source "$RALPH_DIR/agents/amp.sh"
+    local output_file="$TMP_DIR/both_signals.json"
+    cat > "$output_file" <<'EOF'
+{"type":"assistant","message":{"content":[{"type":"text","text":"<promise>COMPLETE</promise> and also <promise>REPLAN</promise>"}]}}
+EOF
+    check_signals() {
+        local response
+        response=$(agent_extract_response "$1")
+        if echo "$response" | grep -qF '<promise>COMPLETE</promise>'; then return 2; fi
+        if echo "$response" | grep -qF '<promise>REPLAN</promise>'; then return 3; fi
+        return 0
+    }
+    local rc=0
+    check_signals "$output_file" || rc=$?
+    assert_eq "COMPLETE wins over REPLAN" "2" "$rc"
+}
+
+test_signal_in_long_response() {
+    echo "--- Signal detection: finds signal in long response ---"
+    source "$RALPH_DIR/agents/amp.sh"
+    local output_file="$TMP_DIR/long_response.json"
+    # Generate a response with lots of filler text before the signal
+    local filler
+    filler=$(printf 'x%.0s' {1..500})
+    cat > "$output_file" <<EOF
+{"type":"assistant","message":{"content":[{"type":"text","text":"${filler} <promise>COMPLETE</promise>"}]}}
+EOF
+    check_signals() {
+        local response
+        response=$(agent_extract_response "$1")
+        if echo "$response" | grep -qF '<promise>COMPLETE</promise>'; then return 2; fi
+        if echo "$response" | grep -qF '<promise>REPLAN</promise>'; then return 3; fi
+        return 0
+    }
+    local rc=0
+    check_signals "$output_file" || rc=$?
+    assert_eq "finds signal in long response" "2" "$rc"
+}
+
+test_init_session_log() {
+    echo "--- init_session_log: creates log dir and file ---"
+    source <(sed -n '/^init_session_log()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local log_dir="$TMP_DIR/test_logs"
+    (
+        RALPH_DIR="$TMP_DIR"
+        mkdir -p "$TMP_DIR/logs"  # init_session_log uses $RALPH_DIR/logs
+        MODE="plan"
+        init_session_log
+        assert_eq "SESSION_LOG is set" "1" "$( [[ -n "$SESSION_LOG" ]] && echo 1 || echo 0 )"
+        assert_eq "session log file exists" "1" "$( [[ -f "$SESSION_LOG" ]] && echo 1 || echo 0 )"
+        assert_contains "log filename has mode" "-plan.log" "$SESSION_LOG"
+    )
+}
+
 test_display_filter_survives_malformed_json() {
     echo "--- Display filter: survives malformed JSON ---"
     source "$RALPH_DIR/agents/amp.sh"
@@ -275,6 +332,122 @@ EOF
     output=$(agent_format_display < "$input_file")
     assert_contains "displays line 1" "line 1" "$output"
     assert_contains "displays line 3" "line 3" "$output"
+}
+
+test_arg_parsing_plan_with_iterations() {
+    echo "--- Arg parsing: plan with max_iterations ---"
+    # Run from a dir without .git so it fails at validate_prerequisites, not arg parsing
+    local output rc=0
+    output=$(cd "$TMP_DIR" && "$RALPH_DIR/ralph" plan 5 2>&1) || rc=$?
+    assert_not_contains "plan 5 does not error on arg parsing" "unknown option" "$output"
+    assert_contains "plan 5 gets past arg parsing" "not a git repository" "$output"
+}
+
+test_arg_parsing_plan_process_with_iterations() {
+    echo "--- Arg parsing: plan --process with max_iterations ---"
+    # --process is checked after config load but before prerequisites
+    # Running from no-git dir: arg parsing succeeds, then fails at --process validation
+    local output rc=0
+    output=$(cd "$TMP_DIR" && "$RALPH_DIR/ralph" plan --process 5 2>&1) || rc=$?
+    assert_not_contains "plan --process 5 does not error on arg parsing" "unknown option" "$output"
+}
+
+test_arg_parsing_prompt_with_file_and_iterations() {
+    echo "--- Arg parsing: prompt file and iterations ---"
+    local prompt="$TMP_DIR/good_prompt.md"
+    echo "Do something <promise>COMPLETE</promise>" > "$prompt"
+    local output rc=0
+    output=$(cd "$TMP_DIR" && "$RALPH_DIR/ralph" prompt "$prompt" 5 2>&1) || rc=$?
+    assert_not_contains "prompt file+iters does not error on arg parsing" "unknown option" "$output"
+    assert_contains "prompt gets past arg parsing" "not a git repository" "$output"
+}
+
+test_arg_parsing_help_with_topic() {
+    echo "--- Arg parsing: help with topic ---"
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" help specs 2>&1) || rc=$?
+    assert_eq "help specs exits 0" "0" "$rc"
+    assert_contains "help specs shows spec content" "TARGET-STATE" "$output"
+}
+
+test_arg_parsing_help_build_topic() {
+    echo "--- Arg parsing: help build topic ---"
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" help build 2>&1) || rc=$?
+    assert_eq "help build exits 0" "0" "$rc"
+    assert_contains "help build shows task selection" "TASK SELECTION" "$output"
+}
+
+test_arg_parsing_help_sandbox_topic() {
+    echo "--- Arg parsing: help sandbox topic ---"
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" help sandbox 2>&1) || rc=$?
+    assert_eq "help sandbox exits 0" "0" "$rc"
+    assert_contains "help sandbox shows first-time setup" "FIRST-TIME SETUP" "$output"
+}
+
+test_validate_prerequisites_no_git() {
+    echo "--- validate_prerequisites: no .git directory ---"
+    local output rc=0
+    # Run from a temp dir with no .git
+    output=$(cd "$TMP_DIR" && "$RALPH_DIR/ralph" plan 2>&1) || rc=$?
+    assert_eq "no .git exits 1" "1" "$rc"
+    assert_contains "error mentions no git" "not a git repository" "$output"
+}
+
+test_validate_prerequisites_no_specs_dir() {
+    echo "--- validate_prerequisites: missing specs directory ---"
+    local proj="$TMP_DIR/no_specs_project"
+    git init -q "$proj"
+    local output rc=0
+    output=$(cd "$proj" && "$RALPH_DIR/ralph" plan 2>&1) || rc=$?
+    assert_contains "error mentions specs dir" "specs directory not found" "$output"
+}
+
+test_validate_prerequisites_skipped_for_help() {
+    echo "--- validate_prerequisites: skipped for help mode ---"
+    local output rc=0
+    # Run help from a dir with no .git — should still succeed
+    output=$(cd "$TMP_DIR" && "$RALPH_DIR/ralph" help 2>&1) || rc=$?
+    assert_eq "help without .git exits 0" "0" "$rc"
+}
+
+test_validate_prerequisites_skipped_for_sandbox() {
+    echo "--- validate_prerequisites: skipped for sandbox mode ---"
+    local output rc=0
+    # Run sandbox from a dir with no .git — should fail at sandbox level, not prerequisites
+    output=$(cd "$TMP_DIR" && "$RALPH_DIR/ralph" sandbox status 2>&1) || rc=$?
+    assert_not_contains "sandbox skips git check" "not a git repository" "$output"
+}
+
+test_prepare_prompt() {
+    echo "--- prepare_prompt: substitutes variables ---"
+    source <(sed -n '/^prepare_prompt()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local template="$TMP_DIR/prep_template.md"
+    local output_file="$TMP_DIR/prep_output.md"
+    echo 'Mode: ${MODE} Specs: ${SPECS_DIR} Home: ${RALPH_HOME}' > "$template"
+
+    export MODE="build" SPECS_DIR="specs" RALPH_HOME=".ralph"
+    prepare_prompt "$template" "$output_file"
+    local result
+    result=$(cat "$output_file")
+    assert_eq "prepare_prompt substitutes all vars" "Mode: build Specs: specs Home: .ralph" "$result"
+}
+
+test_prepare_prompt_preserves_literals() {
+    echo "--- prepare_prompt: preserves non-variable text ---"
+    source <(sed -n '/^prepare_prompt()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local template="$TMP_DIR/prep_literal.md"
+    local output_file="$TMP_DIR/prep_literal_out.md"
+    echo 'No variables here, just plain text.' > "$template"
+
+    export MODE="plan" SPECS_DIR="specs" RALPH_HOME=".ralph"
+    prepare_prompt "$template" "$output_file"
+    local result
+    result=$(cat "$output_file")
+    assert_eq "prepare_prompt preserves plain text" "No variables here, just plain text." "$result"
 }
 
 test_build_requires_plan() {
@@ -820,6 +993,171 @@ test_updater_has_merge_logic() {
     assert_contains "update.sh reports CONFLICT status" "CONFLICT" "$updater"
 }
 
+test_sandbox_ensure_name_from_env() {
+    echo "--- sandbox_ensure_name: reads SANDBOX_NAME from .env ---"
+    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local sdir="$TMP_DIR/project/.ralph/sandbox"
+    mkdir -p "$sdir"
+    echo "SANDBOX_NAME=my-sandbox" > "$sdir/.env"
+
+    (
+        unset SANDBOX_NAME
+        RALPH_DIR="$TMP_DIR/project/.ralph"
+        sandbox_ensure_name
+        assert_eq "picks up name from .env" "my-sandbox" "$SANDBOX_NAME"
+    )
+}
+
+test_sandbox_ensure_name_missing_from_env() {
+    echo "--- sandbox_ensure_name: falls back when SANDBOX_NAME missing from .env ---"
+    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local sdir="$TMP_DIR/project/.ralph/sandbox"
+    mkdir -p "$sdir"
+    echo "OTHER_VAR=hello" > "$sdir/.env"
+
+    (
+        unset SANDBOX_NAME
+        RALPH_DIR="$TMP_DIR/project/.ralph"
+        sandbox_ensure_name
+        assert_eq "derives name (not empty)" "1" "$( [[ -n "$SANDBOX_NAME" ]] && echo 1 || echo 0 )"
+        assert_contains "derived name has -sandbox-" "-sandbox-" "$SANDBOX_NAME"
+    )
+}
+
+test_sandbox_ensure_name_no_env_file() {
+    echo "--- sandbox_ensure_name: falls back when no .env file ---"
+    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local sdir="$TMP_DIR/project/.ralph/sandbox"
+    mkdir -p "$sdir"
+    rm -f "$sdir/.env"
+
+    (
+        unset SANDBOX_NAME
+        RALPH_DIR="$TMP_DIR/project/.ralph"
+        sandbox_ensure_name
+        assert_eq "derives name (not empty)" "1" "$( [[ -n "$SANDBOX_NAME" ]] && echo 1 || echo 0 )"
+        assert_contains "derived name has -sandbox-" "-sandbox-" "$SANDBOX_NAME"
+    )
+}
+
+test_sandbox_ensure_name_already_set() {
+    echo "--- sandbox_ensure_name: no-op when SANDBOX_NAME already set ---"
+    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/ralph")
+
+    (
+        export SANDBOX_NAME="pre-existing"
+        RALPH_DIR="$TMP_DIR/project/.ralph"
+        sandbox_ensure_name
+        assert_eq "preserves existing value" "pre-existing" "$SANDBOX_NAME"
+    )
+}
+
+test_sandbox_ensure_name_writes_back_to_env() {
+    echo "--- sandbox_ensure_name: appends derived name to .env ---"
+    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local sdir="$TMP_DIR/project/.ralph/sandbox"
+    mkdir -p "$sdir"
+    echo "OTHER_VAR=hello" > "$sdir/.env"
+
+    (
+        unset SANDBOX_NAME
+        RALPH_DIR="$TMP_DIR/project/.ralph"
+        sandbox_ensure_name
+        local written
+        written=$(grep '^SANDBOX_NAME=' "$sdir/.env" || true)
+        assert_eq "wrote name back to .env" "1" "$( [[ -n "$written" ]] && echo 1 || echo 0 )"
+    )
+}
+
+test_sandbox_up_no_compose_file() {
+    echo "--- sandbox_up: exits when no compose file ---"
+    local output rc=0
+    local sandbox_dir="$TMP_DIR/no_compose/.ralph/sandbox"
+    mkdir -p "$sandbox_dir"
+    # Create a .env so that check passes, but no docker-compose.yml
+    echo "SANDBOX_NAME=test" > "$sandbox_dir/.env"
+    output=$(SANDBOX_NAME=test RALPH_DIR="$TMP_DIR/no_compose/.ralph" \
+        bash -c "source <(sed -n '/^sandbox_up()/,/^}/p' \"$RALPH_DIR/ralph\")
+                 source <(sed -n '/^sandbox_ensure_name()/,/^}/p' \"$RALPH_DIR/ralph\")
+                 sandbox_up" 2>&1) || rc=$?
+    assert_eq "exits non-zero" "1" "$rc"
+    assert_contains "mentions setup first" "sandbox setup" "$output"
+}
+
+test_sandbox_up_no_env_file() {
+    echo "--- sandbox_up: exits when no .env file ---"
+    local sandbox_dir="$TMP_DIR/no_env/.ralph/sandbox"
+    mkdir -p "$sandbox_dir"
+    # Create compose but no .env
+    echo "services:" > "$sandbox_dir/docker-compose.yml"
+    cat > "$sandbox_dir/Dockerfile" <<'DOCK'
+FROM ralph-sandbox-base
+DOCK
+    local output rc=0
+    output=$(SANDBOX_NAME=test RALPH_DIR="$TMP_DIR/no_env/.ralph" \
+        bash -c "source <(sed -n '/^sandbox_up()/,/^}/p' \"$RALPH_DIR/ralph\")
+                 source <(sed -n '/^sandbox_ensure_name()/,/^}/p' \"$RALPH_DIR/ralph\")
+                 sandbox_up" 2>&1) || rc=$?
+    assert_eq "exits non-zero" "1" "$rc"
+    assert_contains "mentions .env" ".env" "$output"
+}
+
+test_sandbox_status_no_compose_file() {
+    echo "--- sandbox_status: exits when no compose file ---"
+    local sandbox_dir="$TMP_DIR/no_compose_status/.ralph/sandbox"
+    mkdir -p "$sandbox_dir"
+    local output rc=0
+    output=$(SANDBOX_NAME=test RALPH_DIR="$TMP_DIR/no_compose_status/.ralph" \
+        bash -c "source <(sed -n '/^sandbox_status()/,/^}/p' \"$RALPH_DIR/ralph\")
+                 source <(sed -n '/^sandbox_ensure_name()/,/^}/p' \"$RALPH_DIR/ralph\")
+                 sandbox_status" 2>&1) || rc=$?
+    assert_eq "exits non-zero" "1" "$rc"
+    assert_contains "mentions setup first" "sandbox setup" "$output"
+}
+
+test_sandbox_setup_unknown_flag() {
+    echo "--- sandbox_setup: rejects unknown flags ---"
+    local output rc=0
+    output=$("$RALPH_DIR/ralph" sandbox setup --bogus 2>&1) || rc=$?
+    assert_eq "exits non-zero" "1" "$rc"
+    assert_contains "mentions unknown option" "unknown option" "$output"
+}
+
+test_sandbox_setup_render_only_without_profile() {
+    echo "--- sandbox_setup: --render-only without profile exits 1 ---"
+    # This tests flag parsing AND the render-only precondition in one shot.
+    # No Docker or agent needed — fails before reaching either.
+    local output rc=0
+    output=$(cd "$TMP_DIR" && "$RALPH_DIR/ralph" sandbox setup --render-only 2>&1) || rc=$?
+    assert_eq "exits non-zero" "1" "$rc"
+    assert_contains "mentions missing profile" "project profile" "$output"
+}
+
+test_spec_volume_hint_boundary() {
+    echo "--- Volume hint: boundary (exactly 5 files under 50KB) ---"
+    local process_dir="$TMP_DIR/boundary_specs"
+    mkdir -p "$process_dir"
+    for i in $(seq 1 5); do
+        echo "# Spec $i" > "$process_dir/spec-${i}.md"
+    done
+
+    local SPEC_BYTES SPEC_COUNT SPEC_KB SPEC_VOLUME_HINT
+    SPEC_BYTES=$(cat "$process_dir"/*.md 2>/dev/null | wc -c)
+    SPEC_COUNT=$(find "$process_dir" -maxdepth 1 -name '*.md' | wc -l)
+    SPEC_KB=$(( SPEC_BYTES / 1024 ))
+    if [[ "$SPEC_KB" -lt 50 && "$SPEC_COUNT" -lt 5 ]]; then
+        SPEC_VOLUME_HINT="single"
+    else
+        SPEC_VOLUME_HINT="incremental"
+    fi
+    # 5 files triggers the >= 5 branch (not strictly less than)
+    assert_eq "5 files triggers incremental hint" "incremental" "$SPEC_VOLUME_HINT"
+}
+
 test_sandbox_validate_profile_valid() {
     echo "--- sandbox_validate_profile: valid profile ---"
     source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
@@ -1243,7 +1581,22 @@ main() {
     test_signal_detection_no_signal
     test_signal_ignores_user_messages
     test_signal_survives_malformed_json
+    test_signal_both_complete_and_replan
+    test_signal_in_long_response
+    test_init_session_log
     test_display_filter_survives_malformed_json
+    test_arg_parsing_plan_with_iterations
+    test_arg_parsing_plan_process_with_iterations
+    test_arg_parsing_prompt_with_file_and_iterations
+    test_arg_parsing_help_with_topic
+    test_arg_parsing_help_build_topic
+    test_arg_parsing_help_sandbox_topic
+    test_validate_prerequisites_no_git
+    test_validate_prerequisites_no_specs_dir
+    test_validate_prerequisites_skipped_for_help
+    test_validate_prerequisites_skipped_for_sandbox
+    test_prepare_prompt
+    test_prepare_prompt_preserves_literals
     test_build_requires_plan
     test_prompt_requires_completion_signal
     test_claude_agent_script
@@ -1260,10 +1613,12 @@ main() {
     test_usage_shows_help
     test_help_shows_topic_index
     test_help_plan_shows_content
+    test_help_prompt_shows_content
     test_help_unknown_topic_exits_zero
     test_spec_volume_hint_in_prompt_template
     test_spec_volume_hint_small
     test_spec_volume_hint_large
+    test_spec_volume_hint_boundary
     test_build_prompt_has_phase_collapsing
     test_plan_process_has_decomposition_ledger
     test_managed_files_in_sync
@@ -1280,6 +1635,16 @@ main() {
     test_updater_three_way_merge_conflict
     test_updater_originals_not_in_gitignore
     test_updater_has_merge_logic
+    test_sandbox_ensure_name_from_env
+    test_sandbox_ensure_name_missing_from_env
+    test_sandbox_ensure_name_no_env_file
+    test_sandbox_ensure_name_already_set
+    test_sandbox_ensure_name_writes_back_to_env
+    test_sandbox_up_no_compose_file
+    test_sandbox_up_no_env_file
+    test_sandbox_status_no_compose_file
+    test_sandbox_setup_unknown_flag
+    test_sandbox_setup_render_only_without_profile
     test_sandbox_validate_profile_valid
     test_sandbox_validate_profile_missing_fields
     test_sandbox_validate_profile_bad_schema_version
