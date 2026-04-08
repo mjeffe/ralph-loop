@@ -96,3 +96,11 @@ test_updater_has_merge_logic() {
     assert_contains "update.sh reports merged status" "done (merged)" "$updater"
     assert_contains "update.sh reports CONFLICT status" "CONFLICT" "$updater"
 }
+
+test_updater_clean_merge_records_upstream_checksum() {
+    echo "--- update.sh: clean merge records upstream checksum (not merged result) ---"
+    # Extract the clean-merge branch (between "merge_rc.*-eq 0" and the "else" for conflicts)
+    local clean_branch
+    clean_branch=$(sed -n '/merge_rc.*-eq 0/,/^[[:space:]]*else/p' "$RALPH_DIR/update.sh")
+    assert_contains "clean merge checksums upstream_tmp" 'compute_checksum "$upstream_tmp"' "$clean_branch"
+}

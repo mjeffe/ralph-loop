@@ -100,6 +100,7 @@ run_install_update_tests() {
     test_updater_three_way_merge_conflict
     test_updater_originals_not_in_gitignore
     test_updater_has_merge_logic
+    test_updater_clean_merge_records_upstream_checksum
 }
 
 run_sandbox_tests() {

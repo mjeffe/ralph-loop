@@ -270,9 +270,9 @@ main() {
                         chmod +x "$local_file"
                     fi
                     print_status "$file" "done (merged)"
-                    local new_checksum
-                    new_checksum="$(compute_checksum "$local_file")"
-                    new_manifest_entries+=("$new_checksum  $file")
+                    local upstream_checksum
+                    upstream_checksum="$(compute_checksum "$upstream_tmp")"
+                    new_manifest_entries+=("$upstream_checksum  $file")
                 else
                     # Conflict — write conflict-marked file and keep .upstream as clean reference
                     cp "$merge_tmp" "$local_file"
