@@ -1,5 +1,7 @@
 #!/bin/bash
 # Ralph unit tests — deterministic, no agent invocation, zero cost.
+# Tests are structural (grep/sed against source) or isolated function exercises —
+# they never run install.sh/update.sh/ralph end-to-end, never call Docker, and never invoke an LLM agent.
 #
 # Usage:
 #   ./tests/test_ralph.sh              Run all tests
