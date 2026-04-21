@@ -1,0 +1,34 @@
+BUILD MODE
+==========
+
+Build mode implements one task per iteration from the implementation plan.
+
+TASK SELECTION
+--------------
+Build mode is plan-type agnostic — it respects the plan's structure regardless
+of how it was created:
+
+  Plan Type: gap-driven   Tasks are a priority list; highest-priority planned
+                          task is selected. Out-of-order selection requires a
+                          documented reason.
+
+  Plan Type: process      Phase headings are authoritative ordering constraints.
+                          Work is selected from the earliest incomplete phase.
+
+EXIT SIGNALS
+------------
+  <promise>COMPLETE</promise>   All tasks are complete (none planned or blocked).
+                                The loop exits successfully.
+
+  <promise>REPLAN</promise>     The plan needs restructuring, or only blocked tasks
+                                remain. The loop exits so you can re-run the
+                                planning command shown in Plan Command: at the
+                                top of the plan.
+
+MID-IMPLEMENTATION DISCOVERIES
+-------------------------------
+  Spec gaps:      Resolve via spec → code → conventions. Document assumptions.
+  New work:       Add a task to the plan. Fix trivially if adjacent; else defer.
+  Blocked:        Mark the task blocked, document why, stop the iteration.
+  Architecture:   If it affects shared interfaces or multiple tasks → REPLAN.
+                  If local → make the call and document it.

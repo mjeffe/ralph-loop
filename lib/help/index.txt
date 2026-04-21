@@ -1,0 +1,9 @@
+Ralph Help — run 'ralph help <topic>' for details.
+
+  specs        Writing specs: target-state vs process, lifecycle, best practices
+  plan         Planning modes: gap-driven vs sequence-constrained vs prompt, when to use each
+  build        Build mode: task selection, signals, mid-implementation guidance
+  prompt       Ad-hoc prompts: when and how to use ralph prompt
+  sandbox      Sandbox lifecycle: setup, daily workflow, troubleshooting
+  align-specs  Updating target-state specs after process-spec migrations
+  retro        Post-cycle retrospective: reviewing results and improving inputs

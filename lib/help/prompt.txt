@@ -1,0 +1,58 @@
+AD-HOC PROMPTS
+==============
+
+  ralph prompt <file> [max_iterations]
+
+Run a custom prompt through ralph's iteration loop — no planner, no task
+selection, no implementation plan. Your prompt file replaces the built-in
+plan/build prompts with a custom workflow while still leveraging the loop's
+iteration, logging, and exit-signal machinery.
+
+WHEN TO USE
+-----------
+
+  - Work that benefits from multiple iterations but doesn't fit the
+    planner's task-decomposition model (spec review, test analysis,
+    document assembly, codebase audits)
+  - You want to define your own iteration strategy, progress tracking,
+    and completion criteria
+  - Quick one-shot jobs that just need one iteration
+
+WHEN NOT TO USE
+---------------
+
+  - The work has phases or ordering constraints → ralph plan --process
+  - The work is defined by target-state specs → ralph plan
+  - You need the planner to decompose the work into tasks → use a planning mode
+
+WRITING A MULTI-ITERATION PROMPT
+---------------------------------
+
+  Each iteration starts with fresh context — the agent has no memory of
+  prior iterations. Effective multi-iteration prompts include:
+
+  - A progress tracking file the agent reads first and updates last,
+    serving as durable memory across iterations
+  - A "fresh context" reminder so the agent treats repo files as the
+    sole source of truth
+  - Iteration sizing guidance (how much work per iteration)
+  - Clear rules about what the agent should and should not modify
+
+  CRITICAL: Your prompt MUST instruct the agent to output exactly
+  <promise>COMPLETE</promise> when all work is done. This is the only
+  way the loop knows to stop. Without it, ralph will keep iterating
+  until max_iterations is reached.
+
+  The built-in prompts in .ralph/prompts/ are good starting templates.
+  Study prompts/build.md or prompts/plan.md for structure and conventions.
+
+EXAMPLES
+--------
+
+  Single iteration:
+
+    ralph prompt prompts/my-refactor.md
+
+  Multi-iteration with a cap:
+
+    ralph prompt prompts/spec-review.md 20

@@ -1,0 +1,53 @@
+WRITING SPECIFICATIONS
+======================
+
+TARGET-STATE SPECS
+------------------
+Describe what the system should be — behavior, APIs, constraints. You write
+what you want; the planner figures out what's missing. This drives gap-driven
+planning (ralph plan), where the planner compares your spec to the current
+code and generates tasks to close the gaps.
+
+  - Live in SPECS_DIR (default: specs/)
+  - One feature per spec file
+  - Include test criteria
+
+PROCESS SPECS
+-------------
+Describe how to get there — phased migrations, ordered refactors, incremental
+rollouts. You define the phases and their ordering; the planner decomposes
+each phase into tasks. This drives sequence-constrained planning
+(ralph plan --process), where the planner works within your human-defined
+structure.
+
+  - Live in PROCESS_DIR (set in config)
+  - Only top-level *.md files are read (subdirectories ignored)
+  - Archive completed specs to a subdirectory (e.g., archive/)
+
+WHICH TYPE DO I NEED?
+---------------------
+  Phases with ordering constraints  →  process spec  →  ralph plan --process
+  No sequencing constraints         →  target-state spec  →  ralph plan
+  Single coherent job               →  ad-hoc prompt  →  ralph prompt <file>
+
+TIPS
+----
+  - Be specific: concrete examples, explicit constraints, clear error cases
+  - One feature per spec: easier to understand, update, and implement
+  - Include test criteria: define how to verify the feature works
+  - Don't mix spec types: keep target-state specs in SPECS_DIR, process specs
+    in PROCESS_DIR
+  - In process specs, express actionable instructions as steps within phases,
+    not as decisions or notes in orienting sections. The planner decomposes
+    phases and steps — context/rationale sections are read for understanding
+    but not decomposed into tasks.
+
+SPEC MAINTENANCE AFTER MIGRATIONS
+----------------------------------
+After completing a process-spec migration (ralph plan --process → ralph build),
+target-state specs may be stale. Run:
+
+  ralph align-specs
+
+This updates target-state specs to reflect the post-migration system, using
+process specs for intent and the implementation plan for build decisions.

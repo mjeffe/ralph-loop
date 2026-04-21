@@ -1,0 +1,48 @@
+ALIGN SPECS
+===========
+
+Update target-state specs after a process-spec-driven migration so they
+reflect the post-migration system.
+
+PURPOSE
+-------
+After 'ralph plan --process' and 'ralph build' complete a migration,
+target-state specs in SPECS_DIR still describe the pre-migration system.
+'ralph align-specs' invokes an agent to update those specs using process
+specs for design intent, the implementation plan for build decisions, and
+the codebase for current reality.
+
+Without alignment, future 'ralph plan' (gap-driven) runs generate nonsense
+tasks against stale specs.
+
+PREREQUISITES
+-------------
+All three are required:
+
+  1. PROCESS_DIR configured and non-empty (set in config)
+  2. implementation_plan.md exists with Plan Type: process
+  3. At least one completed task in the plan
+
+ALIGNMENT LEDGER
+----------------
+The alignment ledger (alignment_ledger.md) tracks which specs have been
+reviewed and updated — persistent memory across fresh-context iterations,
+like implementation_plan.md for build mode.
+
+To reset alignment progress: delete alignment_ledger.md and re-run.
+
+WORKFLOW
+--------
+  ralph align-specs [max_iterations]
+
+First iteration: the agent surveys all inputs, creates the ledger listing
+affected specs, and begins aligning. Subsequent iterations: the agent reads
+the ledger and picks up where it left off.
+
+BLOCKED SPECS
+-------------
+When the agent encounters irreconcilable conflicts (process specs contradict,
+codebase diverged from intent), it marks the spec as 'blocked' in the ledger
+with a reason. The agent continues aligning non-blocked specs.
+
+To resolve: review the ledger, fix the conflict, and re-run.

@@ -85,7 +85,7 @@ align-specs mode recognized, prerequisite checks (PROCESS_DIR, process plan type
 ---
 
 ### Task 1: Extract help content to lib/help/*.txt files
-**Status:** planned
+**Status:** complete
 **Spec:** specs/help-system.md, specs/project-structure.md
 
 Extract all help topic content from heredoc functions in `ralph` into plain text files under `lib/help/`. Replace the case-based `ralph_help()` dispatcher with the file-based dispatcher specified in `help-system.md`.

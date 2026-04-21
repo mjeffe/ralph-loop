@@ -1,0 +1,40 @@
+PLANNING MODES
+==============
+
+Ralph supports three ways to drive work:
+
+  ralph plan                Gap-driven planning
+  ralph plan --process      Sequence-constrained planning
+  ralph prompt <file>       Ad-hoc single-job prompt
+
+GAP-DRIVEN PLANNING (ralph plan)
+---------------------------------
+Compares target-state specs in your specs directory to the current codebase
+and infers what work remains. The planner decides task ordering. Use this
+when you know what the system should look like but not the exact steps.
+
+  - Reads specs from SPECS_DIR (default: specs/)
+  - Generates implementation_plan.md with Plan Type: gap-driven
+  - Discovery and investigation tasks are valid plan items
+
+SEQUENCE-CONSTRAINED PLANNING (ralph plan --process)
+-----------------------------------------------------
+Decomposes human-defined phases into build-iteration-sized tasks. Phase
+ordering from your process specs is authoritative — the planner works
+within your structure, not around it. Use this for migrations, phased
+refactors, ordered rollouts, or any work with explicit sequencing.
+
+  - Reads process specs from PROCESS_DIR (set in config)
+  - Generates implementation_plan.md with Plan Type: process
+  - Discovery and investigation tasks are valid plan items
+
+AD-HOC PROMPTS (ralph prompt <file>)
+-------------------------------------
+Runs a single prompt file in the loop — no planning phase, no specs
+comparison. Use for one-off jobs: documentation, analysis, discovery.
+
+REGENERATING A PLAN
+-------------------
+Delete implementation_plan.md and re-run the planning command, or simply
+re-run it — the planner rebuilds the task list from scratch (preserving
+useful notes from completed tasks).
