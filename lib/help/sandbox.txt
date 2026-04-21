@@ -1,0 +1,173 @@
+SANDBOX USAGE GUIDE
+===================
+
+The sandbox provides an isolated, multi-container Docker environment where
+AI coding agents can work safely. The agent works in an "app" container with
+its own copy of the codebase (cloned via git). Services (database, cache,
+mail, etc.) run in their own containers using official Docker images, managed
+by docker compose. Code flows in and out exclusively through git.
+
+FIRST-TIME SETUP
+----------------
+
+  1. Generate sandbox files (Dockerfile, entrypoint, compose config):
+
+       ralph sandbox setup
+
+     Setup runs a multi-pass pipeline:
+       - Analyze: scans the project and produces project-profile.json
+       - Render: generates Dockerfile, docker-compose.yml, entrypoint.sh,
+         and .env.example from the profile
+       - Validate: checks generated files for structural correctness
+       - Repair: if validation fails, attempts automated fixes
+
+  2. Create your .env with tokens:
+
+       cp .ralph/sandbox/.env.example .ralph/sandbox/.env
+
+     Edit .ralph/sandbox/.env and set GITHUB_TOKEN and AMP_API_KEY.
+
+  3. Start the sandbox:
+
+       ralph sandbox up
+
+     The first build takes several minutes (builds app image, pulls service
+     images, clones the repo, runs migrations). Subsequent starts are fast.
+
+  4. Open a shell inside the sandbox:
+
+       ralph sandbox shell
+
+DAILY WORKFLOW
+--------------
+
+  ralph sandbox up           Start the sandbox (rebuilds if files changed)
+  ralph sandbox shell        Open a bash shell as the "ralph" user
+  ralph sandbox status       Check container status and service health
+  ralph sandbox stop         Stop the sandbox (preserves container state)
+
+REGENERATING SANDBOX FILES
+--------------------------
+
+  ralph sandbox setup --force
+
+  Re-runs the full multi-pass pipeline to regenerate all sandbox files from
+  scratch. Your .env file (containing tokens) is automatically preserved.
+
+  After regenerating, review .env.example for any new variables that
+  may need to be added to your .env.
+
+FIXING WRONG DETECTIONS (--render-only)
+---------------------------------------
+
+  The --render-only flag skips the analysis pass and reuses the existing
+  project-profile.json. The --force flag allows overwriting existing sandbox
+  files. They are independent flags but typically used together.
+
+  If setup detected the wrong stack, runtime version, or services, edit
+  .ralph/sandbox/project-profile.json to correct it, then regenerate:
+
+    ralph sandbox setup --render-only --force
+
+  Also useful after updating prompt templates — regenerate sandbox files
+  from the same profile without re-analyzing the project.
+
+CUSTOMIZING THE SANDBOX (sandbox-preferences.sh)
+-------------------------------------------------
+
+  Edit .ralph/sandbox-preferences.sh to add extra packages, tools, or
+  configuration to the sandbox. This script runs during "docker build"
+  and is applied byte-for-byte — no LLM interpretation.
+
+  After editing, rebuild with:
+
+    ralph sandbox up
+
+RESETTING THE SANDBOX
+---------------------
+
+  ralph sandbox reset        Wipe app volume (service data preserved)
+  ralph sandbox reset --all  Wipe all volumes (app + database + cache)
+
+  A reset deletes the app container's codebase volume, then restarts it.
+  On restart, the entrypoint re-clones from git, reinstalls dependencies,
+  and re-runs migrations — a fresh working state from the same config.
+
+  Use "reset" when the codebase is corrupted but database data is fine.
+  Use "reset --all" for a complete clean-room rebuild — all volumes are
+  deleted and everything is reconstructed from scratch.
+
+RESETTING VS REGENERATING
+-------------------------
+
+  "setup" and "reset" operate at different layers:
+
+  - "setup" regenerates the sandbox configuration files (Dockerfile,
+    docker-compose.yml, entrypoint.sh). Use when the sandbox definition
+    is wrong — wrong stack, missing service, or updated prompts.
+
+  - "reset" wipes runtime data (Docker volumes) but leaves configuration
+    files untouched. Use when the agent corrupted the codebase or you
+    need a fresh start from the existing configuration.
+
+TROUBLESHOOTING
+---------------
+
+  Container won't stay running?
+    Check logs:  docker compose -f .ralph/sandbox/docker-compose.yml logs
+
+  Healthcheck failing?
+    The healthcheck uses "supervisorctl status" and has a 60-second start
+    period. On first run, the entrypoint installs dependencies and runs
+    migrations before supervisord starts. Wait a few minutes, then check:
+      ralph sandbox status
+
+  Port conflicts?
+    Set alternate ports in .ralph/sandbox/.env:
+      SANDBOX_HTTP_PORT=8080
+      SANDBOX_DB_PORT=54321
+
+  Multiple checkouts of the same project?
+    SANDBOX_NAME is auto-derived from the checkout path to avoid collisions.
+    Override it in .ralph/sandbox/.env if the auto-generated name is not suitable.
+
+  Base image out of date?
+    The base image is auto-refreshed on every "ralph sandbox up", so changes
+    from "ralph update" take effect automatically — no manual rebuild needed.
+
+UPDATING AGENTS.md FOR SANDBOX COMMANDS
+---------------------------------------
+
+  If your AGENTS.md has environment-specific commands (e.g., prefixed with
+  "./vendor/bin/sail"), add sandbox variants so agents know which style to
+  use. The SANDBOX environment variable (SANDBOX=1 inside the container)
+  lets agents detect their environment.
+
+  Recommended pattern — add a table like this to your AGENTS.md:
+
+    ## Running Commands
+
+    | Environment       | Prefix               | Example                                  |
+    |-------------------|-----------------------|------------------------------------------|
+    | Host (Sail)       | ./vendor/bin/sail     | ./vendor/bin/sail artisan migrate        |
+    | Sandbox container | (none)                | php artisan migrate                      |
+
+    How to detect: check the SANDBOX environment variable.
+    If SANDBOX=1, run commands directly. Otherwise, use the host prefix.
+
+DOCUMENTING FIXES (sandbox-setup.md)
+-------------------------------------
+
+  sandbox setup creates a sandbox-setup.md file for documenting fixes and
+  bootstrap steps that the setup agent missed or got wrong. Two sections:
+
+  - Host-Side Fixes: corrections to generated sandbox files (Dockerfile,
+    entrypoint, docker-compose.yml). Reference these when regenerating
+    with "sandbox setup --force".
+
+  - In-Sandbox Bootstrap: steps for agents inside a fresh sandbox after
+    "sandbox reset" or first "sandbox up" (db migrations, test db setup,
+    seed data, etc).
+
+  This file is never overwritten by ralph. Reference it from AGENTS.md
+  if you want agents to act on the notes.

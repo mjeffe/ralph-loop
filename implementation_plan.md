@@ -3,316 +3,194 @@
 Plan Type: gap-driven
 Plan Command: ralph plan
 
----
-
 ## Summary
 
-This plan closes the gaps between the current codebase and the specifications. The major
-outstanding work is the **multi-pass sandbox setup pipeline** (the largest feature gap),
-plus several smaller alignment issues across the installer, updater, managed files, and
-sandbox lifecycle commands.
+This plan addresses three structural gaps between the specs and the current codebase:
+
+1. **Help system extraction** — The spec (`help-system.md`, `project-structure.md`) requires help content in `lib/help/*.txt` files with a file-based dispatcher. The current implementation uses heredoc functions inline in `ralph`. The functional content is correct; the architecture is wrong.
+
+2. **Sandbox module extraction** — The spec (`sandbox-cli.md`, `project-structure.md`) requires sandbox functions in `lib/sandbox.sh`, sourced eagerly at startup. Currently all sandbox functions (~500 lines) are inline in `ralph`. Again, the behavior is correct; the structure doesn't match spec.
+
+3. **`sandbox_up` missing `wait-for-db` refresh** — The spec (`sandbox-cli.md`) says `sandbox_up` should auto-refresh `wait-for-db` alongside `Dockerfile.base` and `sandbox-preferences.sh`. The current `sandbox_up` copies only the latter two.
+
+These three gaps also cascade into the installer and updater: `lib/sandbox.sh` and `lib/help/*.txt` are missing from `MANAGED_FILES` and `SOURCE_PATHS` in both `install.sh` and `update.sh`.
+
+All other specs are satisfied by the current codebase (evidence in the Spec Alignment section below).
+
+## Spec Alignment
+
+### specs/overview.md — Already Satisfied
+System purpose, design principles, workflow, two deployment scenarios all match. The README.md and project structure reflect this spec. Sandbox section mentions multi-container architecture, lifecycle commands, and `sandbox-setup.md` — all implemented.
+
+### specs/project-structure.md — Gaps
+- Directory layouts: match except `lib/help/` directory doesn't exist, `lib/sandbox.sh` doesn't exist.
+- Config: matches (SPECS_DIR, PROCESS_DIR, DEFAULT_MAX_ITERATIONS, MAX_RETRIES, AGENT). Self-relative path resolution, template variable substitution, portability — all correct.
+- Spec says `lib/sandbox.sh` is sourced eagerly at startup — it's inline instead.
+- Spec says `lib/help/*.txt` files exist and are `cat`'d — they're heredocs instead.
+
+### specs/loop-behavior.md — Already Satisfied
+CLI interface with all modes (plan, plan --process, build, prompt, help, align-specs, sandbox, update). Loop execution (init, iteration flow, pre-iteration checks, template substitution, agent invocation pipeline, completion/replan detection, retry strategy, error handling, logging, session summary, context tracking) all implemented correctly. `--process` flag validation, REPLAN reading `Plan Command:`, empty response detection, exit codes — all match.
+
+### specs/plan-mode.md — Already Satisfied
+Planning phases, plan regeneration, iterative planning, task sizing heuristic, completion signal, plan format with metadata header and cross-cutting constraints section. Prompt template at `prompts/plan.md` exists.
+
+### specs/build-mode.md — Already Satisfied
+Infrastructure-managed plan context (PLAN_HEADER, TASK_OVERVIEW, SELECTED_TASK, ADJACENT_CONTEXT via lib/plan-filter.sh). Bifurcated prompt selection based on Plan Type. Gap-driven vs process task selection. Build completion nudge for process plans. Both build prompts (build.md, build-process.md) exist.
+
+### specs/spec-lifecycle.md — Already Satisfied
+Target-state vs process specs distinction, spec evolution rules, spec format guidance, specs index convention. All present in existing specs and README.
+
+### specs/installer.md — Gaps
+- Installer doesn't include `lib/sandbox.sh` or `lib/help/*.txt` in MANAGED_FILES/SOURCE_PATHS.
+- All other behavior (pre-checks, directory creation, file copying, no-overwrite policy, templates, version/manifest/originals, success message) matches spec.
+
+### specs/agent-scripts.md — Already Satisfied
+Function contract (agent_invoke, agent_extract_response, agent_format_display), required variables (AGENT_CLI), optional hooks (agent_pre_iteration, agent_post_iteration), all four agent scripts exist. Per-line processing, context tracking — all correct.
+
+### specs/updater.md — Gaps
+- Updater doesn't include `lib/sandbox.sh` or `lib/help/*.txt` in MANAGED_FILES/SOURCE_PATHS.
+- All other behavior (pre-update checks, version tracking, manifest, originals, three-way merge, .upstream files, removed-upstream detection, edge cases, output format) matches spec.
+
+### specs/sandbox-cli.md — Gaps
+- All lifecycle commands implemented (setup, up, stop, reset, shell, status).
+- sandbox_ensure_name, sandbox_container_name, detect_stack, sandbox_validate_profile, sandbox_validate, sandbox_setup — all correct.
+- `sandbox_up` missing `wait-for-db` auto-refresh (spec says copy `wait-for-db` alongside Dockerfile.base and sandbox-preferences.sh).
+- Functions live inline in `ralph` rather than in `lib/sandbox.sh` as spec requires.
+- sandbox-setup.md creation logic present in sandbox_setup.
+
+### specs/sandbox-setup-prompt.md — Already Satisfied
+Multi-pass pipeline (analyze → validate → render → validate → repair) implemented in sandbox_setup. Profile validation, file validation, detect_stack, base image build, Dockerfile.base template, wait-for-db utility. All three prompt templates exist (sandbox-analyze.md, sandbox-render.md, sandbox-repair.md). Playbook directory with php-laravel.md exists.
+
+### specs/process-planning.md — Already Satisfied
+--process flag parsing, PROCESS_DIR validation (empty, missing dir, no .md files), SPEC_VOLUME_HINT computation and export, prompts/plan-process.md exists, prompts/build-process.md exists. Cross-references to incremental-planning.md present in the spec.
+
+### specs/incremental-planning.md — Already Satisfied
+Volume hint (SPEC_BYTES, SPEC_COUNT, SPEC_VOLUME_HINT) computed in ralph script. Decomposition ledger and skeleton-first workflow are prompt-level concerns documented in the spec and implemented in `prompts/plan-process.md`.
+
+### specs/align-specs.md — Already Satisfied
+align-specs mode recognized, prerequisite checks (PROCESS_DIR, process plan type, completed tasks), prompt template exists (prompts/align-specs.md), build completion nudge implemented in run_loop. Help topic for align-specs present.
+
+### specs/help-system.md — Gaps
+- Topic content is correct and comprehensive (specs, plan, build, prompt, sandbox, align-specs, retro).
+- Spec requires help content in `lib/help/*.txt` files, dispatcher uses file-based lookup (`cat "$help_dir/${topic}.txt"`). Current implementation uses heredoc functions and a case-based dispatcher. The spec explicitly says: "Remove all `help_*()` heredoc functions — content moves to `lib/help/*.txt`".
+- `usage()` function remains in ralph as-is — correct per spec.
+
+## Cross-cutting constraints
+
+- The test suite (230 tests) must continue to pass after every change. Tests validate help system behavior, sandbox functions, CLI parsing, installer/updater MANAGED_FILES consistency.
+- `lib/sandbox.sh` must be sourced eagerly at startup, after config but before mode dispatch — matching the pattern for agent scripts.
+- `lib/help/*.txt` files must not be sourced — they're plain text files read with `cat`.
+- MANAGED_FILES arrays must stay in sync between install.sh and update.sh — tests enforce this.
 
 ---
 
-### Task 1: Rename `sandbox-preferences.md` to `sandbox-preferences.sh`
+### Task 1: Extract help content to lib/help/*.txt files
 **Status:** complete
-**Spec:** specs/sandbox-cli.md, specs/sandbox-setup-prompt.md, specs/project-structure.md, specs/installer.md
+**Spec:** specs/help-system.md, specs/project-structure.md
 
-The specs consistently refer to `sandbox-preferences.sh` (an executable bash script), but the
-repo has `sandbox-preferences.md` (a markdown file). This is a foundational rename that
-affects managed file lists, installer, updater, prompts, and the sandbox setup function.
+Extract all help topic content from heredoc functions in `ralph` into plain text files under `lib/help/`. Replace the case-based `ralph_help()` dispatcher with the file-based dispatcher specified in `help-system.md`.
 
-What to do:
-- Rename `sandbox-preferences.md` → `sandbox-preferences.sh` at the repo root
-- Make it executable (`chmod +x`)
-- Convert the content from markdown prose to an executable bash script that can be COPY'd
-  into the Docker build context and run with `bash`. The current markdown describes packages
-  to install, bashrc customizations, vim config, and gitconfig — translate these into bash
-  commands.
-- Update `MANAGED_FILES` and `SOURCE_PATHS` in `install.sh` and `update.sh` to reference
-  `sandbox-preferences.sh` instead of `sandbox-preferences.md`
-- Update `prompts/sandbox-setup.md` references from `sandbox-preferences.md` to
-  `sandbox-preferences.sh`
-- Run tests (`./tests/test_ralph.sh`)
+**Files to inspect/change:**
+- `ralph` — remove `help_index()`, `help_plan()`, `help_specs()`, `help_build()`, `help_prompt()`, `help_sandbox()`, `help_align_specs()`, `help_retro()` heredoc functions; replace `ralph_help()` with file-based dispatcher
+- `lib/help/index.txt` — create (content from `help_index()`)
+- `lib/help/specs.txt` — create (content from `help_specs()`)
+- `lib/help/plan.txt` — create (content from `help_plan()`)
+- `lib/help/build.txt` — create (content from `help_build()`)
+- `lib/help/prompt.txt` — create (content from `help_prompt()`)
+- `lib/help/sandbox.txt` — create (content from `help_sandbox()`)
+- `lib/help/align-specs.txt` — create (content from `help_align_specs()`)
+- `lib/help/retro.txt` — create (content from `help_retro()`)
 
-**Completed:** Renamed `sandbox-preferences.md` → `sandbox-preferences.sh`, converted markdown
-prose to an executable bash script (apt-get install, bashrc append, vim config via curl, gitconfig
-creation), made executable, updated `MANAGED_FILES`/`SOURCE_PATHS` in both `install.sh` and
-`update.sh`, updated all four references in `prompts/sandbox-setup.md`, added `chmod +x` for the
-file in the installer. All 108 tests pass.
+**Key symbols:** `ralph_help()`, `help_index()`, `help_plan()`, `help_specs()`, `help_build()`, `help_prompt()`, `help_sandbox()`, `help_align_specs()`, `help_retro()`
+
+**End state:** `ralph` contains only the file-based `ralph_help()` dispatcher (~10 lines). All help content lives in `lib/help/*.txt`. Running `ralph help`, `ralph help plan`, `ralph help sandbox`, etc. produces identical output to the current heredoc implementation. Unknown topic handling (`ralph help foo`) works per spec.
+
+**Verify:**
+- `./tests/test_ralph.sh` — all tests pass
+- `grep -c 'help_index\|help_plan\|help_specs\|help_build\|help_prompt\|help_sandbox\|help_align_specs\|help_retro' ralph` returns 0 (no heredoc functions remain)
+- `ls lib/help/*.txt | wc -l` returns 8
+- `grep -c 'cat.*lib/help' ralph` returns at least 1 (file-based dispatcher present)
+
+**Exclusions:** Do not change installer/updater MANAGED_FILES in this task — that's Task 4.
 
 ---
 
-### Task 2: Create `prompts/templates/Dockerfile.base`
+### Task 2: Extract sandbox functions to lib/sandbox.sh
 **Status:** complete
-**Spec:** specs/sandbox-setup-prompt.md, specs/sandbox-cli.md
+**Spec:** specs/sandbox-cli.md, specs/project-structure.md
 
-The specs define a managed base image Dockerfile at `prompts/templates/Dockerfile.base`.
-This file does not exist yet. It provides the invariant layer (OS, system tools, Node.js,
-Amp CLI, non-root user) that every sandbox needs.
+Extract all sandbox-related functions from `ralph` into `lib/sandbox.sh`. Add a `source "$RALPH_DIR/lib/sandbox.sh"` line in `ralph` after config loading but before mode dispatch, matching the eager-source pattern used for agent scripts.
 
-What to do:
-- Create `prompts/templates/` directory
-- Create `prompts/templates/Dockerfile.base` with the content specified in the
-  sandbox-setup-prompt.md spec (ubuntu:24.04 base, system essentials, Node.js, Amp CLI,
-  ralph user, etc.)
-- Add `prompts/templates/Dockerfile.base` to `MANAGED_FILES` and `SOURCE_PATHS` in both
-  `install.sh` and `update.sh`
-- Ensure `install.sh` creates the `prompts/templates/` directory during installation
-- Run tests (`./tests/test_ralph.sh`)
+**Files to inspect/change:**
+- `ralph` — extract functions, add source line
+- `lib/sandbox.sh` — create with extracted functions
 
-**Completed:** Created `prompts/templates/Dockerfile.base` with the exact content from the
-spec (ubuntu:24.04, system essentials, Node.js LTS, Amp CLI, UID 1000 ralph user). Added
-to `MANAGED_FILES` and `SOURCE_PATHS` in both `install.sh` and `update.sh`. Updated
-`install.sh` to create `prompts/templates/` directory (changed `mkdir -p "$RALPH_DIR/prompts"`
-to `mkdir -p "$RALPH_DIR/prompts/templates"` which also creates the parent). All 108 tests pass.
+**Key symbols to extract:** `sandbox_ensure_name()`, `sandbox_container_name()`, `detect_stack()`, `sandbox_validate_profile()`, `sandbox_validate()`, `sandbox_setup()`, `sandbox_up()`, `sandbox_stop()`, `sandbox_reset()`, `sandbox_shell()`, `sandbox_status()`
 
----
+**End state:** `lib/sandbox.sh` contains all sandbox functions. `ralph` sources it eagerly at startup. The sandbox case in ralph's argument dispatcher still calls these functions — only the function definitions move. All sandbox behavior is identical.
 
-### Task 3: Create multi-pass sandbox prompt templates
-**Status:** complete
-**Spec:** specs/sandbox-setup-prompt.md
+**Verify:**
+- `./tests/test_ralph.sh` — all tests pass
+- `grep -c 'sandbox_ensure_name\|sandbox_up\|sandbox_stop\|sandbox_reset\|sandbox_shell\|sandbox_status\|sandbox_setup\|sandbox_validate\|detect_stack\|sandbox_container_name\|sandbox_validate_profile' lib/sandbox.sh` shows all 11 functions present
+- `grep 'source.*lib/sandbox.sh' ralph` confirms sourcing line exists
+- Function definitions are absent from `ralph` (only calls remain in the sandbox case dispatcher)
 
-The specs call for three separate prompt files replacing the single `prompts/sandbox-setup.md`:
-- `prompts/sandbox-analyze.md` — Pass 1: project analysis → project profile JSON
-- `prompts/sandbox-render.md` — Pass 2: generate sandbox files from profile
-- `prompts/sandbox-repair.md` — Pass 3: fix validation failures
+**Exclusions:** Do not change installer/updater MANAGED_FILES in this task — that's Task 4.
 
-**Completed:** Created all three prompt files derived from the spec:
-- `prompts/sandbox-analyze.md` — sources to read, conclusions to extract, decision rules,
-  full profile schema (required/optional fields), PHP/Laravel example profile, multi-container
-  model constraints, uses `${RALPH_HOME}` and `${STACK_PLAYBOOK}` template vars
-- `prompts/sandbox-render.md` — profile-only generation rules, four output file templates
-  (Dockerfile, entrypoint.sh, docker-compose.yml, .env.example), hard constraints, all four
-  appendices (git credentials, YAML syntax, idempotency, non-interactive builds),
-  self-validation checklist
-- `prompts/sandbox-repair.md` — concise targeted repair prompt using `${VALIDATION_FAILURES}`
-  template var, reads generated files and profile, makes minimal fixes
-- Updated `MANAGED_FILES` and `SOURCE_PATHS` in both `install.sh` and `update.sh`: removed
-  `prompts/sandbox-setup.md`, added the three new prompts
-- `prompts/sandbox-setup.md` kept on disk for Task 9 cleanup
-- All 108 tests pass
+**Notes:** Extracted all 11 functions to `lib/sandbox.sh`. Source line added after config loading (line 131). Updated tests in `test_sandbox.sh` and `test_core.sh` to source functions from `lib/sandbox.sh` instead of `ralph`. All 230 tests pass.
 
 ---
 
-### Task 4: Implement `sandbox_validate_profile()` and `sandbox_validate()` in `ralph`
-**Status:** complete
-**Spec:** specs/sandbox-setup-prompt.md
-
-The specs define two validation functions that run between pipeline passes:
-- `sandbox_validate_profile()` — validates the project profile JSON schema before Pass 2
-- `sandbox_validate()` — validates generated sandbox files for structural correctness
-
-What to do:
-- Implement `sandbox_validate_profile()` in the `ralph` script — checks required fields,
-  schema_version, non-empty arrays as specified in the profile schema section of the spec
-- Implement `sandbox_validate()` in the `ralph` script — performs syntax checks
-  (`bash -n`, `docker compose config`), structural checks (FROM, ENTRYPOINT, WORKDIR, etc.),
-  cross-file consistency checks (ports, env vars, services), and profile consistency checks
-  as specified in the Machine Validator section of the spec
-- Both functions output failure messages to stdout (empty = pass)
-- Run tests (`./tests/test_ralph.sh`)
-
-**Completed:** Implemented both functions in the `ralph` script, placed between
-`detect_stack()` and `sandbox_setup()`. `sandbox_validate_profile()` checks all 14
-required top-level fields, schema_version == 1, non-empty runtimes/supervisor_programs,
-and service entry required fields (name, image, port/ports, reason).
-`sandbox_validate()` performs syntax checks (bash -n, docker compose config), structural
-checks on Dockerfile (FROM, ENTRYPOINT, WORKDIR, sandbox-preferences.sh, entrypoint.sh),
-entrypoint.sh (shebang, set -euo pipefail, git credentials, .git/HEAD clone logic,
-exec supervisord), docker-compose.yml (app service, list env syntax, named volumes,
-env_file, tty, stdin_open), cross-file consistency (EXPOSE ports, env vars in
-.env.example), and profile consistency (services match). Added 7 test functions covering
-valid profile, missing fields, bad schema_version, empty runtimes, service field
-validation, invalid JSON, and structural file checks. All 123 tests pass.
-
----
-
-### Task 5: Rewrite `sandbox_setup()` for multi-pass pipeline with `--render-only`
-**Status:** complete
-**Spec:** specs/sandbox-setup-prompt.md, specs/sandbox-cli.md
-
-The current `sandbox_setup()` function uses a single-pass approach with
-`prompts/sandbox-setup.md`. The specs require a multi-pass pipeline:
-base image build → analyze → profile validate → render → file validate → repair.
-
-What to do:
-- Rewrite `sandbox_setup()` to match the pipeline specified in the sandbox-setup-prompt spec:
-  1. Parse `--force` and `--render-only` flags
-  2. Load agent script and validate CLI
-  3. Handle `--render-only` requiring existing profile
-  4. Handle existing files (error without `--force`; preserve `.env` and optionally profile)
-  5. Copy `Dockerfile.base` and `sandbox-preferences.sh` into build context
-  6. Build base image (`docker build -t ralph-sandbox-base`)
-  7. Detect stack and resolve playbook (if not `--render-only`)
-  8. Pass 1: Analyze (skip if `--render-only`)
-  9. Validate profile schema
-  10. Pass 2: Render
-  11. Validate generated files
-  12. Pass 3: Repair (if validation failed, single attempt)
-  13. Re-validate and report remaining issues
-  14. Restore `.env` if preserved
-  15. Print next-steps guidance
-- The spec in sandbox-setup-prompt.md provides the full reference implementation for
-  `sandbox_setup()` — follow it closely
-- Run tests (`./tests/test_ralph.sh`)
-
-**Completed:** Rewrote `sandbox_setup()` to match the spec's reference implementation.
-Added `--render-only` flag parsing, `--render-only` profile existence check, profile
-preservation during `--render-only --force`, base image build step (copy Dockerfile.base
-and sandbox-preferences.sh then docker build), multi-pass pipeline (analyze → profile
-validate → render → file validate → repair), and spec-matching error messages/next-steps
-guidance. Removed old single-prompt-template reference and the AGENTS.md note at the end.
-All 123 tests pass.
-
----
-
-### Task 6: Update `sandbox_up()` with base image auto-refresh
+### Task 3: Add wait-for-db auto-refresh to sandbox_up
 **Status:** complete
 **Spec:** specs/sandbox-cli.md
 
-The spec requires `sandbox_up()` to auto-refresh the base image on every invocation by
-copying `Dockerfile.base` and `sandbox-preferences.sh` from managed sources and rebuilding
-`ralph-sandbox-base`. The current implementation does not do this.
+Add `wait-for-db` to the auto-refresh block in `sandbox_up()`, alongside the existing `Dockerfile.base` and `sandbox-preferences.sh` copies.
 
-**Completed:** Added three-line auto-refresh block before `docker compose up`: copies
-`Dockerfile.base` from `prompts/templates/` and `sandbox-preferences.sh` from the ralph
-dir into the sandbox build context, then runs `docker build -t ralph-sandbox-base`. Docker
-layer cache makes this instant when nothing has changed. All 123 tests pass.
+**Files to inspect/change:**
+- `lib/sandbox.sh` (or `ralph` if Task 2 isn't complete yet) — `sandbox_up()` function
+
+**End state:** `sandbox_up()` copies `wait-for-db` from `prompts/templates/` to `sandbox/` before building the base image, matching the spec's auto-refresh block:
+```bash
+cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$RALPH_DIR/sandbox/Dockerfile.base"
+cp "$RALPH_DIR/prompts/templates/wait-for-db" "$RALPH_DIR/sandbox/wait-for-db"
+cp "$RALPH_DIR/sandbox-preferences.sh" "$RALPH_DIR/sandbox/sandbox-preferences.sh"
+```
+
+**Verify:**
+- `./tests/test_ralph.sh` — all tests pass
+- `grep -A3 'Auto-refresh' lib/sandbox.sh` shows all three cp lines including wait-for-db
+
+**Notes:** Added one cp line for wait-for-db in sandbox_up(), matching sandbox_setup() which already had all three copies. Updated comment to mention wait-for-db.
 
 ---
 
-### Task 7: Fix `sandbox_reset()` to match spec
+### Task 4: Update installer and updater MANAGED_FILES for lib/sandbox.sh and lib/help/*.txt
 **Status:** complete
-**Spec:** specs/sandbox-cli.md
+**Spec:** specs/installer.md, specs/updater.md, specs/help-system.md, specs/project-structure.md
 
-The current `sandbox_reset()` implementation diverges from the spec in the non-`--all` case.
-The spec says: stop only the app service, remove its codebase volume, then restart only app.
-The current code does `docker compose down` (stops all services) then `docker compose up -d --build`
-(rebuilds all).
+Add `lib/sandbox.sh` and all `lib/help/*.txt` files to `MANAGED_FILES` and `SOURCE_PATHS` in both `install.sh` and `update.sh`. Also add `mkdir -p "$RALPH_DIR/lib/help"` to the installer's directory creation.
 
-What to do:
-- Fix the non-`--all` branch to:
-  1. `docker compose stop app`
-  2. `docker volume rm "${project_name}_sandbox-codebase"`
-  3. `docker compose up -d --build app`
-- Update the user messaging to match spec language about "codebase volume" and
-  "service volumes"
-- Run tests (`./tests/test_ralph.sh`)
+**Files to inspect/change:**
+- `install.sh` — add to MANAGED_FILES array, add to SOURCE_PATHS associative array, add mkdir for lib/help
+- `update.sh` — add to MANAGED_FILES array, add to SOURCE_PATHS associative array
 
-**Completed:** Fixed non-`--all` branch to `stop app` / `volume rm` / `up -d --build app`
-instead of `down` / `up -d --build` (which stopped and rebuilt all services). Moved
-`up -d --build` inside the `else` branch so `--all` only does `down -v` without restart.
-Updated user messaging to match spec language ("sandbox volumes", "app codebase volume",
-"Service volumes"). All 123 tests pass.
+**Key entries to add:**
+- `lib/sandbox.sh` → source `lib/sandbox.sh`
+- `lib/help/index.txt` → source `lib/help/index.txt`
+- `lib/help/specs.txt` → source `lib/help/specs.txt`
+- `lib/help/plan.txt` → source `lib/help/plan.txt`
+- `lib/help/build.txt` → source `lib/help/build.txt`
+- `lib/help/prompt.txt` → source `lib/help/prompt.txt`
+- `lib/help/sandbox.txt` → source `lib/help/sandbox.txt`
+- `lib/help/align-specs.txt` → source `lib/help/align-specs.txt`
+- `lib/help/retro.txt` → source `lib/help/retro.txt`
 
----
+**End state:** Both install.sh and update.sh include lib/sandbox.sh and all lib/help/*.txt files in their managed files lists. The installer creates the lib/help/ directory. Tests that validate MANAGED_FILES consistency between install.sh and update.sh continue to pass.
 
-### Task 8: Fix `sandbox_container_name()` to accept service name argument
-**Status:** complete
-**Spec:** specs/sandbox-cli.md
+**Verify:**
+- `./tests/test_ralph.sh` — all tests pass (specifically the install_update group validates MANAGED_FILES sync)
+- `grep 'lib/sandbox.sh' install.sh update.sh` shows entries in both files
+- `grep 'lib/help/' install.sh | wc -l` shows 8+ entries (one per help file)
 
-The spec shows `sandbox_container_name()` takes a service argument (e.g., `sandbox_container_name "app"`),
-but the current implementation takes no arguments.
-
-What to do:
-- Update `sandbox_container_name()` to accept an optional service name argument
-- Update the call in `sandbox_shell()` to pass `"app"`
-- Run tests (`./tests/test_ralph.sh`)
-
-**Completed:** Updated `sandbox_container_name()` to accept an optional service name
-argument (defaults to `"app"`). Changed jq query to look up the specific service by
-name instead of grabbing the first entry. Updated fallback to derive container name as
-`${project_name}-${service}-1`. Updated `sandbox_shell()` to pass `"app"` explicitly
-as the spec requires. All 123 tests pass.
-
----
-
-### Task 9: Remove `sandbox-setup.md` prompt and clean up managed files
-**Status:** complete
-**Spec:** specs/sandbox-setup-prompt.md, specs/installer.md, specs/updater.md
-
-After the multi-pass prompts are created (Task 3), the old single-pass prompt
-`prompts/sandbox-setup.md` should be removed. The managed files list needs to reflect
-all current specs: add the three new prompts, `Dockerfile.base`, and remove the old one.
-
-**Completed:** Deleted `prompts/sandbox-setup.md`. Verified `MANAGED_FILES`/`SOURCE_PATHS`
-in both `install.sh` and `update.sh` are already correct (no stale references). Verified
-`prompts/templates/` directory creation already present in `install.sh`. Updated README.md
-project structure tree to reflect the current prompt files (sandbox-analyze, sandbox-render,
-sandbox-repair, align-specs, templates/Dockerfile.base, playbooks/php-laravel.md). All 123
-tests pass.
-
----
-
-### Task 10: Add `ralph help retro` topic
-**Status:** complete
-**Spec:** specs/help-system.md
-
-The spec defines `retro` as a help topic covering post-cycle retrospective guidance. The
-current `ralph` script already has `help_retro()` implemented and `retro` is already in
-the `ralph_help()` dispatcher. However, it should be verified against the spec and the
-help index should include `retro`.
-
-**Completed:** Verified `help_retro()` covers all spec requirements (when to retro, what
-to review, common failure patterns, where to apply fixes, retro checklist, agent-assisted
-analysis prompt, sanitized feedback prompt). Verified `help_index()` includes `retro` and
-`ralph_help()` routes it correctly. Added `test_help_retro_shows_content()` with 8
-assertions covering all major sections. Updated `test_help_shows_topic_index()` to verify
-`retro` appears in the index. All 132 tests pass.
-
----
-
-### Task 11: Add test coverage for new sandbox setup features
-**Status:** complete
-**Spec:** specs/sandbox-setup-prompt.md, specs/sandbox-cli.md
-
-**Completed:** Added 4 new test functions (17 assertions) covering:
-- `test_sandbox_setup_render_only_requires_profile` — verifies `--render-only` exits 1
-  with correct error when no profile exists
-- `test_sandbox_validate_entrypoint_structural` — verifies all 5 entrypoint structural
-  checks (shebang, set -euo, git credential, clone logic, exec supervisord)
-- `test_sandbox_validate_compose_structural` — verifies 4 docker-compose.yml structural
-  checks (app service, env_file, tty, stdin_open)
-- `test_sandbox_validate_cross_file_env_vars` — verifies cross-file env var consistency
-  between docker-compose.yml and .env.example
-
-`sandbox_container_name` with service argument was not tested — it requires Docker runtime
-and cannot be unit tested without mocking docker compose. All 145 tests pass.
-
----
-
-## Spec Alignment Notes
-
-### Already Satisfied
-
-The following spec areas are fully implemented in the current codebase:
-
-- **specs/overview.md** — System overview matches current implementation
-- **specs/project-structure.md** — Directory layout, config, self-relative paths all implemented
-  (project-structure.md lists `prompts/templates/` and `sandbox-preferences.sh` which are covered
-  by Tasks 1 and 2)
-- **specs/loop-behavior.md** — CLI interface, loop execution, signal detection, logging, error
-  handling, ad-hoc prompt mode all implemented
-- **specs/plan-mode.md** — Gap-driven planning, plan format, prompt template, iterative planning
-  all implemented. Prompt at `prompts/plan.md` matches canonical template.
-- **specs/build-mode.md** — Build mode, task selection, plan-type awareness, signals, prompt
-  template all implemented. Prompt at `prompts/build.md` matches canonical template.
-- **specs/spec-lifecycle.md** — Spec format guidance, no code to implement
-- **specs/agent-scripts.md** — Agent script contract fully implemented (amp.sh, claude.sh,
-  cline.sh, codex.sh)
-- **specs/process-planning.md** — Process planning mode, `--process` flag, PROCESS_DIR config,
-  prompt template all implemented
-- **specs/incremental-planning.md** — Decomposition ledger, skeleton-first workflow, volume hint,
-  phase collapsing all implemented in prompts and ralph script
-- **specs/align-specs.md** — Align-specs mode, prerequisites, prompt template, build completion
-  nudge, alignment ledger all implemented
-- **specs/help-system.md** — Help system with all topics (plan, specs, build, sandbox,
-  align-specs, retro) implemented
-- **specs/installer.md** — Installer working correctly (pending managed files update)
-- **specs/updater.md** — Updater with three-way merge, manifest, originals all implemented
-  (pending managed files update)
-
-### Conflicts
-
-None identified. Specs, code, and tests are consistent except for the gaps listed as tasks above.
+**Notes:** Added `lib/sandbox.sh` and all 8 `lib/help/*.txt` files to MANAGED_FILES and SOURCE_PATHS in both install.sh and update.sh. Changed `mkdir -p "$RALPH_DIR/lib"` to `mkdir -p "$RALPH_DIR/lib/help"` in install.sh (creates both lib/ and lib/help/ in one call). All 230 tests pass.
