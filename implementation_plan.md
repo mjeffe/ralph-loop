@@ -116,7 +116,7 @@ Extract all help topic content from heredoc functions in `ralph` into plain text
 ---
 
 ### Task 2: Extract sandbox functions to lib/sandbox.sh
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-cli.md, specs/project-structure.md
 
 Extract all sandbox-related functions from `ralph` into `lib/sandbox.sh`. Add a `source "$RALPH_DIR/lib/sandbox.sh"` line in `ralph` after config loading but before mode dispatch, matching the eager-source pattern used for agent scripts.
@@ -136,6 +136,8 @@ Extract all sandbox-related functions from `ralph` into `lib/sandbox.sh`. Add a 
 - Function definitions are absent from `ralph` (only calls remain in the sandbox case dispatcher)
 
 **Exclusions:** Do not change installer/updater MANAGED_FILES in this task — that's Task 4.
+
+**Notes:** Extracted all 11 functions to `lib/sandbox.sh`. Source line added after config loading (line 131). Updated tests in `test_sandbox.sh` and `test_core.sh` to source functions from `lib/sandbox.sh` instead of `ralph`. All 230 tests pass.
 
 ---
 

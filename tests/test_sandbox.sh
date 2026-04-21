@@ -34,7 +34,7 @@ test_sandbox_guard_inside_sandbox() {
 
 test_sandbox_ensure_name_from_env() {
     echo "--- sandbox_ensure_name: reads SANDBOX_NAME from .env ---"
-    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local sdir="$TMP_DIR/project/.ralph/sandbox"
     mkdir -p "$sdir"
@@ -50,7 +50,7 @@ test_sandbox_ensure_name_from_env() {
 
 test_sandbox_ensure_name_missing_from_env() {
     echo "--- sandbox_ensure_name: falls back when SANDBOX_NAME missing from .env ---"
-    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local sdir="$TMP_DIR/project/.ralph/sandbox"
     mkdir -p "$sdir"
@@ -67,7 +67,7 @@ test_sandbox_ensure_name_missing_from_env() {
 
 test_sandbox_ensure_name_no_env_file() {
     echo "--- sandbox_ensure_name: falls back when no .env file ---"
-    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local sdir="$TMP_DIR/project/.ralph/sandbox"
     mkdir -p "$sdir"
@@ -84,7 +84,7 @@ test_sandbox_ensure_name_no_env_file() {
 
 test_sandbox_ensure_name_already_set() {
     echo "--- sandbox_ensure_name: no-op when SANDBOX_NAME already set ---"
-    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     (
         export SANDBOX_NAME="pre-existing"
@@ -96,7 +96,7 @@ test_sandbox_ensure_name_already_set() {
 
 test_sandbox_ensure_name_writes_back_to_env() {
     echo "--- sandbox_ensure_name: appends derived name to .env ---"
-    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local sdir="$TMP_DIR/project/.ralph/sandbox"
     mkdir -p "$sdir"
@@ -120,8 +120,8 @@ test_sandbox_up_no_compose_file() {
     # Create a .env so that check passes, but no docker-compose.yml
     echo "SANDBOX_NAME=test" > "$sandbox_dir/.env"
     output=$(SANDBOX_NAME=test RALPH_DIR="$TMP_DIR/no_compose/.ralph" \
-        bash -c "source <(sed -n '/^sandbox_up()/,/^}/p' \"$RALPH_DIR/ralph\")
-                 source <(sed -n '/^sandbox_ensure_name()/,/^}/p' \"$RALPH_DIR/ralph\")
+        bash -c "source <(sed -n '/^sandbox_up()/,/^}/p' \"$RALPH_DIR/lib/sandbox.sh\")
+                 source <(sed -n '/^sandbox_ensure_name()/,/^}/p' \"$RALPH_DIR/lib/sandbox.sh\")
                  sandbox_up" 2>&1) || rc=$?
     assert_eq "exits non-zero" "1" "$rc"
     assert_contains "mentions setup first" "sandbox setup" "$output"
@@ -138,8 +138,8 @@ FROM ralph-sandbox-base
 DOCK
     local output rc=0
     output=$(SANDBOX_NAME=test RALPH_DIR="$TMP_DIR/no_env/.ralph" \
-        bash -c "source <(sed -n '/^sandbox_up()/,/^}/p' \"$RALPH_DIR/ralph\")
-                 source <(sed -n '/^sandbox_ensure_name()/,/^}/p' \"$RALPH_DIR/ralph\")
+        bash -c "source <(sed -n '/^sandbox_up()/,/^}/p' \"$RALPH_DIR/lib/sandbox.sh\")
+                 source <(sed -n '/^sandbox_ensure_name()/,/^}/p' \"$RALPH_DIR/lib/sandbox.sh\")
                  sandbox_up" 2>&1) || rc=$?
     assert_eq "exits non-zero" "1" "$rc"
     assert_contains "mentions .env" ".env" "$output"
@@ -151,8 +151,8 @@ test_sandbox_status_no_compose_file() {
     mkdir -p "$sandbox_dir"
     local output rc=0
     output=$(SANDBOX_NAME=test RALPH_DIR="$TMP_DIR/no_compose_status/.ralph" \
-        bash -c "source <(sed -n '/^sandbox_status()/,/^}/p' \"$RALPH_DIR/ralph\")
-                 source <(sed -n '/^sandbox_ensure_name()/,/^}/p' \"$RALPH_DIR/ralph\")
+        bash -c "source <(sed -n '/^sandbox_status()/,/^}/p' \"$RALPH_DIR/lib/sandbox.sh\")
+                 source <(sed -n '/^sandbox_ensure_name()/,/^}/p' \"$RALPH_DIR/lib/sandbox.sh\")
                  sandbox_status" 2>&1) || rc=$?
     assert_eq "exits non-zero" "1" "$rc"
     assert_contains "mentions setup first" "sandbox setup" "$output"
@@ -178,7 +178,7 @@ test_sandbox_setup_render_only_without_profile() {
 
 test_sandbox_validate_profile_valid() {
     echo "--- sandbox_validate_profile: valid profile ---"
-    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local profile="$TMP_DIR/valid-profile.json"
     cat > "$profile" <<'EOF'
@@ -208,7 +208,7 @@ EOF
 
 test_sandbox_validate_profile_missing_fields() {
     echo "--- sandbox_validate_profile: missing required fields ---"
-    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local profile="$TMP_DIR/missing-fields.json"
     echo '{"schema_version": 1, "stack": "node"}' > "$profile"
@@ -223,7 +223,7 @@ test_sandbox_validate_profile_missing_fields() {
 
 test_sandbox_validate_profile_bad_schema_version() {
     echo "--- sandbox_validate_profile: wrong schema_version ---"
-    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local profile="$TMP_DIR/bad-version.json"
     cat > "$profile" <<'EOF'
@@ -253,7 +253,7 @@ EOF
 
 test_sandbox_validate_profile_empty_runtimes() {
     echo "--- sandbox_validate_profile: empty runtimes ---"
-    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local profile="$TMP_DIR/empty-runtimes.json"
     cat > "$profile" <<'EOF'
@@ -283,7 +283,7 @@ EOF
 
 test_sandbox_validate_profile_service_missing_fields() {
     echo "--- sandbox_validate_profile: service missing required fields ---"
-    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local profile="$TMP_DIR/bad-service.json"
     cat > "$profile" <<'EOF'
@@ -315,7 +315,7 @@ EOF
 
 test_sandbox_validate_profile_invalid_json() {
     echo "--- sandbox_validate_profile: invalid JSON ---"
-    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_validate_profile()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local profile="$TMP_DIR/bad.json"
     echo "not json at all" > "$profile"
@@ -327,7 +327,7 @@ test_sandbox_validate_profile_invalid_json() {
 
 test_sandbox_validate_structural() {
     echo "--- sandbox_validate: structural checks ---"
-    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local sdir="$TMP_DIR/sandbox_validate_test"
     mkdir -p "$sdir"
@@ -384,7 +384,7 @@ test_sandbox_setup_render_only_requires_profile() {
 
 test_sandbox_validate_entrypoint_structural() {
     echo "--- sandbox_validate: entrypoint structural checks ---"
-    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local sdir="$TMP_DIR/sandbox_entrypoint_test"
     mkdir -p "$sdir"
@@ -418,7 +418,7 @@ ENTRY
 
 test_sandbox_validate_compose_structural() {
     echo "--- sandbox_validate: docker-compose.yml structural checks ---"
-    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local sdir="$TMP_DIR/sandbox_compose_test"
     mkdir -p "$sdir"
@@ -461,7 +461,7 @@ COMPOSE
 
 test_sandbox_validate_cross_file_env_vars() {
     echo "--- sandbox_validate: cross-file env var checks ---"
-    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local sdir="$TMP_DIR/sandbox_crossfile_test"
     mkdir -p "$sdir"
@@ -517,7 +517,7 @@ ENV
 
 test_sandbox_validate_runtime_manager_refs() {
     echo "--- sandbox_validate: unprovisioned runtime manager checks ---"
-    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/ralph")
+    source <(sed -n '/^sandbox_validate()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local sdir="$TMP_DIR/sandbox_rtmgr_test"
     mkdir -p "$sdir"

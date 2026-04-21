@@ -128,8 +128,8 @@ test_stub_agent_scripts() {
 test_detect_stack() {
     echo "--- Stack detection ---"
 
-    # Source detect_stack from ralph (extract it as a function)
-    source <(sed -n '/^detect_stack()/,/^}/p' "$RALPH_DIR/ralph")
+    # Source detect_stack from lib/sandbox.sh (extract it as a function)
+    source <(sed -n '/^detect_stack()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
 
     local proj="$TMP_DIR/detect_stack_project"
 
