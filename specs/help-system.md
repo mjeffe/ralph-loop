@@ -172,64 +172,57 @@ Cover:
 
 ## Implementation
 
-Help text is defined as functions in the `ralph` script (same pattern as the existing
-`sandbox_help()` function). No external files.
+Help topic content lives in plain text files under `lib/help/`. The `ralph_help()`
+dispatcher stays in the `ralph` script and uses file-based dispatch — no sourcing
+needed.
+
+### Directory structure
+
+```
+lib/
+└── help/
+    ├── index.txt        # Topic list (shown by `ralph help`)
+    ├── specs.txt
+    ├── plan.txt
+    ├── build.txt
+    ├── prompt.txt
+    ├── sandbox.txt
+    ├── align-specs.txt
+    └── retro.txt
+```
+
+### Dispatcher in `ralph`
 
 ```bash
-help_plan() {
-    cat <<'EOF'
-...
-EOF
-}
-
-help_specs() {
-    cat <<'EOF'
-...
-EOF
-}
-
-help_build() {
-    cat <<'EOF'
-...
-EOF
-}
-
-help_prompt() {
-    cat <<'EOF'
-...
-EOF
-}
-
-help_sandbox() {
-    cat <<'EOF'
-...
-EOF
-}
-
 ralph_help() {
     local topic="${1:-}"
-    case "$topic" in
-        "")          help_index ;;
-        specs)       help_specs ;;
-        plan)        help_plan ;;
-        build)       help_build ;;
-        prompt)      help_prompt ;;
-        sandbox)     help_sandbox ;;
-        align-specs) help_align_specs ;;
-        retro)       help_retro ;;
-        *)           echo "Unknown help topic: $topic" >&2; echo; help_index ;;
-    esac
+    local help_dir="$RALPH_DIR/lib/help"
+    if [[ -z "$topic" ]]; then
+        cat "$help_dir/index.txt"
+    elif [[ -f "$help_dir/${topic}.txt" ]]; then
+        cat "$help_dir/${topic}.txt"
+    else
+        echo "Unknown help topic: $topic" >&2; echo
+        cat "$help_dir/index.txt"
+    fi
 }
 ```
+
+Adding a new help topic requires only dropping a new `.txt` file into `lib/help/`
+and updating `index.txt` — no code changes to the dispatcher.
+
+### CLI usage message
+
+The short `usage()` function (shown by `ralph --help`, `ralph -h`, or bare `ralph`)
+remains in the `ralph` script as-is. It is CLI synopsis, not help content.
 
 ## Changes to Existing Specs and Files
 
 ### `ralph` script
 
 1. Add `help` as a recognized mode
-2. Add `ralph_help` dispatcher and topic functions (`help_specs`, `help_plan`,
-   `help_build`, `help_prompt`, `help_sandbox`, `help_align_specs`, `help_retro`)
-3. Replace `sandbox_help()` with `help_sandbox()`
+2. Add `ralph_help` dispatcher (file-based, ~10 lines)
+3. Remove all `help_*()` heredoc functions — content moves to `lib/help/*.txt`
 4. Remove `ralph sandbox help` — sandbox help is now `ralph help sandbox`
 5. Update `usage()` to include `help [topic]` in the modes list
 
@@ -239,4 +232,6 @@ Add `help [topic]` to the CLI interface modes section.
 
 ### Installer and Updater
 
-No changes — help text lives in the `ralph` script, which is already a managed file.
+Add all `lib/help/*.txt` files to `MANAGED_FILES` and `SOURCE_PATHS` in both
+`install.sh` and `update.sh`. These are core (upstream-managed) files — users
+are not expected to customize help content.

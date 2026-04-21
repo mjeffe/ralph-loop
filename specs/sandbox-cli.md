@@ -358,7 +358,18 @@ their health checks.
 
 ## Changes to `ralph` Script
 
-Add a `sandbox` case to the main argument parser:
+### Module structure
+
+All sandbox functions live in `lib/sandbox.sh`, which is sourced eagerly at
+startup (see `project-structure.md` — lib/ sourcing). This includes:
+
+- `sandbox_ensure_name`, `sandbox_container_name` — helpers
+- `sandbox_up`, `sandbox_stop`, `sandbox_reset`, `sandbox_shell`, `sandbox_status` — lifecycle
+- `sandbox_setup` — multi-pass pipeline orchestrator
+- `sandbox_validate_profile`, `sandbox_validate` — validation
+- `detect_stack` — project stack detection (only caller is `sandbox_setup`)
+
+The `ralph` script retains only the sandbox case in the argument parser:
 
 ```bash
 sandbox)
@@ -368,7 +379,6 @@ sandbox)
     fi
     shift
     case "${1:-}" in
-        help)   shift; sandbox_help ;;
         setup)  shift; sandbox_setup "$@" ;;
         up)     shift; sandbox_up "$@" ;;
         stop)   shift; sandbox_stop "$@" ;;
@@ -376,12 +386,15 @@ sandbox)
         shell)  shift; sandbox_shell "$@" ;;
         status) shift; sandbox_status "$@" ;;
         *)
-            echo "Usage: ralph sandbox <help|setup|up|stop|reset|shell|status>"
+            echo "Usage: ralph sandbox <setup|up|stop|reset|shell|status>"
             exit 1
             ;;
     esac
     ;;
 ```
+
+Note: `sandbox help` is removed — sandbox help is now `ralph help sandbox`
+(see `help-system.md`).
 
 The `sandbox_setup` function orchestrates the multi-pass pipeline. The full
 implementation is defined in `sandbox-setup-prompt.md` — the key behaviors
@@ -403,9 +416,10 @@ The installer adds:
    `prompts/sandbox-repair.md`, `prompts/templates/Dockerfile.base`, and
    `prompts/playbooks/*.md` to the managed files list (fetched from upstream,
    tracked in `.manifest`).
-2. Creates `sandbox-preferences.sh` starter script (user-customizable).
-3. Creates `.ralph/sandbox/` directory.
-4. Adds `sandbox/.env` to `.ralph/.gitignore`.
+2. `lib/sandbox.sh` to the managed files list.
+3. Creates `sandbox-preferences.sh` starter script (user-customizable).
+4. Creates `.ralph/sandbox/` directory.
+5. Adds `sandbox/.env` to `.ralph/.gitignore`.
 
 The installer does **not** run `ralph sandbox setup` automatically — that requires
 an agent and API key, which may not be configured at install time.
@@ -413,8 +427,8 @@ an agent and API key, which may not be configured at install time.
 ## Updater Changes (`update.sh`)
 
 Add `prompts/sandbox-analyze.md`, `prompts/sandbox-render.md`,
-`prompts/sandbox-repair.md`, `prompts/templates/Dockerfile.base`, and
-`prompts/playbooks/*.md` to the `MANAGED_FILES` array. No other changes.
+`prompts/sandbox-repair.md`, `prompts/templates/Dockerfile.base`,
+`prompts/playbooks/*.md`, and `lib/sandbox.sh` to the `MANAGED_FILES` array.
 The generated sandbox files (`Dockerfile`, `docker-compose.yml`, `entrypoint.sh`,
 `.env.example`) are project-owned and never touched by the updater.
 

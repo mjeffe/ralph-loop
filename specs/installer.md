@@ -37,6 +37,18 @@ The installer script lives at the root of the ralph-loop repository so the curl 
    ├── sandbox-preferences.sh (user sandbox environment preferences, executable)
    ├── README.md           (overview of how Ralph works)
    ├── implementation_plan.md (empty template)
+   ├── lib/
+   │   ├── help/            (help topic content — plain text files)
+   │   │   ├── index.txt
+   │   │   ├── specs.txt
+   │   │   ├── plan.txt
+   │   │   ├── build.txt
+   │   │   ├── prompt.txt
+   │   │   ├── sandbox.txt
+   │   │   ├── align-specs.txt
+   │   │   └── retro.txt
+   │   ├── sandbox.sh       (sandbox lifecycle, validation, detect_stack)
+   │   └── plan-filter.sh   (plan header/overview extraction)
    ├── agents/
    │   ├── amp.sh
    │   ├── claude.sh
@@ -63,6 +75,7 @@ The installer script lives at the root of the ralph-loop repository so the curl 
     - Copy default `config` template
     - Copy `dependencies` file (system package dependencies for ralph runtime)
     - Copy `sandbox-preferences.sh` (user sandbox environment preferences, make executable)
+    - Copy `lib/` modules: `lib/sandbox.sh`, `lib/plan-filter.sh`, `lib/help/*.txt`
     - Copy agent scripts from `agents/` (canonical source in ralph-loop repo)
     - Copy prompt templates from `prompts/` including sandbox-analyze.md, sandbox-render.md, sandbox-repair.md, align-specs.md
     - Copy `prompts/templates/Dockerfile.base`

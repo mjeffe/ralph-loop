@@ -20,6 +20,18 @@ ralph-loop/                         # Project root = Ralph's home
 ├── sandbox-preferences.sh          # User sandbox environment preferences
 ├── sandbox-setup.md                # User sandbox fixes and bootstrap notes
 ├── implementation_plan.md          # Current implementation plan
+├── lib/                            # Extracted modules (sourced or invoked by ralph)
+│   ├── help/                       # Help topic content (plain text, cat'd by ralph)
+│   │   ├── index.txt
+│   │   ├── specs.txt
+│   │   ├── plan.txt
+│   │   ├── build.txt
+│   │   ├── prompt.txt
+│   │   ├── sandbox.txt
+│   │   ├── align-specs.txt
+│   │   └── retro.txt
+│   ├── sandbox.sh                  # Sandbox lifecycle, validation, detect_stack
+│   └── plan-filter.sh              # Plan header/overview extraction (invoked as script)
 ├── agents/                         # Agent scripts (one per supported agent)
 │   ├── amp.sh
 │   ├── claude.sh
@@ -63,6 +75,12 @@ parent-project/
 │   ├── sandbox-setup.md            # User sandbox fixes and bootstrap notes
 │   ├── README.md                   # Overview of how Ralph works
 │   ├── implementation_plan.md      # Current implementation plan
+│   ├── lib/                        # Extracted modules
+│   │   ├── help/                   # Help topic content (plain text)
+│   │   │   ├── index.txt
+│   │   │   └── ...
+│   │   ├── sandbox.sh              # Sandbox lifecycle, validation, detect_stack
+│   │   └── plan-filter.sh          # Plan header/overview extraction
 │   ├── agents/                     # Agent scripts (one per supported agent)
 │   │   ├── amp.sh
 │   │   └── ...
@@ -168,6 +186,22 @@ Custom variables can be added to `config` and will be available in prompts autom
 Test instructions are **not** a config variable — they are described in prose in `AGENTS.md`, which the agent reads and interprets directly.
 
 ## Key Directories
+
+### lib/
+
+Extracted modules that keep the `ralph` script focused on the core loop. Each module
+uses the invocation style best suited to its content:
+
+| Module | Invocation | Description |
+|--------|-----------|-------------|
+| `lib/help/*.txt` | `cat` (no sourcing) | Help topic content as plain text files |
+| `lib/sandbox.sh` | `source` (eager, at startup) | Sandbox lifecycle, validation, and `detect_stack` |
+| `lib/plan-filter.sh` | Executed as script (`bash "$filter"`) | Plan header/overview extraction |
+
+All `lib/*.sh` modules are sourced eagerly at startup, after config but before the
+mode dispatch. Sourcing only parses function definitions into memory — there is no
+execution cost until the functions are called. This matches the pattern used for
+agent scripts (`source "$AGENT_SCRIPT"`).
 
 ### specs/
 
