@@ -20,3 +20,4 @@ Specs are the source of truth for desired behavior. When adding or removing a sp
 | [incremental-planning.md](incremental-planning.md) | Incremental process planning: decomposition ledger, skeleton-first workflow, volume hint, and phase collapsing for large spec volumes |
 | [align-specs.md](align-specs.md) | Align-specs mode: update target-state specs after process-spec migrations, build-completion nudge |
 | [help-system.md](help-system.md) | CLI help system: `ralph help <topic>` for operational guidance on planning, specs, build, and sandbox |
+| [plan-context-management.md](plan-context-management.md) | Infrastructure-managed plan views: plan header injection, smart task overview, replacing phase collapsing |
