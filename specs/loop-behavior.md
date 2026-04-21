@@ -276,9 +276,8 @@ but does no work. If retries are also exhausted, the loop exits with code 4.
 ### Retry Strategy
 
 - Each iteration can be retried up to 3 times (configurable via `MAX_RETRIES` in config)
-- Retry counter resets on successful iteration
+- Retry counter is per-iteration (resets to zero for each new iteration)
 - Retries use the same prompt/task
-- Retry count is logged in iteration footer
 
 ## State Management
 
