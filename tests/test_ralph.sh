@@ -75,6 +75,7 @@ run_signal_tests() {
     test_signal_survives_malformed_json
     test_signal_both_complete_and_replan
     test_signal_in_long_response
+    test_empty_response_detected
     test_display_filter_survives_malformed_json
 }
 
@@ -97,6 +98,7 @@ run_core_tests() {
     test_plan_prompts_have_cross_cutting_section
     test_plan_process_has_decomposition_ledger
     test_managed_files_in_sync
+    test_run_iteration_has_empty_response_check
 }
 
 run_install_update_tests() {

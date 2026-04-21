@@ -259,11 +259,19 @@ per-iteration design mitigates this, but large tasks can still push a single ite
 
 ### Agent Failures
 
-If agent crashes, times out, or returns malformed output:
+If agent crashes, returns non-zero exit code, or produces no response:
 1. Log the failure
 2. Increment retry counter for this iteration
 3. If retries < 3: retry the same iteration
 4. If retries >= 3: exit with code 4
+
+### Empty Response Detection
+
+After each agent invocation, the loop extracts the agent's response text using
+`agent_extract_response`. If the agent exited successfully (code 0) but produced no response
+text, the iteration is treated as a failure and enters the retry path. This catches budget
+exhaustion, authentication expiry, and transient errors where the agent CLI exits cleanly
+but does no work. If retries are also exhausted, the loop exits with code 4.
 
 ### Retry Strategy
 

@@ -314,6 +314,14 @@ test_plan_process_has_decomposition_ledger() {
     assert_contains "plan-process.md mentions skeleton-first workflow" "Skeleton" "$template"
 }
 
+test_run_iteration_has_empty_response_check() {
+    echo "--- run_iteration has empty response detection ---"
+    local ralph_src
+    ralph_src=$(cat "$RALPH_DIR/ralph")
+    assert_contains "ralph checks for empty response" "agent_extract_response" "$ralph_src"
+    assert_contains "ralph logs empty response warning" "Agent produced no response" "$ralph_src"
+}
+
 extract_managed_files() {
     sed -n '/^MANAGED_FILES=(/,/^)/p' "$1" | grep -v '^MANAGED_FILES=\|^)' | tr -d ' ' | sort
 }

@@ -241,6 +241,15 @@ run_iteration() {
 
         rm -f "$tmp_prompt"
 
+        # Detect empty response (budget exhaustion, auth failure, transient error)
+        if [[ $agent_rc -eq 0 ]]; then
+            local response
+            response=$(agent_extract_response "$RALPH_DIR/last_agent_output")
+            if [[ -z "$response" ]]; then
+                log "⚠ Agent produced no response — possible budget exhaustion or transient failure"
+                agent_rc=1
+            fi
+        fi
 
         log "================================================================================"
         local duration=$(( $(date +%s) - iter_start ))

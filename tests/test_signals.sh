@@ -143,6 +143,25 @@ EOF
     assert_eq "finds signal in long response" "2" "$rc"
 }
 
+test_empty_response_detected() {
+    echo "--- Empty response: no assistant messages produces empty extract ---"
+    source "$RALPH_DIR/agents/amp.sh"
+    local output_file="$TMP_DIR/empty_response.json"
+    # Simulate budget exhaustion: system init and user prompt echo, but no assistant response
+    cat > "$output_file" <<'EOF'
+{"type":"system","subtype":"init","cwd":"/tmp","session_id":"T-test"}
+{"type":"user","message":{"content":[{"type":"text","text":"Do some work"}]}}
+EOF
+    local response
+    response=$(agent_extract_response "$output_file")
+    assert_eq "empty response from no assistant messages" "" "$response"
+
+    # Also test truly empty file
+    > "$TMP_DIR/truly_empty.json"
+    response=$(agent_extract_response "$TMP_DIR/truly_empty.json")
+    assert_eq "empty response from empty file" "" "$response"
+}
+
 test_display_filter_survives_malformed_json() {
     echo "--- Display filter: survives malformed JSON ---"
     source "$RALPH_DIR/agents/amp.sh"
