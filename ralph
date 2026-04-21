@@ -498,6 +498,10 @@ TIPS
   - Include test criteria: define how to verify the feature works
   - Don't mix spec types: keep target-state specs in SPECS_DIR, process specs
     in PROCESS_DIR
+  - In process specs, express actionable instructions as steps within phases,
+    not as decisions or notes in orienting sections. The planner decomposes
+    phases and steps — context/rationale sections are read for understanding
+    but not decomposed into tasks.
 
 SPEC MAINTENANCE AFTER MIGRATIONS
 ----------------------------------

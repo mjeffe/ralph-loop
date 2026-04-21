@@ -71,7 +71,8 @@ Cover:
 - Target-state specs live in `SPECS_DIR`, process specs live in `PROCESS_DIR`
 - Process spec lifecycle: active specs in `PROCESS_DIR`, archive completed specs to
   a subdirectory (e.g., `archive/`). Only top-level `*.md` files are read.
-- Brief spec-writing tips: be specific, one feature per spec, include test criteria
+- Brief spec-writing tips: be specific, one feature per spec, include test criteria,
+  express actionable instructions as phases/steps (not decisions in orienting sections)
 
 ### `ralph help plan`
 
