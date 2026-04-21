@@ -142,7 +142,7 @@ Extract all sandbox-related functions from `ralph` into `lib/sandbox.sh`. Add a 
 ---
 
 ### Task 3: Add wait-for-db auto-refresh to sandbox_up
-**Status:** planned
+**Status:** complete
 **Spec:** specs/sandbox-cli.md
 
 Add `wait-for-db` to the auto-refresh block in `sandbox_up()`, alongside the existing `Dockerfile.base` and `sandbox-preferences.sh` copies.
@@ -160,6 +160,8 @@ cp "$RALPH_DIR/sandbox-preferences.sh" "$RALPH_DIR/sandbox/sandbox-preferences.s
 **Verify:**
 - `./tests/test_ralph.sh` — all tests pass
 - `grep -A3 'Auto-refresh' lib/sandbox.sh` shows all three cp lines including wait-for-db
+
+**Notes:** Added one cp line for wait-for-db in sandbox_up(), matching sandbox_setup() which already had all three copies. Updated comment to mention wait-for-db.
 
 ---
 
