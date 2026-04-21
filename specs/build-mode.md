@@ -15,19 +15,30 @@ Implementation plan not found. Run 'ralph plan' first.
 
 ### Task Selection
 
+For `Plan Type: process` builds, the `ralph` script pre-computes a structural task
+overview (phase headings, task headings, statuses, and dependencies) and injects it into
+the build prompt via `${TASK_OVERVIEW}`. This ensures agents always have an accurate view
+of phase order and task statuses without reading or scrolling the full plan.
+
 The agent should:
-1. Read `implementation_plan.md`, including the `Plan Type:` header
-2. Review tasks and their status/dependencies
-3. Select the next task according to the plan type
+1. Read `AGENTS.md`, `specs/README.md`, and `implementation_plan.md`:
+   - `gap-driven` (or absent `Plan Type:`): read the full plan.
+   - `process`: read only the `Plan Type:` header. Use the injected Task Overview for
+     task selection.
+2. Select the next task according to the plan type
+3. Run `git status --short` and `git diff --stat` to check for uncommitted work from a
+   prior interrupted iteration. If uncommitted changes exist that relate to the selected
+   task, the task is NOT complete — resume from where the prior agent left off.
 
 **Plan-type-aware selection:**
 - `Plan Type: gap-driven` — treat the plan as a priority list. Prefer the highest-priority
   `planned` task with no blocking dependencies. May choose out of order if there's a clear
   reason (document why).
-- `Plan Type: process` — treat phase headings as authoritative ordering constraints. Select
-  a ready `planned` task from the earliest incomplete phase. Do not skip to a later phase
-  while an earlier phase has ready work. Within a phase, obey explicit sequencing and any
-  `Depends on:` fields.
+- `Plan Type: process` — using the injected Task Overview, identify the earliest incomplete
+  (non-✅) phase and a candidate ready `planned` task within it. Treat collapsed phase
+  summaries (with ✅) as complete. Validate that the candidate is in the earliest incomplete
+  phase with ready work and that no earlier task in that phase is still a ready `planned`
+  task. Within a phase, obey explicit sequencing and any `Depends on:` fields.
 - If `Plan Type:` is absent, treat the plan as gap-driven (backward compatibility).
 
 ### Single Task Focus
@@ -42,13 +53,17 @@ If during implementation the agent discovers:
 ### Implementation Process
 
 1. **Select task** from plan
-2. **Implement the task** following the steps
-3. **Run tests** - All tests must pass (see `AGENTS.md` for project test instructions)
-4. **Fix any broken tests** - Even unrelated ones
-5. **Update task status** to `complete` in plan
-6. **Review remaining tasks** - Update any that are obsolete, incorrect, or mis-ordered
-7. **Commit all changes** with a descriptive commit message
-8. **Output completion signal** if no tasks remain
+2. **Check for uncommitted work** — run `git status --short` and `git diff --stat` to
+   detect interrupted prior iterations. Resume if uncommitted changes relate to the
+   selected task.
+3. **Read the selected task block**, the referenced spec, and inspect relevant code and tests
+4. **Implement the task** following the steps
+5. **Run tests** - All tests must pass (see `AGENTS.md` for project test instructions)
+6. **Fix any broken tests** - Even unrelated ones
+7. **Update task status** to `complete` in plan
+8. **Review remaining tasks** - Update any that are obsolete, incorrect, or mis-ordered
+9. **Commit all changes** with a descriptive commit message
+10. **Output completion signal** if no tasks remain
 
 ### Test Requirements
 
@@ -178,124 +193,28 @@ recorded in `Plan Command:` at the top of the plan. The agent should use this wh
 
 During build mode, the agent should:
 
-1. **Study `specs/README.md`** for an overview of all specs
-2. **Study the implementation plan**
+1. **Study `AGENTS.md` and `specs/README.md`** for project instructions and spec overview
+2. **Read the implementation plan** — for process plans, use the injected Task Overview;
+   for gap-driven plans, read the full plan
 3. **Select one task** to implement
-4. **Study the spec** referenced by the selected task
-5. **Implement the task** following its steps
-6. **Run all tests** and ensure they pass (per `AGENTS.md`)
-7. **Fix any broken tests** (even unrelated ones)
-8. **Update task status** to `complete`
-9. **Review remaining planned tasks** — update any that are obsolete, incorrect, or mis-ordered
-10. **Update the plan** with any new tasks discovered
-11. **Keep `specs/README.md` current** — update it if specs are added or removed
-12. **Commit all changes** with a descriptive message
-13. **Output completion signal** if no tasks remain
-14. **Output replan signal** if the plan needs significant restructuring
+4. **Check for uncommitted work** from prior interrupted iterations
+5. **Read the selected task block** and the referenced spec
+6. **Implement the task** following its steps
+7. **Run all tests** and ensure they pass (per `AGENTS.md`)
+8. **Fix any broken tests** (even unrelated ones)
+9. **Update task status** to `complete`
+10. **Review remaining planned tasks** — update any that are obsolete, incorrect, or mis-ordered
+11. **Update the plan** with any new tasks or cross-cutting findings discovered
+12. **Keep `specs/README.md` current** — update it if specs are added or removed
+13. **Commit all changes** with a descriptive message
+14. **Output completion signal** if no tasks remain
+15. **Output replan signal** if the plan needs significant restructuring
 
 ## Prompt Template
 
-The following is the canonical prompt template for build mode. It lives at `prompts/build.md` and is used by the ralph loop to invoke the agent.
-
-```markdown
-You are an expert software developer working in Ralph build mode.
-
-Each iteration starts with **fresh context** — you have no memory of prior iterations. Treat repo files as the sole source of truth: `${RALPH_HOME}/implementation_plan.md`, `${SPECS_DIR}/`, `AGENTS.md`, and git history.
-
-## Operating Contract
-
-- You have full autonomy in implementation decisions unless the spec defines specific constraints, tooling, or architectural choices — those take precedence.
-- Read the `Plan Type:` header from `${RALPH_HOME}/implementation_plan.md` before selecting work.
-- If `Plan Type: process`, phase headings are authoritative. Do not select a task from a later phase while an earlier phase has a ready task. Within a phase, obey explicit sequencing and any `Depends on:` fields.
-- If `Plan Type: gap-driven` (or absent), treat the plan as a priority list. You may choose a different ready task when there is a clear reason, but document why in the plan.
-- Complete **exactly one task** this iteration.
-- Before editing, inspect the current code and tests — do not assume the task is unimplemented.
-- All project validation (tests, lint, build — see AGENTS.md) must pass before you commit.
-- Do not commit broken or partial code.
-- If blocked, mark the task `blocked`, document why in the plan, and stop. Do not commit incomplete implementation — commit only safe changes (plan updates, docs) with passing validation, or revert.
-- Implement functionality completely. Placeholders and stubs waste time redoing the same work.
-
-## Context
-
-- **Specifications:** ${SPECS_DIR}
-- **Specs Index:** ${SPECS_DIR}/README.md
-- **Implementation Plan:** ${RALPH_HOME}/implementation_plan.md
-- **Project instructions:** AGENTS.md
-
-## Workflow
-
-1. Read `AGENTS.md`, `${SPECS_DIR}/README.md`, and `${RALPH_HOME}/implementation_plan.md` (including the `Plan Type:` header).
-2. Select the next task according to the plan type:
-   - `gap-driven` (or absent): select the highest-priority ready `planned` task; only go out of order with a documented reason.
-   - `process`: select a ready `planned` task from the earliest incomplete phase. Do not skip to a later phase while earlier ready work exists.
-3. Read the referenced spec and inspect relevant code and tests.
-4. Implement the task.
-5. Add or update targeted tests when appropriate — especially for bug fixes and user-visible behavior changes. Use judgment: skip brittle or high-setup tests for pure refactors or trivial wiring; if you skip meaningful coverage, note it in the plan.
-6. If the task includes a `Verify:` block, execute its checks after implementation. If verification fails, fix the issue before proceeding. If it cannot be fixed within the task's scope, mark the task `blocked`.
-7. Run the project's required validation from AGENTS.md. Fix failures caused by your changes. If unrelated failures are quick, fix them too. If they are substantial, mark the task `blocked` and document the issue rather than expanding scope.
-8. Update `${RALPH_HOME}/implementation_plan.md`:
-   - Mark the task `complete`
-   - Add a brief note on what changed
-   - Add any newly discovered tasks (note which task surfaced them)
-   - Adjust any remaining tasks that are now obsolete, incorrect, or mis-ordered
-9. Commit all changes with a descriptive commit message.
-10. If all tasks are `complete` (none `planned` or `blocked`), output the completion signal (see Exit Signals).
-11. If only `blocked` tasks remain (no `planned` work available), output the replan signal (see Exit Signals).
-12. If the plan needs major restructuring, output the replan signal (see Exit Signals).
-
-## Exit Signals
-
-- **All tasks done:** output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it. Do not emit this if any tasks remain `blocked`.
-- **Plan needs restructuring or only blocked tasks remain:** output exactly `<promise>REPLAN</promise>` to trigger re-planning.
-
-## Mid-Implementation Discoveries
-
-### Spec gaps (tactical ambiguity)
-When the spec is silent on a detail you need right now to finish the task:
-
-1. Resolve using this order: **spec → existing code/tests → repo conventions → framework conventions**.
-2. If still unresolved, choose the simplest reasonable option that is consistent with existing patterns, local to this task, and easy to change later.
-3. When in doubt, prefer validation errors over silent behavior, deny over allow for permissions, and preserve data over destructive changes.
-4. Add or update a test if the choice affects observable behavior.
-5. Document the choice in the task notes labeled `Assumption / Spec gap:`.
-
-If no safe default exists, or the choice affects a public/shared interface, output the replan signal instead of guessing.
-
-### Emerging architecture
-You may refine implementation details within the current task's scope. Output the replan signal if the discovery would:
-- change shared/public interfaces or core data models
-- require foundational work the plan missed, affecting multiple tasks (for a single missing prerequisite, mark the current task `blocked` and add the prerequisite to the plan)
-- force reworking or redefining multiple remaining tasks
-- make completed work wrong or likely throwaway
-
-Otherwise, make the call, keep the change local, and document it in the plan.
-
-### Conflicting sources of truth
-If the spec, code, tests, or plan disagree and correct intent cannot be safely inferred, output the replan signal.
-
-### New work
-**Small bugs or issues:**
-1. Create a task in the plan, noting it was discovered during Task N.
-2. If the fix is trivial (isolated, low-risk, ≤ ~5 lines) and directly adjacent to your current work, fix it now. Otherwise, leave it for a future iteration.
-
-**Complex features:**
-1. Create a new spec in `${SPECS_DIR}/`.
-2. Add a task to the plan referencing the new spec.
-3. Continue with your current task.
-
-## Task Status Values
-
-- `planned` — ready to work on
-- `blocked` — cannot proceed
-- `complete` — finished and committed
-
-## Secondary Maintenance
-
-- Keep `${SPECS_DIR}/README.md` current if you add or remove specs.
-- When you learn something new about running the project, update AGENTS.md — keep it brief and operational only. Status updates and progress notes belong in the plan.
-
-Begin implementation now.
-```
+The canonical prompt template lives at `prompts/build.md`. It is the source of truth for
+the exact prompt wording and is used by the ralph loop to invoke the agent. Refer to that
+file directly rather than duplicating it here.
 
 ## Example Iteration
 

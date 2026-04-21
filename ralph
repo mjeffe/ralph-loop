@@ -1652,6 +1652,29 @@ case "$MODE" in
             echo "Implementation plan not found. Run 'ralph plan' first." >&2
             exit 2
         fi
+
+        # For process plans, generate a structural task overview for prompt injection.
+        # This gives the build agent an immediate view of phase order, task statuses,
+        # and dependencies without reading/scrolling the full plan (which can cause
+        # out-of-order task selection on large plans).
+        TASK_OVERVIEW=""
+        local plan_type_check
+        plan_type_check=$(grep -m1 '^Plan Type:' "$RALPH_DIR/implementation_plan.md" 2>/dev/null \
+            | sed 's/^Plan Type:[[:space:]]*//' || true)
+        if [[ "$plan_type_check" == "process" ]]; then
+            local overview
+            overview=$(grep -nE '^(## Phase [0-9]|### Task [0-9]|\*?\*?Status:\*?\*?|\*?\*?Depends on:\*?\*?)' \
+                "$RALPH_DIR/implementation_plan.md" 2>/dev/null || true)
+            if [[ -n "$overview" ]]; then
+                TASK_OVERVIEW="## Task Overview
+
+Structural overview of phases, tasks, statuses, and dependencies extracted from the implementation plan. Use this for task selection only — you must read the full task block before implementing.
+
+${overview}"
+            fi
+        fi
+        export TASK_OVERVIEW
+
         PROMPT_TEMPLATE="$RALPH_DIR/prompts/build.md"
         if [[ ! -f "$PROMPT_TEMPLATE" ]]; then
             echo "Error: build prompt template not found: $PROMPT_TEMPLATE" >&2
