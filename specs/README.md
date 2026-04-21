@@ -17,7 +17,6 @@ Specs are the source of truth for desired behavior. When adding or removing a sp
 | [sandbox-cli.md](sandbox-cli.md) | Sandbox lifecycle commands (`up`, `down`, `reset`, `shell`, `status`, `setup`) — implement first |
 | [sandbox-setup-prompt.md](sandbox-setup-prompt.md) | Multi-container, multi-pass prompt pipeline: project analysis, file generation, validation, repair, and migration — implement after sandbox-cli |
 | [process-planning.md](process-planning.md) | Process planning mode: phased playbooks, CLI flags, plan-type metadata, and prompt template |
-| [incremental-planning.md](incremental-planning.md) | Incremental process planning: decomposition ledger, skeleton-first workflow, volume hint, and phase collapsing for large spec volumes |
+| [incremental-planning.md](incremental-planning.md) | Incremental process planning: decomposition ledger, skeleton-first workflow, and volume hint for large spec volumes |
 | [align-specs.md](align-specs.md) | Align-specs mode: update target-state specs after process-spec migrations, build-completion nudge |
 | [help-system.md](help-system.md) | CLI help system: `ralph help <topic>` for operational guidance on planning, specs, build, and sandbox |
-| [plan-context-management.md](plan-context-management.md) | Infrastructure-managed plan views: plan header injection, smart task overview, deterministic task selection for process plans, split build prompts, replacing phase collapsing |

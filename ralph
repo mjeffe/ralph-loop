@@ -188,6 +188,7 @@ prepare_prompt() {
     local template_file="$1"
     local output_file="$2"
     export MODE SPECS_DIR RALPH_HOME
+    export PLAN_HEADER TASK_OVERVIEW SELECTED_TASK ADJACENT_CONTEXT
     envsubst < "$template_file" > "$output_file"
 }
 
@@ -1653,29 +1654,51 @@ case "$MODE" in
             exit 2
         fi
 
-        # For process plans, generate a structural task overview for prompt injection.
-        # This gives the build agent an immediate view of phase order, task statuses,
-        # and dependencies without reading/scrolling the full plan (which can cause
-        # out-of-order task selection on large plans).
-        TASK_OVERVIEW=""
+        local plan_file="$RALPH_DIR/implementation_plan.md"
+        local filter="$RALPH_DIR/lib/plan-filter.sh"
+
+        # Extract plan type
         local plan_type_check
-        plan_type_check=$(grep -m1 '^Plan Type:' "$RALPH_DIR/implementation_plan.md" 2>/dev/null \
+        plan_type_check=$(grep -m1 '^Plan Type:' "$plan_file" 2>/dev/null \
             | sed 's/^Plan Type:[[:space:]]*//' || true)
-        if [[ "$plan_type_check" == "process" ]]; then
+
+        # Extract plan header (everything above first ### Task)
+        PLAN_HEADER=""
+        if [[ -f "$filter" ]]; then
+            PLAN_HEADER=$(bash "$filter" header "$plan_file" 2>/dev/null || true)
+        fi
+        export PLAN_HEADER
+
+        # Generate smart task overview
+        TASK_OVERVIEW=""
+        if [[ -f "$filter" ]]; then
             local overview
-            overview=$(grep -nE '^(## Phase [0-9]|### Task [0-9]|\*?\*?Status:\*?\*?|\*?\*?Depends on:\*?\*?)' \
-                "$RALPH_DIR/implementation_plan.md" 2>/dev/null || true)
+            overview=$(bash "$filter" overview "$plan_file" 2>/dev/null || true)
             if [[ -n "$overview" ]]; then
-                TASK_OVERVIEW="## Task Overview
-
-Structural overview of phases, tasks, statuses, and dependencies extracted from the implementation plan. Use this for task selection only — you must read the full task block before implementing.
-
-${overview}"
+                TASK_OVERVIEW="$overview"
             fi
         fi
         export TASK_OVERVIEW
 
-        PROMPT_TEMPLATE="$RALPH_DIR/prompts/build.md"
+        # For process plans: deterministic task selection
+        SELECTED_TASK=""
+        ADJACENT_CONTEXT=""
+        if [[ "$plan_type_check" == "process" && -f "$filter" ]]; then
+            local select_output
+            select_output=$(bash "$filter" select "$plan_file" 2>/dev/null || true)
+            if [[ -n "$select_output" && "$select_output" != "NO_ELIGIBLE_TASK" ]]; then
+                SELECTED_TASK=$(echo "$select_output" | sed -n '/^---SELECTED_TASK---$/,/^---END_SELECTED_TASK---$/{ /^---.*---$/d; p; }')
+                ADJACENT_CONTEXT=$(echo "$select_output" | sed -n '/^---ADJACENT_CONTEXT---$/,/^---END_ADJACENT_CONTEXT---$/{ /^---.*---$/d; p; }')
+            fi
+        fi
+        export SELECTED_TASK ADJACENT_CONTEXT
+
+        # Select prompt template by plan type
+        if [[ "$plan_type_check" == "process" ]]; then
+            PROMPT_TEMPLATE="$RALPH_DIR/prompts/build-process.md"
+        else
+            PROMPT_TEMPLATE="$RALPH_DIR/prompts/build.md"
+        fi
         if [[ ! -f "$PROMPT_TEMPLATE" ]]; then
             echo "Error: build prompt template not found: $PROMPT_TEMPLATE" >&2
             exit 1

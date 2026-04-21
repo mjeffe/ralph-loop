@@ -27,6 +27,7 @@ source "$SCRIPT_DIR/test_signals.sh"
 source "$SCRIPT_DIR/test_core.sh"
 source "$SCRIPT_DIR/test_install_update.sh"
 source "$SCRIPT_DIR/test_sandbox.sh"
+source "$SCRIPT_DIR/test_plan_filter.sh"
 
 # ---------------------------------------------------------------------------
 # Test groups
@@ -91,7 +92,9 @@ run_core_tests() {
     test_spec_volume_hint_small
     test_spec_volume_hint_large
     test_spec_volume_hint_boundary
-    test_build_prompt_has_phase_collapsing
+    test_build_prompt_has_plan_header_injection
+    test_build_process_prompt_has_selected_task
+    test_plan_prompts_have_cross_cutting_section
     test_plan_process_has_decomposition_ledger
     test_managed_files_in_sync
 }
@@ -103,6 +106,28 @@ run_install_update_tests() {
     test_updater_originals_not_in_gitignore
     test_updater_has_merge_logic
     test_updater_clean_merge_records_upstream_checksum
+}
+
+run_plan_filter_tests() {
+    test_filter_header_extracts_above_first_task
+    test_filter_header_gap_driven
+    test_filter_overview_summarizes_complete_sections
+    test_filter_overview_expands_incomplete_sections
+    test_filter_overview_includes_line_numbers
+    test_filter_overview_gap_driven
+    test_filter_overview_bare_format
+    test_filter_overview_complete_phase_summarized
+    test_filter_overview_empty_plan_fails
+    test_filter_select_picks_correct_task
+    test_filter_select_includes_adjacent_context
+    test_filter_select_bare_format
+    test_filter_select_skips_complete_phase
+    test_filter_select_no_eligible_task
+    test_filter_select_empty_plan_fails
+    test_filter_bad_mode_fails
+    test_filter_missing_file_fails
+    test_filter_no_args_fails
+    test_filter_overview_progressive_disclosure
 }
 
 run_sandbox_tests() {
@@ -151,6 +176,7 @@ main() {
         run_signal_tests
         run_core_tests
         run_install_update_tests
+        run_plan_filter_tests
         run_sandbox_tests
     else
         # Run only requested groups
@@ -160,10 +186,11 @@ main() {
                 signals)        run_signal_tests ;;
                 core)           run_core_tests ;;
                 install_update) run_install_update_tests ;;
+                plan_filter)    run_plan_filter_tests ;;
                 sandbox)        run_sandbox_tests ;;
                 *)
                     echo "Unknown test group: $group" >&2
-                    echo "Available groups: cli, signals, core, install_update, sandbox" >&2
+                    echo "Available groups: cli, signals, core, install_update, plan_filter, sandbox" >&2
                     exit 1
                     ;;
             esac

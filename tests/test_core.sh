@@ -277,12 +277,32 @@ test_spec_volume_hint_boundary() {
     assert_eq "5 files triggers incremental hint" "incremental" "$SPEC_VOLUME_HINT"
 }
 
-test_build_prompt_has_phase_collapsing() {
-    echo "--- build.md contains phase collapsing instruction ---"
+test_build_prompt_has_plan_header_injection() {
+    echo "--- build.md contains plan header injection ---"
     local template
     template=$(cat "$RALPH_DIR/prompts/build.md")
-    assert_contains "build.md mentions phase collapsing" "Phase collapsing" "$template"
-    assert_contains "build.md gates on Plan Type: process" "Plan Type: process" "$template"
+    assert_contains "build.md has PLAN_HEADER variable" '${PLAN_HEADER}' "$template"
+    assert_contains "build.md has TASK_OVERVIEW variable" '${TASK_OVERVIEW}' "$template"
+    assert_not_contains "build.md has no phase collapsing" "Phase collapsing" "$template"
+}
+
+test_build_process_prompt_has_selected_task() {
+    echo "--- build-process.md contains selected task injection ---"
+    local template
+    template=$(cat "$RALPH_DIR/prompts/build-process.md")
+    assert_contains "build-process.md has PLAN_HEADER" '${PLAN_HEADER}' "$template"
+    assert_contains "build-process.md has SELECTED_TASK" '${SELECTED_TASK}' "$template"
+    assert_contains "build-process.md has ADJACENT_CONTEXT" '${ADJACENT_CONTEXT}' "$template"
+    assert_contains "build-process.md has TASK_OVERVIEW" '${TASK_OVERVIEW}' "$template"
+}
+
+test_plan_prompts_have_cross_cutting_section() {
+    echo "--- plan prompts: cross-cutting constraints section ---"
+    local gap_plan process_plan
+    gap_plan=$(cat "$RALPH_DIR/prompts/plan.md")
+    process_plan=$(cat "$RALPH_DIR/prompts/plan-process.md")
+    assert_contains "plan.md mentions cross-cutting" "Cross-cutting constraints" "$gap_plan"
+    assert_contains "plan-process.md mentions cross-cutting" "Cross-cutting constraints" "$process_plan"
 }
 
 test_plan_process_has_decomposition_ledger() {

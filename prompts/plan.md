@@ -41,6 +41,10 @@ At the top of `${RALPH_HOME}/implementation_plan.md`, include:
 - `Plan Type: gap-driven`
 - `Plan Command: ralph plan`
 
+Below the metadata and summary, include a `## Cross-cutting constraints` section. This section starts empty or with spec-derived constraints (architectural invariants, testing rules, naming conventions). During build iterations, agents add discoveries here that would affect correctness or verification of future tasks. The plan header (everything above the first task) is injected into every build iteration, making this section automatically visible without agents needing to search for it.
+
+Use `### Task N: Title` headings for each task (e.g., `### Task 1: Set up Express server`). Use `**Status:**` for the status field (e.g., `**Status:** planned`). This format is required — the build infrastructure parses these headings to generate task overviews and inject plan context.
+
 Each task must include enough context for a build agent starting with fresh context. At minimum:
 - A short title and brief description
 - The **spec** that drives it (e.g., `specs/feature.md`)
