@@ -35,6 +35,15 @@ MANAGED_FILES=(
     prompts/templates/wait-for-db
     prompts/playbooks/php-laravel.md
     lib/plan-filter.sh
+    lib/sandbox.sh
+    lib/help/index.txt
+    lib/help/specs.txt
+    lib/help/plan.txt
+    lib/help/build.txt
+    lib/help/prompt.txt
+    lib/help/sandbox.txt
+    lib/help/align-specs.txt
+    lib/help/retro.txt
     README.md
     .gitignore
 )
@@ -61,6 +70,15 @@ declare -A SOURCE_PATHS=(
     [prompts/templates/wait-for-db]="prompts/templates/wait-for-db"
     [prompts/playbooks/php-laravel.md]="prompts/playbooks/php-laravel.md"
     [lib/plan-filter.sh]="lib/plan-filter.sh"
+    [lib/sandbox.sh]="lib/sandbox.sh"
+    [lib/help/index.txt]="lib/help/index.txt"
+    [lib/help/specs.txt]="lib/help/specs.txt"
+    [lib/help/plan.txt]="lib/help/plan.txt"
+    [lib/help/build.txt]="lib/help/build.txt"
+    [lib/help/prompt.txt]="lib/help/prompt.txt"
+    [lib/help/sandbox.txt]="lib/help/sandbox.txt"
+    [lib/help/align-specs.txt]="lib/help/align-specs.txt"
+    [lib/help/retro.txt]="lib/help/retro.txt"
     [README.md]="specs/overview.md"
     [.gitignore]=".gitignore"
 )

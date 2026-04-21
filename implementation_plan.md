@@ -166,7 +166,7 @@ cp "$RALPH_DIR/sandbox-preferences.sh" "$RALPH_DIR/sandbox/sandbox-preferences.s
 ---
 
 ### Task 4: Update installer and updater MANAGED_FILES for lib/sandbox.sh and lib/help/*.txt
-**Status:** planned
+**Status:** complete
 **Spec:** specs/installer.md, specs/updater.md, specs/help-system.md, specs/project-structure.md
 
 Add `lib/sandbox.sh` and all `lib/help/*.txt` files to `MANAGED_FILES` and `SOURCE_PATHS` in both `install.sh` and `update.sh`. Also add `mkdir -p "$RALPH_DIR/lib/help"` to the installer's directory creation.
@@ -192,3 +192,5 @@ Add `lib/sandbox.sh` and all `lib/help/*.txt` files to `MANAGED_FILES` and `SOUR
 - `./tests/test_ralph.sh` — all tests pass (specifically the install_update group validates MANAGED_FILES sync)
 - `grep 'lib/sandbox.sh' install.sh update.sh` shows entries in both files
 - `grep 'lib/help/' install.sh | wc -l` shows 8+ entries (one per help file)
+
+**Notes:** Added `lib/sandbox.sh` and all 8 `lib/help/*.txt` files to MANAGED_FILES and SOURCE_PATHS in both install.sh and update.sh. Changed `mkdir -p "$RALPH_DIR/lib"` to `mkdir -p "$RALPH_DIR/lib/help"` in install.sh (creates both lib/ and lib/help/ in one call). All 230 tests pass.
