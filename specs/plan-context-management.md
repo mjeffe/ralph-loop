@@ -240,6 +240,14 @@ The parser must match status lines in both formats that agents produce:
 
 ## Implementation
 
+Implementation order matters — each layer depends on the one before it:
+
+1. **Parser** (`lib/plan-filter.sh`) — the core new component; everything else calls it
+2. **Ralph script** — calls the parser and exports variables for prompt substitution
+3. **Prompts** — reference the injected variables (`${PLAN_HEADER}`, `${TASK_OVERVIEW}`, etc.)
+4. **Specs** — document the new behavior (can be updated alongside prompts)
+5. **Tests** — parser tests can be written alongside the parser; integration testing after all layers are connected
+
 ### Parser (`lib/plan-filter.sh`)
 
 A single parser script that serves both plan types in different output modes. It lives
