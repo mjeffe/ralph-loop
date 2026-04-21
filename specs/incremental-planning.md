@@ -143,35 +143,20 @@ low.
 The `${SPEC_VOLUME_HINT}` variable is added to the Context section of
 `prompts/plan-process.md`.
 
-## Phase Collapsing (Build Mode)
+## Plan Context Management
 
-For process plans on large projects, the implementation plan can grow large enough to
-pressure build agent context. Since the build agent reads `implementation_plan.md` every
-iteration, a 100-task plan burns significant context before the agent opens a spec or code
-file.
+Phase collapsing was originally defined here as a build-mode convention: agents would
+collapse completed phases to single summary lines to save context. This mechanism was
+removed because:
 
-### Convention
+- It destroyed task notes, spec gap assumptions, and cross-cutting findings
+- Agents failed to collapse ~17% of the time, and prompt fixes added complexity
+- Cross-cutting knowledge recorded in task notes was lost when phases were collapsed
 
-When all tasks in a process plan phase are marked `complete`, the build agent collapses
-the phase to a single summary line:
-
-```markdown
-## Phase 0 — Prep ✅ (8/8 complete)
-```
-
-Full task history is preserved in git. The collapsed summary tells subsequent build agents
-(and plan agents) that the phase is done without consuming context on individual task
-details.
-
-This applies only to `Plan Type: process` plans. Gap-driven plans are flat priority lists
-with no phase structure to collapse.
-
-### Regeneration
-
-The process planning agent treats collapsed phases as complete. It only re-expands a
-collapsed phase if current specs or codebase state contradict the phase's outcomes — in
-that case, it re-decomposes the phase and adds corrective follow-up tasks per the
-regeneration rules in `specs/process-planning.md`.
+The smart task overview (see `specs/build-mode.md`) achieves the same context
+savings — completed sections appear as single summary lines in the injected overview —
+without modifying the plan file. Existing plans with collapsed phases continue to work;
+the overview filter displays collapsed summary lines as-is.
 
 ## Changes to Existing Specs and Files
 
@@ -180,10 +165,9 @@ regeneration rules in `specs/process-planning.md`.
 - `prompts/plan-process.md` — Add the decomposition ledger to the Plan Format section.
   Replace the Workflow section with the skeleton-first two-phase workflow. Add
   `${SPEC_VOLUME_HINT}` to the Context section. Update Exit Signal completion criteria to
-  include "all spec files in the decomposition ledger are marked `decomposed`." Update
-  Regeneration Rules to handle the ledger and collapsed phases.
-- `prompts/build.md` — Add phase collapsing instruction to the plan update section, gated
-  behind `Plan Type: process`.
+  include "all spec files in the decomposition ledger are marked `decomposed`."
+- `prompts/build.md` — Phase collapsing instruction removed; replaced by
+  infrastructure-managed plan context (see `specs/build-mode.md`).
 
 ### Shell script changes
 
@@ -203,8 +187,9 @@ regeneration rules in `specs/process-planning.md`.
   gaps, manual gates, regeneration rules, multiple process specs, target-state validation)
   are all preserved.
 - The gap-driven planner (`plan.md`) is unaffected.
-- The build prompt (`build.md`) is unaffected beyond the phase collapsing addition — it
-  reads tasks from the plan file regardless of how they were produced.
+- The build prompts (`build.md`, `build-process.md`) read tasks from the plan file
+  regardless of how they were produced. Phase collapsing is replaced by
+  infrastructure-managed plan context (see `specs/build-mode.md`).
 - CLI interface is unchanged — no new flags or commands.
 
 ## Design Rationale
@@ -225,8 +210,9 @@ spec + plan-so-far + relevant code is a bounded, predictable context load. Batch
 reintroduces the "how much fits?" problem. If a spec is small enough that the agent
 finishes early, the iteration is just short — no harm done.
 
-**Why collapse completed phases instead of splitting the plan file?** Splitting the plan
-into per-phase files would scale cleanly but is a significant architectural change to how
-ralph works — build mode, plan mode, and the ralph script all assume a single plan file.
-Collapsing is a prompt convention that achieves the same context savings without structural
-changes. If collapsing proves insufficient in practice, file splitting is the next step.
+**Why was phase collapsing removed?** Phase collapsing (agents editing the plan to replace
+completed phases with summary lines) was replaced by infrastructure-managed plan context
+(see `specs/build-mode.md`). The smart task overview achieves the same context
+savings by summarizing completed sections at read time, without mutating the plan file.
+This preserves task notes and cross-cutting findings, eliminates the ~17% agent failure
+rate for collapsing, and removes prompt complexity.

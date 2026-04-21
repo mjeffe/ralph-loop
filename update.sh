@@ -26,6 +26,7 @@ MANAGED_FILES=(
     prompts/plan.md
     prompts/plan-process.md
     prompts/build.md
+    prompts/build-process.md
     prompts/sandbox-analyze.md
     prompts/sandbox-render.md
     prompts/sandbox-repair.md
@@ -33,6 +34,7 @@ MANAGED_FILES=(
     prompts/templates/Dockerfile.base
     prompts/templates/wait-for-db
     prompts/playbooks/php-laravel.md
+    lib/plan-filter.sh
     README.md
     .gitignore
 )
@@ -50,6 +52,7 @@ declare -A SOURCE_PATHS=(
     [prompts/plan.md]="prompts/plan.md"
     [prompts/plan-process.md]="prompts/plan-process.md"
     [prompts/build.md]="prompts/build.md"
+    [prompts/build-process.md]="prompts/build-process.md"
     [prompts/align-specs.md]="prompts/align-specs.md"
     [prompts/sandbox-analyze.md]="prompts/sandbox-analyze.md"
     [prompts/sandbox-render.md]="prompts/sandbox-render.md"
@@ -57,6 +60,7 @@ declare -A SOURCE_PATHS=(
     [prompts/templates/Dockerfile.base]="prompts/templates/Dockerfile.base"
     [prompts/templates/wait-for-db]="prompts/templates/wait-for-db"
     [prompts/playbooks/php-laravel.md]="prompts/playbooks/php-laravel.md"
+    [lib/plan-filter.sh]="lib/plan-filter.sh"
     [README.md]="specs/overview.md"
     [.gitignore]=".gitignore"
 )

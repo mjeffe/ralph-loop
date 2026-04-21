@@ -91,7 +91,9 @@ At the top of the plan, include:
 - `Plan Command: ralph plan --process`
 - `Primary Process Specs:` comma-separated list of active process spec files
 
-Structure the main body using phase headings (e.g., `## Phase 0 — Inventory and safety rails`). Each phase should include its source process spec traceability and an optional `Depends on:` line when helpful. Use sequential task numbering within each phase (e.g., `### Task 1 — Install Dependencies (1a)`) — the task number is the plan's identifier; the parenthetical is spec traceability.
+Below the metadata and summary, include a `## Cross-cutting constraints` section. This section starts empty or with spec-derived constraints (architectural invariants, testing rules, naming conventions). During build iterations, agents add discoveries here that would affect correctness or verification of future tasks. The plan header (everything above the first task) is injected into every build iteration, making this section automatically visible without agents needing to search for it.
+
+Structure the main body using phase headings (e.g., `## Phase 0 — Inventory and safety rails`). Each phase should include its source process spec traceability and an optional `Depends on:` line when helpful. Use `### Task N — Title` headings for each task (e.g., `### Task 1 — Install Dependencies (1a)`) — the task number is the plan's identifier; the parenthetical is spec traceability. Use `**Status:**` for the status field (e.g., `**Status:** planned`). These heading and status formats are required — the build infrastructure parses them to generate task overviews, inject plan context, and perform deterministic task selection.
 
 Each task must include enough context for a build agent starting with fresh context and no memory of prior iterations. At minimum:
 - A short title and brief description
@@ -233,7 +235,6 @@ If `${RALPH_HOME}/implementation_plan.md` already exists and contains build prog
 - Re-evaluate each `blocked` task. If the blocker is gone, return it to `planned`. If the blocker still stands, keep it `blocked` with an updated reason. If the blocker was based on an outdated assumption, replace it with the correct prerequisite or manual gate.
 - Re-decompose all remaining incomplete phases from the current process specs rather than trusting stale task wording.
 - If the plan contains a decomposition ledger, reset all ledger entries to `pending`. Regeneration implies re-assessment — re-decompose each spec against the current codebase and current process specs. Previously completed tasks that survive revalidation are preserved in the plan body, but the ledger drives fresh decomposition passes.
-- Treat collapsed phases (e.g., `## Phase N — Name ✅ (X/X complete)`) as complete. Only re-expand a collapsed phase if current process specs or codebase state contradict the phase's outcomes — in that case, re-decompose and add corrective follow-up tasks.
 
 ## Task Status Values
 
