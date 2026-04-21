@@ -190,11 +190,9 @@ Written at start of each iteration:
 
 ```
 ================================================================================
-ITERATION ${ITERATION}
+ITERATION ${ITERATION}  ${TIMESTAMP}
+mode: ${MODE}  prompt: ${PROMPT_TEMPLATE}
 ================================================================================
-Mode: ${MODE}
-Start Time: ${TIMESTAMP}
---------------------------------------------------------------------------------
 ```
 
 ### Iteration Footer
@@ -202,16 +200,11 @@ Start Time: ${TIMESTAMP}
 Written at end of each iteration:
 
 ```
---------------------------------------------------------------------------------
-ITERATION ${ITERATION} COMPLETE
-End Time: ${TIMESTAMP}
-Duration: ${DURATION}
-Iteration Cost: ${ITER_COST} (if usage tracking configured)
-Balance: ${BALANCE} (if usage tracking configured)
-Context: ${TOKENS_USED}/${MAX_TOKENS} tokens (${PCT}%) (if context tracking available)
-Status: ${STATUS}
 ================================================================================
-
+ITERATION ${ITERATION} DONE in ${DURATION}s ----
+Iteration Cost: ${ITER_COST}  Balance: ${BALANCE} (if usage tracking configured)
+Context: ${TOKENS_USED}/${MAX_TOKENS} tokens (${PCT}%) (if context tracking available)
+================================================================================
 ```
 
 ### Session Summary
