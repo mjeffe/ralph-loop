@@ -155,6 +155,34 @@ UPDATING AGENTS.md FOR SANDBOX COMMANDS
     How to detect: check the SANDBOX environment variable.
     If SANDBOX=1, run commands directly. Otherwise, use the host prefix.
 
+DOCKER TIPS
+-----------
+
+  Use "ralph sandbox name [service]" to get the container name for use
+  with standard docker commands. Defaults to the app service.
+
+  Copy a file into the sandbox:
+    docker cp myfile.txt $(ralph sandbox name):/var/www/html/
+
+  Copy a file out of the sandbox:
+    docker cp $(ralph sandbox name):/var/www/html/storage/logs/laravel.log .
+
+  Tail logs for a service:
+    docker logs -f $(ralph sandbox name)       # app
+    docker logs -f $(ralph sandbox name db)    # database
+
+  Run a one-off command without opening a shell:
+    docker exec $(ralph sandbox name) php artisan route:list
+
+  Inspect container resource usage:
+    docker stats $(ralph sandbox name)
+
+  View full compose logs (all services):
+    docker compose -f .ralph/sandbox/docker-compose.yml logs -f
+
+  Restart a single service:
+    docker compose -f .ralph/sandbox/docker-compose.yml restart db
+
 DOCUMENTING FIXES (sandbox-setup.md)
 -------------------------------------
 

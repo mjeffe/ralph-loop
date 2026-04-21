@@ -53,6 +53,7 @@ Modes:
   sandbox reset [--all]                Re-clone codebase (--all: delete all volumes)
   sandbox shell                        Open a bash shell inside the container
   sandbox status                       Show sandbox container status
+  sandbox name [service]               Print the resolved container name (default: app)
 
 Examples:
   ralph help
@@ -545,8 +546,9 @@ case "$MODE" in
             reset)  sandbox_reset "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             shell)  sandbox_shell "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             status) sandbox_status "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
+            name)   sandbox_name "${sandbox_extra[@]+"${sandbox_extra[@]}"}" ;;
             *)
-                echo "Usage: ralph sandbox <setup|up|stop|reset|shell|status>"
+                echo "Usage: ralph sandbox <setup|up|stop|reset|shell|status|name>"
                 exit 1
                 ;;
         esac

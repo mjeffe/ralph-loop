@@ -26,6 +26,12 @@ sandbox_ensure_name() {
     fi
 }
 
+sandbox_name() {
+    sandbox_ensure_name
+    local service="${1:-app}"
+    sandbox_container_name "$service"
+}
+
 sandbox_container_name() {
     local service="${1:-app}"
     local compose_file="$RALPH_DIR/sandbox/docker-compose.yml"

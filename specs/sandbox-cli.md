@@ -163,6 +163,7 @@ ralph sandbox reset            Re-clone codebase (preserves database volumes)
 ralph sandbox reset --all      Delete all volumes (codebase + database) and restart
 ralph sandbox shell            Open a bash shell inside the container
 ralph sandbox status           Show sandbox container status and service health
+ralph sandbox name [service]   Print the resolved container name for a service (default: app)
 ```
 
 ### Detection of execution context
@@ -356,6 +357,37 @@ projects, `/app` for others.
 Prints the status of all service containers (app, database, cache, etc.) and
 their health checks.
 
+## `ralph sandbox name`
+
+Prints the resolved container name for a given service (default: `app`) to
+stdout so it can be used in shell substitution with standard docker commands.
+
+```bash
+sandbox_name() {
+    sandbox_ensure_name
+    local service="${1:-app}"
+    sandbox_container_name "$service"
+}
+```
+
+This is a thin wrapper around existing helpers — `sandbox_ensure_name` resolves
+`SANDBOX_NAME`, then `sandbox_container_name` resolves the full container name
+from the compose file.
+
+```bash
+# Get the app container name
+ralph sandbox name
+# => perkins-sandbox-a1b2c3d4-app-1
+
+# Get a specific service container name
+ralph sandbox name db
+# => perkins-sandbox-a1b2c3d4-db-1
+
+# Use in shell substitution
+docker cp myfile.txt $(ralph sandbox name):/var/www/html/
+docker logs $(ralph sandbox name db)
+```
+
 ## Changes to `ralph` Script
 
 ### Module structure
@@ -364,7 +396,7 @@ All sandbox functions live in `lib/sandbox.sh`, which is sourced eagerly at
 startup (see `project-structure.md` — lib/ sourcing). This includes:
 
 - `sandbox_ensure_name`, `sandbox_container_name` — helpers
-- `sandbox_up`, `sandbox_stop`, `sandbox_reset`, `sandbox_shell`, `sandbox_status` — lifecycle
+- `sandbox_up`, `sandbox_stop`, `sandbox_reset`, `sandbox_shell`, `sandbox_status`, `sandbox_name` — lifecycle
 - `sandbox_setup` — multi-pass pipeline orchestrator
 - `sandbox_validate_profile`, `sandbox_validate` — validation
 - `detect_stack` — project stack detection (only caller is `sandbox_setup`)
@@ -385,8 +417,9 @@ sandbox)
         reset)  shift; sandbox_reset "$@" ;;
         shell)  shift; sandbox_shell "$@" ;;
         status) shift; sandbox_status "$@" ;;
+        name)   shift; sandbox_name "$@" ;;
         *)
-            echo "Usage: ralph sandbox <setup|up|stop|reset|shell|status>"
+            echo "Usage: ralph sandbox <setup|up|stop|reset|shell|status|name>"
             exit 1
             ;;
     esac

@@ -134,6 +134,10 @@ Cover:
 - `sandbox-setup.md`: a user-owned file for documenting sandbox fixes and
   bootstrap steps. Created by `sandbox setup`, never overwritten. Reference
   it from `AGENTS.md` if you want agents to act on the notes.
+- `ralph sandbox name [service]`: prints the resolved container name for
+  use with standard docker commands. Include a "Docker Tips" section
+  showing common recipes using `$(ralph sandbox name)` — copy files into
+  the container, tail logs, exec commands, inspect stats.
 - Troubleshooting: the base image is auto-refreshed on `ralph sandbox up`,
   so changes from `ralph update` take effect automatically — no manual
   image rebuild needed

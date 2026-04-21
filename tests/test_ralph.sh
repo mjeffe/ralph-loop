@@ -158,6 +158,9 @@ run_sandbox_tests() {
     test_sandbox_validate_entrypoint_structural
     test_sandbox_validate_compose_structural
     test_sandbox_validate_cross_file_env_vars
+    test_sandbox_name_no_compose_file
+    test_sandbox_name_defaults_to_app
+    test_sandbox_help_has_docker_tips
     test_sandbox_validate_runtime_manager_refs
 }
 

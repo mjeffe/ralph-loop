@@ -11,6 +11,7 @@ test_sandbox_usage_output() {
     assert_contains "shows sandbox reset" "sandbox reset" "$output"
     assert_contains "shows sandbox shell" "sandbox shell" "$output"
     assert_contains "shows sandbox status" "sandbox status" "$output"
+    assert_contains "shows sandbox name" "sandbox name" "$output"
 }
 
 test_sandbox_no_subcommand_exits_nonzero() {
@@ -513,6 +514,47 @@ ENV
     assert_not_contains "accepts commented-out env var" "SECRET_KEY not documented" "$output"
 
     rm -rf "$sdir"
+}
+
+test_sandbox_name_no_compose_file() {
+    echo "--- sandbox_name: exits when no compose file ---"
+    source <(sed -n '/^sandbox_name()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
+    source <(sed -n '/^sandbox_ensure_name()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
+    source <(sed -n '/^sandbox_container_name()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
+
+    local sandbox_dir="$TMP_DIR/no_compose_name/.ralph/sandbox"
+    mkdir -p "$sandbox_dir"
+
+    local output rc=0
+    output=$(SANDBOX_NAME=test RALPH_DIR="$TMP_DIR/no_compose_name/.ralph" \
+        bash -c "source <(sed -n '/^sandbox_name()/,/^}/p' \"$RALPH_DIR/lib/sandbox.sh\")
+                 source <(sed -n '/^sandbox_ensure_name()/,/^}/p' \"$RALPH_DIR/lib/sandbox.sh\")
+                 source <(sed -n '/^sandbox_container_name()/,/^}/p' \"$RALPH_DIR/lib/sandbox.sh\")
+                 sandbox_name" 2>&1) || rc=$?
+    assert_eq "exits non-zero" "1" "$rc"
+    assert_contains "error mentions container name" "could not determine container name" "$output"
+}
+
+test_sandbox_name_defaults_to_app() {
+    echo "--- sandbox_name: defaults to app service ---"
+    # Verify the function passes 'app' as default by checking the source
+    local body
+    body=$(sed -n '/^sandbox_name()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
+    assert_contains "defaults to app" 'app' "$body"
+    assert_contains "calls sandbox_ensure_name" "sandbox_ensure_name" "$body"
+    assert_contains "calls sandbox_container_name" "sandbox_container_name" "$body"
+}
+
+test_sandbox_help_has_docker_tips() {
+    echo "--- sandbox help: includes Docker Tips section ---"
+    local output
+    output=$(cat "$RALPH_DIR/lib/help/sandbox.txt")
+    assert_contains "has Docker Tips section" "DOCKER TIPS" "$output"
+    assert_contains "mentions sandbox name" "ralph sandbox name" "$output"
+    assert_contains "shows docker cp recipe" "docker cp" "$output"
+    assert_contains "shows docker logs recipe" "docker logs" "$output"
+    assert_contains "shows docker exec recipe" "docker exec" "$output"
+    assert_contains "shows docker stats recipe" "docker stats" "$output"
 }
 
 test_sandbox_validate_runtime_manager_refs() {
