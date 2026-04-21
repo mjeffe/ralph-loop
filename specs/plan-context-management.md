@@ -7,13 +7,19 @@ knowledge persistence. This spec defines an infrastructure-managed approach wher
 `ralph` script extracts relevant plan slices and injects them into the build prompt,
 replacing agent-driven plan compaction (phase collapsing) with deterministic filtering.
 
+For process plans, ralph also performs deterministic task selection — removing a category
+of errors that prompt-level fixes cannot reliably solve.
+
 ## Problem
 
 Large implementation plans (50+ tasks, 2000+ lines) cause several issues:
 
 1. **Task selection errors.** Agents read the plan in default-sized windows, miss earlier
    tasks, and select work out of order. For process plans, this violates phase ordering.
-   For gap-driven plans, it skips higher-priority work.
+   For gap-driven plans, it skips higher-priority work. Field data shows agents selected
+   tasks out of order in 3 of 8 build sessions despite two rounds of prompt fixes (issue
+   #20). Prompt-level mitigations (mandatory grep, validation steps) are insufficient
+   because agents skip instructions ~40% of the time.
 2. **Phase collapsing destroys information.** Collapsing completed phases to summary lines
    removes task notes, spec gap assumptions, and cross-cutting findings. Retrospectives
    lose access to this information without reconstructing from git history.
@@ -33,6 +39,10 @@ Large implementation plans (50+ tasks, 2000+ lines) cause several issues:
 - **Ralph controls what the agent sees.** The script extracts and injects relevant slices.
   Agents don't need scale-aware reading strategies — the injected context is always right-
   sized regardless of plan size.
+- **Mechanical work belongs in infrastructure, not prompts.** Task selection for process
+  plans is mechanical (earliest incomplete phase → first ready task). Agents should spend
+  their context and judgment on implementation, not navigation. Gap-driven selection
+  requires agent judgment and stays with the agent.
 - **No plan structure requirements.** The approach works with phases, flat task lists,
   grouped sections, or any organization. Phases are optional.
 - **Small plans get no overhead.** When the plan is small, the injected overview is
@@ -40,8 +50,9 @@ Large implementation plans (50+ tasks, 2000+ lines) cause several issues:
 
 ## Solution: Infrastructure-Managed Views
 
-The `ralph` script extracts two slices from `implementation_plan.md` before each build
-iteration and injects them into the prompt via variable substitution.
+The `ralph` script extracts slices from `implementation_plan.md` before each build
+iteration and injects them into the prompt via variable substitution. The injected
+variables differ by plan type to match the different selection models.
 
 ### Plan Header (`${PLAN_HEADER}`)
 
@@ -53,9 +64,9 @@ heading. This captures:
 - Cross-cutting constraints and patterns (both planner-authored and build-agent-discovered)
 - Any other plan-level context the planner or build agents have added
 
-The plan header is injected into the prompt every iteration. Build agents see it
-automatically without reading the plan file. This makes the cross-cutting section
-naturally visible, encouraging agents to both read and contribute to it.
+The plan header is injected into the prompt every iteration for both plan types. Build
+agents see it automatically without reading the plan file. This makes the cross-cutting
+section naturally visible, encouraging agents to both read and contribute to it.
 
 ### Smart Task Overview (`${TASK_OVERVIEW}`)
 
@@ -91,19 +102,74 @@ Example output for an 80-task plan with 60 tasks complete:
 For gap-driven plans without section headings, the overview is a flat list of task
 headings and statuses.
 
-## Build Workflow
+#### Progressive Disclosure for Large Gap-Driven Plans
 
-With infrastructure-managed views, the build workflow simplifies:
+When the overview exceeds a threshold (e.g., ~100 lines or ~30 incomplete tasks), the
+filter switches to a more aggressive mode:
+
+- Shows incomplete tasks from the first 2-3 incomplete sections only
+- Appends a summary line: `(+N more sections with M planned tasks)`
+
+This prevents the overview from consuming excessive context in very large gap-driven
+plans while keeping the actionable frontier visible. Small plans are unaffected.
+
+### Deterministic Task Selection (`${SELECTED_TASK}`, `${ADJACENT_CONTEXT}`)
+
+For `Plan Type: process` only. Ralph deterministically selects the next task and injects
+it into the prompt. The agent does not participate in task selection.
+
+The selector applies these rules:
+
+1. Find the earliest incomplete phase (section heading where not all tasks are `complete`).
+2. Within that phase, find the first `planned` task with no unresolved `Depends on:` fields
+   (i.e., all referenced tasks are `complete`).
+3. Extract the full task block (from `### Task` heading to the next `### Task` heading or
+   section heading).
+
+Ralph injects:
+
+- `${SELECTED_TASK}` — the full task block for the selected task.
+- `${ADJACENT_CONTEXT}` — the 1-2 tasks immediately before and after the selected task
+  (headings, statuses, and dependency lines only — not full blocks). This gives the agent
+  local awareness of what was just completed and what comes next without exposing the
+  entire plan.
+
+If the selector finds zero eligible tasks but `complete` tasks exist, this indicates all
+remaining tasks are `blocked` or the plan is done. Ralph should let the agent handle this
+(it will emit `REPLAN` or `COMPLETE` as appropriate).
+
+If the selector cannot parse the plan (zero tasks found at all), ralph falls back to
+injecting the raw plan and logs a warning. Graceful degradation over hard failure.
+
+### Injection by Plan Type
+
+```
+Process:     ${PLAN_HEADER} + ${SELECTED_TASK} + ${ADJACENT_CONTEXT} + compact ${TASK_OVERVIEW}
+Gap-driven:  ${PLAN_HEADER} + ${TASK_OVERVIEW}  (agent selects from overview)
+```
+
+For process plans, the `${TASK_OVERVIEW}` is injected as read-only orientation context
+("here is where you sit in the project"), not as a selection mechanism. The
+`${SELECTED_TASK}` is authoritative.
+
+For gap-driven plans, the `${TASK_OVERVIEW}` is the agent's primary tool for task
+selection. The agent has full autonomy to reorder with a documented reason (e.g.,
+discovering that Task 1 depends on Task 10).
+
+## Build Workflows
+
+Because the two plan types have fundamentally different selection models, the build
+workflow is split into two prompts: `prompts/build.md` (gap-driven) and
+`prompts/build-process.md` (process). Ralph selects the template based on `Plan Type:`
+in the plan header — the same pattern used for `plan.md` vs `plan-process.md`.
+
+### Gap-Driven Build Workflow
 
 1. Read `AGENTS.md` and `${SPECS_DIR}/README.md`. Review the Plan Header and Task
    Overview injected below.
-2. Select the next task from the Task Overview:
-   - `gap-driven` (or absent): select the first ready `planned` task. If after reading the
-     task block you discover a dependency on a later task, you may read that task's block
-     and reorder with a documented reason.
-   - `process`: select a ready `planned` task from the earliest incomplete phase in the
-     overview. Do not skip to a later phase while earlier ready work exists. Within a
-     phase, obey explicit `Depends on:` fields but otherwise select the first ready task.
+2. Select the next task from the Task Overview. Select the first ready `planned` task.
+   If after reading the task block you discover a dependency on a later task, you may
+   read that task's block and reorder with a documented reason.
 3. Run `git status --short` and `git diff --stat` to check for uncommitted work from a
    prior interrupted iteration.
 4. Read the selected task block from `${RALPH_HOME}/implementation_plan.md` (using line
@@ -116,10 +182,30 @@ With infrastructure-managed views, the build workflow simplifies:
    - Add any newly discovered tasks
    - Adjust any remaining tasks that are now obsolete, incorrect, or mis-ordered
 
-**What's removed from the current workflow:**
+### Process Build Workflow
+
+1. Read `AGENTS.md` and `${SPECS_DIR}/README.md`. Review the Plan Header, Selected Task,
+   and Task Overview injected below.
+2. The selected task has been determined by ralph infrastructure. Read the Selected Task
+   block below — this is your assignment for this iteration.
+3. Run `git status --short` and `git diff --stat` to check for uncommitted work from a
+   prior interrupted iteration.
+4. Read the referenced spec and inspect relevant code and tests. Use the Adjacent Context
+   and Task Overview for orientation on what was recently completed and what comes next.
+5. Implement the task.
+6. Update `${RALPH_HOME}/implementation_plan.md`:
+   - Mark the task `complete` with a brief note on what changed
+   - Add cross-cutting findings to the plan header's cross-cutting section when they would
+     affect correctness or verification of future tasks
+   - Add any newly discovered tasks
+   - Adjust any remaining tasks that are now obsolete, incorrect, or mis-ordered
+
+### What's Removed from the Current Workflow
+
 - Phase collapsing instruction
 - Scale-dependent reading strategies ("if process, read only the header")
-- Plan Type branching in the reading step
+- Plan Type branching in the reading step (handled by prompt selection)
+- Conditional task selection logic in a single prompt (each prompt has one selection model)
 - Cross-cutting pattern promotion mechanism (replaced by natural visibility of the
   injected plan header)
 
@@ -139,45 +225,66 @@ is needed.
 
 ### Task Heading Convention
 
-The smart overview filter identifies tasks by `### Task` headings. Both plan prompts
-already instruct this format. The filter must handle:
+The smart overview filter and deterministic selector identify tasks by `### Task`
+headings. Both plan prompts already instruct this format. The parser must handle:
 
 - `### Task N — Title` (plan-process format)
 - `### Task N: Title` (plan/gap-driven format)
 
 ### Status Field Convention
 
-The overview filter must match status lines in both formats that agents produce:
+The parser must match status lines in both formats that agents produce:
 
 - `**Status:** planned` (bold, common in gap-driven plans)
 - `Status: planned` (bare, seen in some process plans)
 
 ## Implementation
 
+### Parser (`lib/plan-filter.sh`)
+
+A single parser script that serves both plan types in different output modes. It lives
+at `lib/plan-filter.sh` (see issue #27 for the `lib/` extraction).
+
+The parser:
+
+- Extracts the plan header (everything above the first `### Task` heading)
+- Parses section headings (`##` level)
+- For each section, counts total tasks and completed tasks
+- Parses task headings, statuses, and `Depends on:` fields
+- Handles both format variants (bold/bare status, `:` / `—` task headings)
+
+Output modes (selected by flag or argument):
+
+- `header` — emit the plan header
+- `overview` — emit the smart task overview (summarized completed sections, expanded
+  incomplete sections with line numbers)
+- `select` — emit the deterministically selected next task block, plus adjacent context
+  (process plans only)
+
+If the parser finds zero tasks, it exits with a non-zero status so ralph can fall back
+to raw plan injection.
+
 ### Ralph Script Changes
 
 In the `build` case block, before invoking the agent:
 
-1. Extract the plan header: everything from line 1 to the line before the first
-   `### Task` heading.
-2. Generate the smart task overview using a filter script.
-3. Export `PLAN_HEADER` and `TASK_OVERVIEW` for `envsubst`.
-
-The filter script lives at `lib/plan-overview.sh` (see issue #27 for the `lib/`
-extraction). It:
-
-- Parses section headings (`##` level)
-- For each section, counts total tasks and completed tasks
-- Emits a summary line for fully completed sections
-- Emits task headings, statuses, and dependency lines (with line numbers) for
-  incomplete sections
-- Handles plans with no section headings (flat task list)
+1. Read `Plan Type:` from the plan header.
+2. Extract the plan header using the parser.
+3. Generate the smart task overview using the parser.
+4. If `Plan Type: process`, run deterministic task selection using the parser.
+5. Select the prompt template:
+   - `process` → `prompts/build-process.md`
+   - `gap-driven` (or absent) → `prompts/build.md`
+6. Export the appropriate variables for `envsubst`.
 
 ### Prompt Changes
 
-- `prompts/build.md` — Replace the current workflow steps 1-2 with the simplified
-  workflow above. Remove the phase collapsing instruction. Add `${PLAN_HEADER}` and
-  `${TASK_OVERVIEW}` injection points. Remove scale-dependent branching.
+- `prompts/build.md` — Gap-driven build prompt. Workflow with agent-driven task selection
+  from the overview. Injection points for `${PLAN_HEADER}` and `${TASK_OVERVIEW}`. No
+  plan-type branching, no collapsing instruction.
+- `prompts/build-process.md` — Process build prompt. Workflow with pre-selected task.
+  Injection points for `${PLAN_HEADER}`, `${SELECTED_TASK}`, `${ADJACENT_CONTEXT}`, and
+  `${TASK_OVERVIEW}`. No selection logic — agent implements the assigned task.
 - `prompts/plan.md` — Add instruction to include a `## Cross-cutting constraints`
   section in the plan format.
 - `prompts/plan-process.md` — Add instruction to include a `## Cross-cutting constraints`
@@ -185,12 +292,12 @@ extraction). It:
 
 ### Spec Changes
 
-- `specs/build-mode.md` — Update task selection, plan update rules, and embedded prompt
-  template to match the new workflow. Remove phase collapsing references.
+- `specs/build-mode.md` — Update task selection rules to reflect the bifurcated model
+  (deterministic for process, agent-driven for gap-driven). Document the split build
+  prompts. Remove phase collapsing references.
 - `specs/incremental-planning.md` — Remove the "Phase Collapsing (Build Mode)" section.
   Add a cross-reference to this spec for plan context management.
-- `specs/plan-mode.md` — Update plan format to include cross-cutting section. Update
-  embedded prompt template.
+- `specs/plan-mode.md` — Update plan format to include cross-cutting section.
 
 ## What This Replaces
 
@@ -207,6 +314,26 @@ Benefits of removal:
 - No prompt complexity for collapsing instructions or pre-commit verification
 - No structural requirement for phases
 
+### Agent-Driven Task Selection (Process Plans)
+
+For process plans, agent-driven task selection is replaced by deterministic infrastructure
+selection. Field data (issue #20) shows agents selected tasks out of order in 3 of 8 build
+sessions despite mandatory grep instructions and validation steps. The root cause is
+fundamental: asking agents to follow mechanical procedures via prompt instructions is
+unreliable. Moving selection to infrastructure eliminates this error class entirely.
+
+Gap-driven plans retain agent-driven selection because reordering based on discovered
+dependencies is a legitimate use of agent judgment, not a mechanical procedure.
+
+### Single Build Prompt
+
+The single `prompts/build.md` with plan-type conditional branching is replaced by two
+prompts: `prompts/build.md` (gap-driven) and `prompts/build-process.md` (process). This
+eliminates the conditional complexity tax — each prompt contains only the logic relevant
+to its selection model. The post-selection workflow (implement, test, update plan, commit)
+is duplicated across both prompts; this duplication is acceptable because the section is
+stable and compact, and the cost is far lower than the conditional branching it replaces.
+
 ### Cross-cutting Pattern Mechanism
 
 The explicit cross-cutting capture mechanism (retro item #4 from issue #20) is replaced
@@ -217,11 +344,13 @@ contribute to it as part of normal plan updates rather than as a special mechani
 ## What Does NOT Change
 
 - The plan file format is minimally changed (adding a cross-cutting section).
+- The plan remains a single file (`implementation_plan.md`) — markdown, not JSON or any
+  structured format. Virtual slicing at read-time provides right-sized views without
+  physical file splitting.
 - The loop mechanism, agent scripts, and git commit flow are unchanged.
 - Plan mode and process planning mode are unchanged beyond the cross-cutting section.
 - CLI interface is unchanged — no new flags or commands.
 - Task status values, exit signals, and mid-implementation discovery rules are unchanged.
-- The plan remains a single file (`implementation_plan.md`).
 
 ## Migration
 
@@ -231,7 +360,11 @@ section and displays it as-is. No plan file migration is needed.
 
 ## Dependencies
 
-- Issue #27 (extract ralph script into `lib/` modules) — the smart overview filter
-  script should live at `lib/plan-overview.sh`.
-- The current `${TASK_OVERVIEW}` implementation (simple grep, process-plan only) is
-  replaced by the smart filter described here, extended to both plan types.
+This spec has no hard dependencies. It creates `lib/plan-filter.sh` directly — the `lib/`
+directory starts with just this one file. Issue #27 (extract ralph script into `lib/`
+modules) is a separate refactoring effort that may later move additional code into `lib/`,
+but it is not a prerequisite for this work.
+
+The current `${TASK_OVERVIEW}` implementation (simple grep, process-plan only) is
+replaced by the parser described here, extended to both plan types and adding
+deterministic selection for process plans.
