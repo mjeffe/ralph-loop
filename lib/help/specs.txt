@@ -51,3 +51,35 @@ target-state specs may be stale. Run:
 
 This updates target-state specs to reflect the post-migration system, using
 process specs for intent and the implementation plan for build decisions.
+
+DRAFTING SPECS EFFICIENTLY
+--------------------------
+You don't have to write every spec from scratch. Use an interactive agent
+session to draft specs faster:
+
+  - Describe what you want conversationally, then have the agent produce a
+    spec draft following your project's format. Review and edit rather than
+    author from scratch — you become an editor, not a writer.
+
+  - Have the agent interview you: "I want to build X. Ask me questions until
+    you have enough to write a complete spec." The agent surfaces edge cases
+    and dependencies you might not think to document.
+
+  - Use reference-driven specs for features similar to something that already
+    exists: describe the reference and list only the differences.
+
+MATCHING SPEC DETAIL TO RISK
+-----------------------------
+Not every spec needs the same level of detail:
+
+  High risk (auth, payments, data integrity):
+    Specify exact behavior, error cases, constraints, security rules.
+
+  Medium risk (CRUD features, UI flows):
+    Specify behavior, API shape, validation rules. Leave implementation
+    approach to the agent.
+
+  Low risk (config, scaffolding, docs):
+    Specify the desired outcome. The agent resolves details using the
+    precedence chain: spec → existing code → repo conventions → framework
+    conventions.

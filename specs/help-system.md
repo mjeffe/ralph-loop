@@ -10,8 +10,9 @@ those specs.
 ## CLI Interface
 
 ```bash
-ralph help                  # List available topics with one-line descriptions
+ralph help                  # Overview + list of help topics
 ralph help <topic>          # Show detailed help for a topic
+ralph help overview         # How Ralph works: core cycle, all modes, getting started
 ralph help specs            # Writing specs: target-state vs process, best practices
 ralph help plan             # Planning modes and when to use each
 ralph help build            # Build mode behavior, signals, discoveries
@@ -21,8 +22,9 @@ ralph help align-specs      # Updating target-state specs after process migratio
 ralph help retro            # Post-cycle retrospective guidance
 ```
 
-`ralph --help` and `ralph -h` continue to show the short usage message (existing
-behavior). `ralph help` is a separate mode that shows longer-form guidance.
+`ralph --help` and `ralph -h` show the short CLI usage message with a pointer to
+`ralph help` for the overview and guides. `ralph help` is a separate mode that shows
+the overview followed by the topic index.
 
 ### Unknown Topic
 
@@ -32,27 +34,37 @@ ralph help foo
 
 Prints: `Unknown help topic: foo` followed by the topic list (same as `ralph help`).
 
-## Topic Index
+## Overview and Topic Index
 
-`ralph help` with no arguments prints a topic list:
+`ralph help` with no arguments shows the overview (`lib/help/overview.txt`) followed by
+the topic index (`lib/help/index.txt`). The overview covers the core cycle, all modes at
+a glance, a "which mode do I use?" decision guide, key concepts, and getting started
+instructions. The topic index lists all available help topics with one-line descriptions.
 
-```
-Ralph Help — run 'ralph help <topic>' for details.
+The overview does not contain a copy of the topic index — the dispatcher concatenates
+the two files programmatically to avoid duplication.
 
-  specs        Writing specs: target-state vs process, lifecycle, best practices
-  plan         Planning modes: gap-driven vs sequence-constrained vs prompt, when to use each
-  build        Build mode: task selection, signals, mid-implementation guidance
-  prompt       Ad-hoc prompts: when and how to use ralph prompt
-  sandbox      Sandbox lifecycle: setup, daily workflow, troubleshooting
-  align-specs  Updating target-state specs after process-spec migrations
-  retro        Post-cycle retrospective: reviewing results and improving inputs
-```
+`ralph help overview` also works as a standalone topic (shows the overview without the
+appended index).
 
 ## Topic Content
 
 Each topic is a condensed, operational summary — not a copy of the specs. It should
 answer "how do I use this?" and "which option do I pick?" without requiring the user
 to read the full specification.
+
+### `ralph help overview`
+
+Cover:
+- What Ralph is (one sentence)
+- The core cycle: specs → plan → build → test → retro → repeat
+- All modes at a glance with one-line descriptions
+- "Which mode do I use?" decision guide (situation → mode → command)
+- Why plan and build are separate (context efficiency, durable memory, focus)
+- Key concepts: specs, process specs, implementation plan, AGENTS.md, cross-cutting
+  constraints
+- Getting started walkthrough (install, configure, write spec, plan, build, commit,
+  review)
 
 ### `ralph help specs`
 
@@ -185,7 +197,8 @@ needed.
 ```
 lib/
 └── help/
-    ├── index.txt        # Topic list (shown by `ralph help`)
+    ├── index.txt        # Topic list (appended after overview by dispatcher)
+    ├── overview.txt     # Overview (shown by `ralph help` and `ralph help overview`)
     ├── specs.txt
     ├── plan.txt
     ├── build.txt
@@ -202,6 +215,8 @@ ralph_help() {
     local topic="${1:-}"
     local help_dir="$RALPH_DIR/lib/help"
     if [[ -z "$topic" ]]; then
+        cat "$help_dir/overview.txt"
+        echo
         cat "$help_dir/index.txt"
     elif [[ -f "$help_dir/${topic}.txt" ]]; then
         cat "$help_dir/${topic}.txt"
@@ -212,23 +227,30 @@ ralph_help() {
 }
 ```
 
+`ralph help` with no arguments shows the overview followed by the topic index
+(concatenated programmatically — no duplication). `ralph help overview` shows the
+overview alone via the standard file-based dispatch.
+
 Adding a new help topic requires only dropping a new `.txt` file into `lib/help/`
 and updating `index.txt` — no code changes to the dispatcher.
 
 ### CLI usage message
 
 The short `usage()` function (shown by `ralph --help`, `ralph -h`, or bare `ralph`)
-remains in the `ralph` script as-is. It is CLI synopsis, not help content.
+is CLI synopsis, not help content. It ends with a pointer to the help system:
+`Run 'ralph help' for an overview and guides.` followed by the project URL.
 
 ## Changes to Existing Specs and Files
 
 ### `ralph` script
 
 1. Add `help` as a recognized mode
-2. Add `ralph_help` dispatcher (file-based, ~10 lines)
+2. Add `ralph_help` dispatcher (file-based, ~10 lines) — concatenates overview + index
+   for bare `ralph help`
 3. Remove all `help_*()` heredoc functions — content moves to `lib/help/*.txt`
 4. Remove `ralph sandbox help` — sandbox help is now `ralph help sandbox`
-5. Update `usage()` to include `help [topic]` in the modes list
+5. Update `usage()` to include `help [topic]` in the modes list, add pointer to
+   `ralph help` and project URL at the bottom
 
 ### `specs/loop-behavior.md`
 
@@ -236,6 +258,6 @@ Add `help [topic]` to the CLI interface modes section.
 
 ### Installer and Updater
 
-Add all `lib/help/*.txt` files to `MANAGED_FILES` and `SOURCE_PATHS` in both
-`install.sh` and `update.sh`. These are core (upstream-managed) files — users
-are not expected to customize help content.
+Add all `lib/help/*.txt` files (including `overview.txt`) to `MANAGED_FILES` and
+`SOURCE_PATHS` in both `install.sh` and `update.sh`. These are core (upstream-managed)
+files — users are not expected to customize help content.

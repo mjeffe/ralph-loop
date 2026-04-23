@@ -32,3 +32,36 @@ MID-IMPLEMENTATION DISCOVERIES
   Blocked:        Mark the task blocked, document why, stop the iteration.
   Architecture:   If it affects shared interfaces or multiple tasks → REPLAN.
                   If local → make the call and document it.
+
+SMALLER BUILD CYCLES
+---------------------
+Instead of writing all specs → building everything → testing everything,
+work in smaller batches:
+
+  Spec Feature A → Plan → Build → Test → done
+  Spec Feature B → Plan → Build → Test → done
+
+Smaller cycles surface problems earlier. A bug in Feature A might affect
+how you spec Feature B — finding it after weeks of building means rework.
+
+BUILD-TEST-FIX LOOPS
+---------------------
+After each build cycle, run a tight loop instead of a big-bang test phase:
+
+  1. ralph build 10                         # build
+  2. ralph prompt .ralph/prompts/adhoc-test-sweep.md 5  # agent-driven test sweep
+  3. Review results, write punch list spec  # human review
+  4. ralph plan && ralph build 5            # build the fixes
+
+PUNCH LISTS AS SPECS
+---------------------
+When testing produces a punch list, convert it into a spec instead of
+fixing items one by one in interactive sessions:
+
+  - For independent fixes: write a target-state spec listing the
+    requirements, then ralph plan → ralph build.
+
+  - For fixes with ordering dependencies: write a process spec with
+    phases, then ralph plan --process → ralph build.
+
+This converts interactive fix sessions into autonomous build iterations.

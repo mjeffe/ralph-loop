@@ -1,0 +1,144 @@
+RALPH OVERVIEW
+==============
+
+Ralph is an iterative development system that enables LLM coding agents to
+work on large projects by breaking work into focused tasks with fresh context
+per iteration, persistent memory in files, and all progress tracked in git.
+
+THE CORE CYCLE
+--------------
+
+  1. Write specs      Define what you want (human)
+  2. Plan             Ralph analyzes specs and creates a task list
+  3. Build            Ralph implements one task per iteration, autonomously
+  4. Test & review    Review results, write punch list if needed (human)
+  5. Retro            Identify patterns, improve specs and AGENTS.md (human)
+  6. Repeat
+
+Each build iteration starts with fresh agent context — no memory of prior
+iterations. The implementation plan, specs, and AGENTS.md are the durable
+memory that carries knowledge across iterations.
+
+MODES AT A GLANCE
+-----------------
+
+  ralph plan              Analyze specs, generate an implementation plan.
+                          Compares desired state (specs) to current code and
+                          creates tasks to close the gaps.
+
+  ralph plan --process    Same, but from phased process specs (migrations,
+                          ordered refactors). Your phase ordering is
+                          authoritative.
+
+  ralph build [N]         Implement tasks from the plan. One task per
+                          iteration, up to N iterations (default: 10).
+
+  ralph prompt <file> [N] Run a custom prompt through the loop. No planner,
+                          no plan — your prompt defines the workflow.
+
+  ralph align-specs [N]   After a process-spec migration, update target-state
+                          specs to reflect the post-migration system.
+
+  ralph sandbox <cmd>     Manage the Docker sandbox for isolated agent
+                          execution (setup, up, down, reset, shell, status).
+
+  ralph help [topic]      Show operational guidance (you are here).
+
+WHICH MODE DO I USE?
+--------------------
+
+  I have a new feature or improvement to build:
+    Write a target-state spec → ralph plan → ralph build
+
+  I have a multi-phase migration or ordered refactor:
+    Write process specs → ralph plan --process → ralph build
+
+  I finished a process-spec migration and need to update specs:
+    ralph align-specs
+
+  I need discovery, a test sweep, or a one-off job:
+    Write a prompt → ralph prompt <file>
+
+  I have a punch list of fixes (no ordering):
+    Write a target-state spec → ralph plan → ralph build
+
+  I have a punch list of fixes (with ordering):
+    Write a process spec → ralph plan --process → ralph build
+
+  I want to review how a build cycle went:
+    ralph help retro
+
+WHY PLAN AND BUILD ARE SEPARATE
+-------------------------------
+Planning requires reading all specs and surveying the entire codebase. If
+every build iteration also re-analyzed everything, it would burn enormous
+context on repeated work. The implementation plan is compressed, durable
+memory — build agents produce better work when they have a single, well-
+defined task rather than simultaneously analyzing and deciding what to build.
+
+KEY CONCEPTS
+------------
+
+  Specs (specs/)                  Source of truth for desired behavior.
+                                  Target-state specs describe what the
+                                  system should be.
+
+  Process specs (PROCESS_DIR)     Ordered playbooks that describe how to
+                                  get there — phases, steps, sequencing.
+
+  Implementation plan             The task list that bridges specs and
+  (implementation_plan.md)        build. Created by plan mode, consumed
+                                  by build mode.
+
+  AGENTS.md                       Project instructions read by every build
+                                  iteration. Put test commands, conventions,
+                                  pitfalls, and constraints here.
+
+  Cross-cutting constraints       A section in the plan header where build
+                                  agents record discoveries that affect
+                                  future tasks. Automatically visible to
+                                  every iteration.
+
+GETTING STARTED
+---------------
+
+  1. Install ralph into your project (must be a git repository):
+
+       cd /path/to/your/project
+       curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | bash
+
+  2. Review configuration:
+
+       vim .ralph/config    # Set AGENT to your coding agent (amp, claude, etc.)
+       vim AGENTS.md        # Tell agents how to build, test, and lint your project
+
+  3. Write your first spec:
+
+       vim specs/my-feature.md
+
+  4. Generate a plan:
+
+       .ralph/ralph plan
+
+  5. Review the plan:
+
+       cat .ralph/implementation_plan.md
+
+  6. Build:
+
+       .ralph/ralph build 10
+
+  7. Commit ralph to your project:
+
+       git add .ralph/ specs/ AGENTS.md
+       git commit -m "Add Ralph iterative development system"
+
+  8. Review results:
+
+       git log --oneline
+       cat .ralph/logs/session-*.log
+
+  Tip: create a convenience symlink so you can run ./ralph from the
+  project root:
+
+       ln -s .ralph/ralph ralph

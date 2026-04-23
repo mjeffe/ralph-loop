@@ -44,15 +44,70 @@ WRITING A MULTI-ITERATION PROMPT
   until max_iterations is reached.
 
   The built-in prompts in .ralph/prompts/ are good starting templates.
-  Study prompts/build.md or prompts/plan.md for structure and conventions.
+  Study .ralph/prompts/build.md or .ralph/prompts/plan.md for structure
+  and conventions.
 
 EXAMPLES
 --------
 
   Single iteration:
 
-    ralph prompt prompts/my-refactor.md
+    ralph prompt .ralph/prompts/my-refactor.md
 
   Multi-iteration with a cap:
 
-    ralph prompt prompts/spec-review.md 20
+    ralph prompt .ralph/prompts/adhoc-spec-review.md 20
+
+SHIPPED PROMPTS
+---------------
+
+  Ralph ships two ad-hoc prompts ready to use:
+
+  Test analysis — study your test suite to enhance specs with business
+  rules, edge cases, and validation logic the specs are missing:
+
+    ralph prompt .ralph/prompts/test-analysis.md 10
+
+  Process spec review — study the codebase to find gaps, ordering
+  problems, and missing dependencies in your process specs before
+  running ralph plan --process:
+
+    ralph prompt .ralph/prompts/process-spec-review.md 10
+
+BUILDING YOUR OWN PROMPT LIBRARY
+---------------------------------
+
+  Since .ralph/ is committed to your project's git repo, custom prompts
+  you add to .ralph/prompts/ are versioned and shared with your team.
+  Over time, you build up a library of reusable prompts tailored to your
+  project — test sweeps, code audits, spec drafters, doc generators.
+
+  Convention: prefix ad-hoc prompts with adhoc- to distinguish them from
+  ralph's system prompts (plan.md, build.md, etc.):
+
+    .ralph/prompts/adhoc-test-sweep.md
+    .ralph/prompts/adhoc-discovery.md
+    .ralph/prompts/adhoc-doc-generator.md
+
+  This makes them easy to list (ls .ralph/prompts/adhoc-*) and signals
+  they are meant for ralph prompt, not used internally by ralph.
+
+CUSTOM PROMPT IDEAS
+-------------------
+
+  Codebase discovery — survey a project before writing specs:
+
+    ralph prompt .ralph/prompts/adhoc-discovery.md
+
+  Test sweep — agent-driven QA pass after a build cycle:
+
+    ralph prompt .ralph/prompts/adhoc-test-sweep.md 10
+
+  Spec drafting — have the agent draft specs from a description:
+
+    ralph prompt .ralph/prompts/adhoc-draft-specs.md
+
+  These are abbreviated sketches. Real prompts need significantly more
+  structure — fresh-context reminders, progress tracking, scope constraints,
+  verification steps, and commit discipline. Use the shipped prompts in
+  .ralph/prompts/ as templates for the right level of detail.

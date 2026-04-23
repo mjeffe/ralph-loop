@@ -138,6 +138,44 @@ or let it identify the most recent cycle from the timestamps.
 
   --- end copy ---
 
+BUILDING INSTITUTIONAL KNOWLEDGE
+----------------------------------
+The retro isn't just about fixing past issues — it's about preventing
+future ones.
+
+  AGENTS.md as accumulated wisdom:
+    Every issue you fix twice should become an AGENTS.md entry. It's read
+    by every build iteration, making it your "don't do this" memory:
+    known pitfalls, naming conventions, architectural constraints, exact
+    test commands.
+
+  Spec refinement as continuous practice:
+    When you find issues, update the spec — not just the code. If ralph
+    ever rebuilds (replan), the fix is captured in the spec. Review
+    "Assumption / Spec gap:" notes in the plan — they show exactly where
+    specs were ambiguous.
+
+  Pattern recognition:
+    Track which categories of issues keep appearing. Common patterns:
+    - Same type of edge case missed → add to spec template
+    - Agent keeps using wrong approach → add constraint to AGENTS.md
+    - Verification too vague → tighten Verify blocks in specs
+
+THE LETTING-GO CHECKLIST
+-------------------------
+When you catch yourself doing work manually, ask:
+
+  [ ] Could I describe this as a spec and let ralph build it?
+  [ ] Could I use ralph prompt for this?
+  [ ] Am I pre-diagnosing? Give the agent the symptom, not the diagnosis.
+  [ ] Am I writing a spec from scratch? Have the agent draft it first.
+  [ ] Have I seen this issue before? Add it to AGENTS.md.
+  [ ] Am I testing something that should have an automated test?
+      Add test requirements to the spec.
+
+The goal isn't to remove yourself — it's to move from doing the work to
+reviewing the work, and eventually to spot-checking the work.
+
 SHARING FEEDBACK WITH RALPH-LOOP
 ---------------------------------
 After a retro, you can share structural observations with the ralph-loop

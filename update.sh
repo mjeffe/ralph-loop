@@ -31,12 +31,15 @@ MANAGED_FILES=(
     prompts/sandbox-render.md
     prompts/sandbox-repair.md
     prompts/align-specs.md
+    prompts/test-analysis.md
+    prompts/process-spec-review.md
     prompts/templates/Dockerfile.base
     prompts/templates/wait-for-db
     prompts/playbooks/php-laravel.md
     lib/plan-filter.sh
     lib/sandbox.sh
     lib/help/index.txt
+    lib/help/overview.txt
     lib/help/specs.txt
     lib/help/plan.txt
     lib/help/build.txt
@@ -63,6 +66,8 @@ declare -A SOURCE_PATHS=(
     [prompts/build.md]="prompts/build.md"
     [prompts/build-process.md]="prompts/build-process.md"
     [prompts/align-specs.md]="prompts/align-specs.md"
+    [prompts/test-analysis.md]="prompts/test-analysis.md"
+    [prompts/process-spec-review.md]="prompts/process-spec-review.md"
     [prompts/sandbox-analyze.md]="prompts/sandbox-analyze.md"
     [prompts/sandbox-render.md]="prompts/sandbox-render.md"
     [prompts/sandbox-repair.md]="prompts/sandbox-repair.md"
@@ -72,6 +77,7 @@ declare -A SOURCE_PATHS=(
     [lib/plan-filter.sh]="lib/plan-filter.sh"
     [lib/sandbox.sh]="lib/sandbox.sh"
     [lib/help/index.txt]="lib/help/index.txt"
+    [lib/help/overview.txt]="lib/help/overview.txt"
     [lib/help/specs.txt]="lib/help/specs.txt"
     [lib/help/plan.txt]="lib/help/plan.txt"
     [lib/help/build.txt]="lib/help/build.txt"

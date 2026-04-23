@@ -1,5 +1,6 @@
-Ralph Help — run 'ralph help <topic>' for details.
+Help Topics — run 'ralph help <topic>' for details.
 
+  overview     How Ralph works: core cycle, all modes, getting started
   specs        Writing specs: target-state vs process, lifecycle, best practices
   plan         Planning modes: gap-driven vs sequence-constrained vs prompt, when to use each
   build        Build mode: task selection, signals, mid-implementation guidance

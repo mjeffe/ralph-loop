@@ -39,7 +39,7 @@ usage() {
 Usage: ralph <mode> [max_iterations]
 
 Modes:
-  help                                 List available help topics
+  help                                 Overview and list of help topics
   help   [topic]                       Show operational guidance on a topic
   plan   [max_iterations]              Run gap-driven plan mode iterations
   plan   --process [max_iterations]    Run process plan mode iterations
@@ -61,6 +61,10 @@ Examples:
   ralph plan
   ralph build 20
   ralph prompt prompts/my-prompt.md
+
+Run 'ralph help' for an overview and guides.
+
+https://github.com/mjeffe/ralph-loop
 EOF
 }
 
@@ -361,6 +365,8 @@ ralph_help() {
     local topic="${1:-}"
     local help_dir="$RALPH_DIR/lib/help"
     if [[ -z "$topic" ]]; then
+        cat "$help_dir/overview.txt"
+        echo
         cat "$help_dir/index.txt"
     elif [[ -f "$help_dir/${topic}.txt" ]]; then
         cat "$help_dir/${topic}.txt"
