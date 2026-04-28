@@ -6,9 +6,14 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 
 Study the artifacts of the most recent ralph plan+build cycle (session logs, implementation plan, git history, AGENTS.md, specs) and produce a structured retro report at `${RALPH_HOME}/retro-report.md`. The report ranks the top issues that cost wasted iterations or rework, and proposes fixes categorized as **AGENTS.md**, **specs**, or **prompts**.
 
-This prompt does not apply fixes. The human reviews the report — typically in an interactive agent session — and decides what to apply.
-
 The report is a **transient artifact**: it is gitignored, never committed, and overwritten by the next retro run. Treat it as throwaway analysis output, not as a versioned document.
+
+## Operating Contract
+
+- You have full autonomy on issue ranking, evidence selection, and how findings are grouped — within the report structure prescribed below.
+- This prompt **proposes** fixes; it does not apply them. The human reviews the report — typically in an interactive agent session — and decides what to apply.
+- Every finding must cite concrete evidence (session log line refs, plan note refs, or git commit refs). Findings without evidence don't belong in the report.
+- The report is transient — write it to disk and leave it uncommitted.
 
 ## Context
 
@@ -104,14 +109,15 @@ Bulleted, in priority order. Each item names the target file (AGENTS.md, specs/f
 
 ## Rules
 
-- **Do NOT modify** specs, AGENTS.md, prompts, or the implementation plan. The report only **proposes** fixes — applying them is the human's call.
-- **Do NOT modify** session log files or anything in `${RALPH_HOME}/logs/`.
-- **Cite evidence** for every finding. A finding without a session log line, plan note, or commit reference doesn't belong in the report.
+- Do NOT modify specs, AGENTS.md, prompts, or the implementation plan.
+- Do NOT modify session log files or anything in `${RALPH_HOME}/logs/`.
+- Do NOT remove findings from prior iterations if you are continuing a partial report.
 - **Be specific in proposed fixes.** "Improve AGENTS.md" is useless; "Add to AGENTS.md: exact test command is `npm test -- --watch=false`" is actionable.
 - **Quote spec-gap and conflict notes verbatim** — they are the highest-signal artifacts the planner produces.
-- **Do NOT remove findings from prior iterations** if you are continuing a partial report.
 
 ## Exit Signal
 
 - **Report complete (no TODO markers remaining):** output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it.
 - **Report partial (TODO markers remain):** stop without any signal so the loop schedules another iteration.
+
+Begin analysis now.

@@ -4,9 +4,14 @@ You are an expert at sanitizing structured documents.
 
 Read the existing retro report at `${RALPH_HOME}/retro-report.md`, sanitize it for public sharing, and write the result to `${RALPH_HOME}/retro-feedback.md` so the human can paste it as a GitHub issue body at https://github.com/mjeffe/ralph-loop/issues.
 
-This is a content transformation, not analysis. Preserve the report's heading hierarchy and section order where content remains. Do not invent new sections, do not add new conclusions, and do not re-analyze the cycle. You may rewrite details at a higher level of abstraction to preserve the original point safely.
-
 The feedback file is a **transient artifact**: gitignored, never committed, and overwritten by the next run.
+
+## Operating Contract
+
+- This is a **content transformation**, not analysis. Do not invent new sections, do not add new conclusions, and do not re-analyze the cycle.
+- You have full autonomy on how to apply the sanitization ladder (see Sanitization Principles). Default to safety: when uncertain, generalize or omit.
+- Preserve the report's heading hierarchy and section order **where content remains**. You may rewrite details at a higher level of abstraction to preserve the original point safely.
+- The feedback file is transient — write it to disk and leave it uncommitted.
 
 ## Pre-flight Checks
 
@@ -96,3 +101,5 @@ The human will review and edit the sanitized output before posting it publicly. 
 ## Exit Signal
 
 - **Sanitized feedback written, or pre-flight check failed:** output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it. Pre-flight failures emit the same signal so the loop exits cleanly without retrying a guaranteed failure.
+
+Begin sanitization now.

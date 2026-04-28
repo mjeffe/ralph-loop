@@ -388,3 +388,16 @@ test_managed_files_in_sync() {
     updater_files=$(extract_managed_files "$RALPH_DIR/update.sh")
     assert_eq "MANAGED_FILES arrays match" "$installer_files" "$updater_files"
 }
+
+test_adhoc_prompts_single_exit_signal() {
+    echo "--- Adhoc prompts: single Exit Signal section, single COMPLETE mention ---"
+    local prompt complete_count exit_count
+    for prompt in "$RALPH_DIR"/prompts/adhoc-*.md; do
+        local name
+        name=$(basename "$prompt")
+        complete_count=$(grep -c "<promise>COMPLETE</promise>" "$prompt" || true)
+        exit_count=$(grep -cE "^## Exit Signals?" "$prompt" || true)
+        assert_eq "$name has exactly one <promise>COMPLETE</promise>" "1" "$complete_count"
+        assert_eq "$name has exactly one '## Exit Signal' heading" "1" "$exit_count"
+    done
+}

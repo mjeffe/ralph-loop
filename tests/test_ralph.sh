@@ -104,6 +104,7 @@ run_core_tests() {
     test_process_planning_spec_documents_destructive_safety
     test_managed_files_in_sync
     test_run_iteration_has_empty_response_check
+    test_adhoc_prompts_single_exit_signal
 }
 
 run_install_update_tests() {
