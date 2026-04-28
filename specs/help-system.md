@@ -115,9 +115,12 @@ Cover:
 - When to use: multi-iteration work that doesn't fit the planner's
   task-decomposition model (spec review, test analysis, document assembly,
   codebase audits), or quick one-shot jobs
-- Writing multi-iteration prompts: progress tracking files for durable memory
+- Writing multi-iteration prompts: durable-state mechanisms for memory
   across iterations, fresh-context reminders, iteration sizing guidance, clear
   modification rules
+- Document the durable-state patterns demonstrated by the shipped ad-hoc
+  prompts so users can pick the one that fits their work product (transient
+  analysis report, pre-flight gate, explicit progress file, deliverable-as-state)
 - Exit signal requirement: the prompt **must** instruct the agent to output
   `<promise>COMPLETE</promise>` when done — this is the only way the loop
   knows to stop. Without it, ralph iterates until `max_iterations` is reached.
