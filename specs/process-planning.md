@@ -164,11 +164,46 @@ is authoritative.
 
 ### Destructive-Change Safety
 
+#### Why this rule exists
+
 Process specs describe intent: which files, dependencies, infrastructure, or interfaces
 should be removed at each phase. They define the *deletion scope* the author had in mind.
 The codebase defines the *actual dependencies* — which other parts of the system still
-use those artifacts. The two often diverge: the spec lists `app/Http/Resources/` as
-removable, but a subset is still imported by an active controller for CSV export.
+use those artifacts. The two routinely diverge during long-running migrations: a spec
+written when the migration began does not foresee every cross-cutting reference that
+exists when the destructive phase actually runs.
+
+The gap-driven planner does not have this problem. Its "Spec alignment" step
+(`prompts/plan.md`) structurally requires bidirectional cross-referencing — for each
+spec requirement, assess whether the current repo satisfies it in all material ways.
+That naturally surfaces shared dependencies. The process planner's survey, by design,
+is lighter weight (oriented toward sizing and sequencing) so it can handle large
+phased playbooks without exhausting context. That lighter survey is its strength for
+sequence-constrained work, but it also means the planner can trust a destructive phase
+description without independently verifying that the deletion scope is safe.
+
+Field evidence (issue #31): a process spec for a frontend-framework migration listed
+"Remove API Resource classes" as a Phase 3 cleanup step. The process planner created
+a task to delete the entire `app/Http/Resources/` directory. Seven of the 38 classes
+were still imported by the new frontend's controllers for CSV export — executing the
+task would have broken downloads. The same pattern repeated for Form Request
+validators (7 of 50 shared) and ~58 API test files. A gap-driven plan generated
+against the same codebase caught all three cases because its bidirectional alignment
+forced the cross-reference.
+
+The fix is not to make the process planner's general survey deeper — that would erode
+its context advantage. Instead, this section adds a narrowly-scoped structural
+requirement that fires only on destructive operations against shared or long-lived
+artifacts, mirroring the gap-driven planner's rigor exactly where intent and
+dependency are most likely to diverge.
+
+The burden could in principle be pushed onto spec authors — write specs that enumerate
+every exception. That has worked when used, but it asks humans to anticipate every
+cross-dependency that may exist months later, which is precisely the analysis a
+codebase-aware agent excels at. The structural prompt requirement keeps the spec
+author's job at "describe intent" and lets the planner verify against current reality.
+
+#### Mechanics
 
 When the planner decomposes a phase or step that performs destructive operations
 (deleting files or directories, dropping dependencies, removing migrations, removing
