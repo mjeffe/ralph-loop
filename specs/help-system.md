@@ -180,20 +180,26 @@ Cover:
 - When to do a retro: after every significant plan+build cycle, especially
   when builds struggled, blocked frequently, or triggered REPLAN
 - The three-stage workflow:
-  1. **Analyze (automated)** — `ralph prompt adhoc-retro-analyze.md` produces
-     a structured report at `.ralph/retro-report.md` ranking the top issues
-     by wasted effort and proposing fixes categorized as AGENTS.md / spec /
-     prompt. The agent does not apply fixes.
+  1. **Analyze (automated)** — `ralph prompt .ralph/prompts/adhoc-retro-analyze.md`
+     produces a structured report at `.ralph/retro-report.md` ranking the top
+     issues by wasted effort and proposing fixes categorized as AGENTS.md /
+     spec / prompt. The agent does not apply fixes.
   2. **Discuss (interactive)** — the user opens an interactive session with a
      ready-to-paste prompt that points the agent at `.ralph/retro-report.md`
      and drives a dialog to pressure-test rankings, decide where to apply
      fixes, and draft the actual edits. The discussion prompt presupposes
      analysis is done — it is for review and decision-making, not redoing
      the work.
-  3. **Share (optional, automated)** — `ralph prompt adhoc-retro-feedback.md`
-     produces a sanitized report at `.ralph/retro-feedback.md` suitable for
-     pasting as a ralph-loop GitHub issue body. All project-specific details
-     (paths, domain names, code, team names) are stripped out.
+  3. **Share (optional, automated)** — `ralph prompt .ralph/prompts/adhoc-retro-feedback.md`
+     reads `.ralph/retro-report.md`, sanitizes it (strips paths, domain names,
+     code, team names, etc.), and writes `.ralph/retro-feedback.md` ready to
+     paste as a GitHub issue body. The feedback prompt does **not** re-analyze
+     the cycle — it requires an existing complete retro report and exits with
+     a clear error message if the report is missing or incomplete.
+- Both `.ralph/retro-report.md` and `.ralph/retro-feedback.md` are transient
+  artifacts: they are gitignored, never committed, and overwritten by the
+  next retro run. Document this in the help text so users do not expect the
+  files to persist across runs.
 - What the analysis covers (the five dimensions the analyze prompt examines):
   iteration economics, plan quality, git history, AGENTS.md effectiveness,
   spec quality

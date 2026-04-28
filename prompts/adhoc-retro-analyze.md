@@ -8,6 +8,8 @@ Study the artifacts of the most recent ralph plan+build cycle (session logs, imp
 
 This prompt does not apply fixes. The human reviews the report — typically in an interactive agent session — and decides what to apply.
 
+The report is a **transient artifact**: it is gitignored, never committed, and overwritten by the next retro run. Treat it as throwaway analysis output, not as a versioned document.
+
 ## Context
 
 - **Session logs:** `${RALPH_HOME}/logs/` (filenames encode mode and timestamp, e.g. `session-20250320-150000-build.log`)
@@ -97,7 +99,7 @@ Bulleted, in priority order. Each item names the target file (AGENTS.md, specs/f
 2. **Read inputs** — `AGENTS.md`, `${SPECS_DIR}/README.md`, the session logs for the cycle, the implementation plan, and the git log for the cycle's date range.
 3. **Decide scope for this iteration** — full report (preferred) or partial-with-TODOs (when inputs are too large). See Iteration Strategy.
 4. **Write or update the report** — fill in all five dimensions, the cycle summary, the ranked top issues, and the recommended next steps. Use the structure above.
-5. **Commit** with a descriptive message (e.g., `docs(retro): generate retro report for <cycle date>` or `docs(retro): complete plan-quality and spec-quality dimensions`).
+5. **Do NOT commit.** The report is gitignored and transient — write it to disk and leave it uncommitted.
 6. **Output the completion signal** (see Exit Signal) only if the report is complete (no `<!-- TODO -->` markers remaining). Otherwise stop without a signal — the loop will resume you.
 
 ## Rules

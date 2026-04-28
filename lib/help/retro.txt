@@ -31,12 +31,23 @@ THE THREE-STAGE WORKFLOW
      timing.
 
   3. SHARE (optional, automated)
-     ralph prompt .ralph/prompts/adhoc-retro-feedback.md 2
+     ralph prompt .ralph/prompts/adhoc-retro-feedback.md
 
      If you want to share structural feedback with the ralph-loop project,
-     this prompt produces a sanitized report at .ralph/retro-feedback.md,
-     ready to paste as a GitHub issue body. All project-specific details
-     are stripped out.
+     this prompt sanitizes .ralph/retro-report.md and writes the result to
+     .ralph/retro-feedback.md, ready to paste as a GitHub issue body. All
+     project-specific details are stripped out.
+
+     Requires .ralph/retro-report.md to exist (run stage 1 first). If the
+     report is missing or incomplete the prompt exits with an error
+     message — it does not re-analyze the cycle.
+
+ARTIFACTS ARE TRANSIENT
+-----------------------
+
+  Both .ralph/retro-report.md and .ralph/retro-feedback.md are gitignored
+  and never committed. Each retro overwrites the previous one. If you
+  want to keep an old retro for reference, rename it before running again.
 
 WHEN TO DO A RETRO
 ------------------
@@ -131,7 +142,7 @@ RETRO CHECKLIST
   [ ] Open an interactive session with the discussion prompt above
   [ ] Apply the agreed-on fixes to AGENTS.md, specs, and/or prompts
   [ ] Commit the improvements before the next plan+build cycle
-  [ ] (Optional) ralph prompt .ralph/prompts/adhoc-retro-feedback.md 2
+  [ ] (Optional) ralph prompt .ralph/prompts/adhoc-retro-feedback.md
   [ ] (Optional) Paste .ralph/retro-feedback.md into a ralph-loop GitHub issue
 
 BUILDING INSTITUTIONAL KNOWLEDGE

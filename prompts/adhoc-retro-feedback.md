@@ -1,29 +1,41 @@
 You are an expert at writing sanitized, structural feedback reports.
 
-Each iteration starts with **fresh context** — you have no memory of prior iterations. Treat repo files as the sole source of truth.
-
 ## Goal
 
-Produce a sanitized retro feedback report at `${RALPH_HOME}/retro-feedback.md` that the human can paste as a GitHub issue body at https://github.com/mjeffe/ralph-loop/issues. The report shares structural observations about the most recent ralph plan+build cycle with the ralph-loop project — **stripped of all project-specific details**.
+Read the existing retro report at `${RALPH_HOME}/retro-report.md` and produce a sanitized version at `${RALPH_HOME}/retro-feedback.md` — stripped of all project-specific details — that the human can paste as a GitHub issue body at https://github.com/mjeffe/ralph-loop/issues.
 
-This is a one- or two-iteration job. If the necessary input is already gathered, finish in a single iteration.
+This is a pure transformation prompt: it sanitizes an existing report, it does not perform analysis. If the retro report is missing or incomplete, exit with a clear error message — do not analyze the cycle from scratch.
 
-When the feedback report is complete and committed, you **must** output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it. If work remains, do not output any signal.
+The feedback file is a **transient artifact**: gitignored, never committed, and overwritten by the next run.
 
-## Context
+## Prerequisite
 
-- **Retro report (preferred input):** `${RALPH_HOME}/retro-report.md` — produced by `ralph prompt adhoc-retro-analyze.md`
-- **Fallback inputs (if no retro report exists):** session logs in `${RALPH_HOME}/logs/`, `${RALPH_HOME}/implementation_plan.md`, `git log --oneline`
-- **Output:** `${RALPH_HOME}/retro-feedback.md`
+This prompt requires `${RALPH_HOME}/retro-report.md` to exist and be complete. To produce the report, run:
+
+    ralph prompt .ralph/prompts/adhoc-retro-analyze.md
+
+## Pre-flight Checks
+
+Perform these checks first. If any check fails, output the indicated error message and emit the completion signal (see Exit Signal) so the loop exits cleanly without burning retries.
+
+1. **Report file exists** — check that `${RALPH_HOME}/retro-report.md` exists.
+   - If missing: print `ERROR: No retro report found at ${RALPH_HOME}/retro-report.md. Run 'ralph prompt .ralph/prompts/adhoc-retro-analyze.md' first.` and emit the completion signal.
+
+2. **Report file is non-empty** — check that the file has content.
+   - If empty: print `ERROR: Retro report at ${RALPH_HOME}/retro-report.md is empty. Re-run 'ralph prompt .ralph/prompts/adhoc-retro-analyze.md' to regenerate.` and emit the completion signal.
+
+3. **Report is complete** — search for `<!-- TODO` markers in the report.
+   - If any are found: print `ERROR: Retro report at ${RALPH_HOME}/retro-report.md is incomplete (contains TODO markers). Re-run 'ralph prompt .ralph/prompts/adhoc-retro-analyze.md' to finish it.` and emit the completion signal.
 
 ## Workflow
 
-1. **Read inputs** — Read `${RALPH_HOME}/retro-report.md` if it exists. Otherwise, read session logs and the implementation plan directly.
-2. **Extract structural observations only** — Filter findings through the include/exclude rules below.
-3. **Write the feedback report** to `${RALPH_HOME}/retro-feedback.md` in the format specified.
-4. **Self-check** — Re-read the report and verify nothing in the EXCLUDE list slipped through.
-5. **Commit** with a message like `docs(retro): generate sanitized feedback for ralph-loop`.
-6. **Output the completion signal.**
+1. **Run the pre-flight checks above.** If any fail, exit per the instructions there.
+2. **Read** `${RALPH_HOME}/retro-report.md` in full.
+3. **Sanitize** by filtering content through the include/exclude rules below. Each rule applies to the entire output.
+4. **Write** the sanitized result to `${RALPH_HOME}/retro-feedback.md` using the format specified below.
+5. **Self-check** — re-read the output and verify nothing in the EXCLUDE list slipped through. If anything did, fix it before emitting the completion signal.
+6. **Do NOT commit.** The feedback file is gitignored and transient.
+7. **Emit the completion signal** (see Exit Signal).
 
 ## INCLUDE — Structural observations only
 
@@ -35,7 +47,7 @@ When the feedback report is complete and committed, you **must** output exactly 
 - **Categories** of AGENTS.md fixes needed (e.g., "test commands", "environment setup", "naming conventions")
 - Task sizing observations (too granular, too coarse, about right)
 - Suggestions for ralph-loop prompts, defaults, or behavior
-- Agent type used (`amp`, `claude`, `cline`, `codex`, etc.)
+- Agent type used (`amp`, `claude`, `cline`, `codex`, etc.) if it appears in the report
 
 ## EXCLUDE — Project secrets
 
@@ -46,6 +58,7 @@ When the feedback report is complete and committed, you **must** output exactly 
 - Team member names, GitHub usernames, email addresses
 - Specific spec content or task descriptions — only categories, never the actual text
 - Identifiable error messages or stack traces
+- Specific commit hashes or messages
 
 ## Output Format
 
@@ -57,7 +70,7 @@ Write `${RALPH_HOME}/retro-feedback.md` as a GitHub issue body, ready to paste:
 ## Cycle Shape
 
 - Planning mode: <gap-driven | process | incremental process>
-- Agent: <amp | claude | cline | codex>
+- Agent: <amp | claude | cline | codex | unknown>
 - Plan iterations: <N>
 - Build iterations: <N>
 - Tasks: <completed> completed, <blocked> blocked, <added> added during build
@@ -85,10 +98,11 @@ Write `${RALPH_HOME}/retro-feedback.md` as a GitHub issue body, ready to paste:
 ## Rules
 
 - **Do NOT modify** any file other than `${RALPH_HOME}/retro-feedback.md`.
+- **Do NOT analyze the cycle from scratch.** Your only input is the existing retro report. If it is missing or incomplete, exit per the pre-flight checks.
 - **When in doubt about a detail, omit it.** It is better to under-share than to leak project context.
 - **Do not invent observations.** If the retro report does not contain the input for a section, leave that section out — do not pad with generic commentary.
 - **No code blocks** in the output other than the ones in this template's format.
 
 ## Exit Signal
 
-When `${RALPH_HOME}/retro-feedback.md` is complete and committed, output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it.
+- **Sanitized feedback written, or pre-flight check failed:** output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it. Pre-flight failures emit the same signal so the loop exits cleanly without retrying a guaranteed failure.
