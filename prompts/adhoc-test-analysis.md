@@ -6,38 +6,44 @@ Each iteration starts with **fresh context** — you have no memory of prior ite
 
 Study the project's test files and use what you learn to enhance the specs in `${SPECS_DIR}/`. Tests encode real business rules, edge cases, validation logic, and state transitions that specs may be missing or underspecifying.
 
-When all test areas have been analyzed, you **must** output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it. If work remains, do not output any signal.
+The work product is the enhanced specs themselves. A small progress file at `${RALPH_HOME}/test-analysis-progress.md` tracks the inventory of test areas across iterations so resumption is reliable.
 
 ## Context
 
 - **Specifications:** ${SPECS_DIR}
 - **Specs Index:** ${SPECS_DIR}/README.md
 - **Project instructions:** AGENTS.md
+- **Progress file:** `${RALPH_HOME}/test-analysis-progress.md` (inventory + completion checklist; persists across iterations)
 
-## First Iteration Setup
+## Iteration Strategy
 
-On the first iteration:
+Single iteration is preferred when the work fits. Multi-iteration is the safety valve for large test suites.
 
-1. Read `AGENTS.md` to understand the project's test framework, test commands, and directory structure.
-2. Survey the test directory to build an inventory of test files organized by domain area.
-3. Create your progress file (see Progress Tracking) with the full inventory and a suggested analysis order — group related test files into iteration-sized chunks.
+1. **Read inputs first.** Read `AGENTS.md`, `${SPECS_DIR}/README.md`, and the progress file (if it exists). If the progress file does not exist, survey the test directory and create it with a checklist of test areas to analyze (see Progress File Format).
 
-## Progress Tracking
+2. **Decide what fits this iteration.** You judge how much you can analyze without overrunning context — one focused domain area, several small ones, or the whole suite if it's small. Don't ration work artificially; the loop is your safety valve.
 
-Use `${RALPH_HOME}/test-analysis-progress.md` as your durable progress file across iterations. On the first iteration, create it. On subsequent iterations, **read it first** to see what's been completed.
+3. **If the full analysis fits**, complete it, update the progress file marking all areas done, commit, and emit the completion signal (see Exit Signal).
 
-Track in that file:
-- Full inventory of test directories/files (created during first iteration)
-- Which test areas have been analyzed
-- Which specs were updated and what was added
-- Which test areas remain
-- Any cross-cutting patterns discovered
+4. **If it does not fit**, analyze what you can this iteration, mark completed areas in the progress file, commit, and stop **without** the completion signal. The next iteration will resume from the unchecked areas.
+
+You may use subagents to keep the main context focused if your agent supports them.
+
+## Progress File Format
+
+`${RALPH_HOME}/test-analysis-progress.md` is intentionally lightweight — it exists to make resumption reliable, not to mirror the work. Keep it to:
+
+- A checklist of test areas grouped by domain, with `[ ]` for unanalyzed and `[x]` for analyzed.
+- One short note per analyzed area naming the spec(s) updated.
+- A short list of cross-cutting patterns worth surfacing in later iterations.
+
+Do not duplicate spec content into the progress file. The specs are the work product.
 
 ## Workflow
 
-1. **Read inputs** — Read `AGENTS.md`, `${SPECS_DIR}/README.md`, and your progress file (if it exists).
-2. **Identify next work** — Pick the next unanalyzed test area from your progress file. Work through one domain area per iteration. Large directories should be split across multiple iterations.
-3. **Study tests thoroughly** — Read and analyze all test files in the chosen area. Extract:
+1. **Read inputs** — `AGENTS.md`, `${SPECS_DIR}/README.md`, and `${RALPH_HOME}/test-analysis-progress.md` (create it on the first iteration by surveying the test directory).
+2. **Pick the next unchecked area(s)** from the progress file. Group small areas together if they fit; split large areas if they don't.
+3. **Study tests thoroughly** — Read and analyze the test files in the chosen area(s). Extract:
    - Business rules and validation logic
    - State machine transitions and constraints
    - Role-based access control rules
@@ -56,19 +62,9 @@ Track in that file:
    - Add missing state transitions or permission details
    - If no appropriate spec exists, create one following the project's existing spec conventions
    - Do NOT remove existing spec content — only add or refine
-6. **Update progress** — Record what was analyzed and what was updated.
-7. **Commit** all changes with a descriptive message (e.g., `docs(specs): enhance user auth spec from test analysis`)
-8. **Evaluate completion** — If all test areas have been analyzed, output the completion signal. Otherwise, stop without a signal.
-
-## Iteration Sizing
-
-Each iteration should analyze **one domain area** — sized by the amount of test code, not by directory count. The goal is a meaningful chunk of analysis per iteration without overwhelming context.
-
-- **Small test groups** (1–2 test files) should be grouped with related tests into a single iteration.
-- **Medium test groups** (3–6 test files) are one iteration each.
-- **Large test groups** (7+ test files) are one iteration, but may be split if the files are long and complex.
-
-Use judgment — the progress file tells you what's done; pick the next logical chunk.
+6. **Update the progress file** — check off the areas you analyzed and note which specs were updated.
+7. **Commit** all changes with a descriptive message (e.g., `docs(specs): enhance user auth spec from test analysis`).
+8. **Emit the completion signal** (see Exit Signal) only if every area in the progress file is checked. Otherwise stop without a signal — the loop will resume you.
 
 ## Rules
 
@@ -81,4 +77,5 @@ Use judgment — the progress file tells you what's done; pick the next logical 
 
 ## Exit Signal
 
-When all test areas have been analyzed, output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it.
+- **All test areas analyzed (every checkbox in the progress file is checked):** output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it.
+- **Work remains (any unchecked areas):** stop without any signal so the loop schedules another iteration.
