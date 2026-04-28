@@ -199,6 +199,7 @@ prepare_prompt() {
     local template_file="$1"
     local output_file="$2"
     export MODE SPECS_DIR RALPH_HOME
+    export PROCESS_DIR="${PROCESS_DIR:-}"
     export PLAN_HEADER TASK_OVERVIEW SELECTED_TASK ADJACENT_CONTEXT
     envsubst < "$template_file" > "$output_file"
 }
@@ -401,7 +402,6 @@ case "$MODE" in
                 echo "Error: No process specs found in '${PROCESS_DIR}/'." >&2
                 exit 1
             fi
-            export PROCESS_DIR
 
             SPEC_BYTES=$(cat "$PROCESS_DIR"/*.md 2>/dev/null | wc -c)
             SPEC_COUNT=$(find "$PROCESS_DIR" -maxdepth 1 -name '*.md' | wc -l)

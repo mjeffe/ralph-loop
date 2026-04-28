@@ -81,7 +81,7 @@ Tasks should be ordered by priority. Structure and format beyond that are up to 
 During plan mode, the agent should:
 
 1. **Study `specs/README.md`** for an overview of all specs
-2. **Study all specs** in `specs/` directory
+2. **Study all target-state specs** in `${SPECS_DIR}/`, **excluding process specs** in `${PROCESS_DIR}/` (process specs are handled separately by `ralph plan --process` — see `specs/process-planning.md`). The exclusion is categorical: even when the specs index references process specs, the gap-driven planner must not read or generate tasks from them.
 3. **Analyze the project** to understand current state
 4. **Identify gaps** between specs and code
 5. **Create ordered tasks** that will close the gaps
@@ -90,6 +90,15 @@ During plan mode, the agent should:
 8. **Keep `specs/README.md` current** — update it if specs are added or removed
 9. Commit all changes with a descriptive commit message
 10. **Output completion signal** when planning is done
+
+### Process Spec Exclusion
+
+Gap-driven planning is for target-state specs only. The agent must not read, survey, or
+generate tasks from process specs (any file under `${PROCESS_DIR}/`, including subdirectories
+such as `archive/`). When `${PROCESS_DIR}` is empty or unset, no process specs exist and
+the exclusion is a no-op. When `specs/README.md` indexes process specs alongside
+target-state specs, the agent still ignores the process entries — the categorical
+prohibition takes precedence over discovery via the index.
 
 ## Prompt Template
 
