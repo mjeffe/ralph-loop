@@ -96,6 +96,8 @@ run_core_tests() {
     test_build_prompt_has_plan_header_injection
     test_build_process_prompt_has_selected_task
     test_plan_prompts_have_cross_cutting_section
+    test_plan_prompt_excludes_process_specs
+    test_prepare_prompt_exports_process_dir
     test_plan_process_has_decomposition_ledger
     test_managed_files_in_sync
     test_run_iteration_has_empty_response_check

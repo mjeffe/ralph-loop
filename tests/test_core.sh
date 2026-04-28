@@ -305,6 +305,34 @@ test_plan_prompts_have_cross_cutting_section() {
     assert_contains "plan-process.md mentions cross-cutting" "Cross-cutting constraints" "$process_plan"
 }
 
+test_plan_prompt_excludes_process_specs() {
+    echo "--- plan.md excludes process specs (issue #30) ---"
+    local gap_plan
+    gap_plan=$(cat "$RALPH_DIR/prompts/plan.md")
+    assert_contains "plan.md prohibits reading process specs" "Do NOT read or generate tasks from process specs" "$gap_plan"
+    assert_contains "plan.md references PROCESS_DIR" '${PROCESS_DIR}' "$gap_plan"
+    assert_contains "plan.md routes process specs to --process" "ralph plan --process" "$gap_plan"
+}
+
+test_prepare_prompt_exports_process_dir() {
+    echo "--- prepare_prompt exports PROCESS_DIR (issue #30) ---"
+    source <(sed -n '/^prepare_prompt()/,/^}/p' "$RALPH_DIR/ralph")
+
+    local template="$TMP_DIR/prep_pdir.md"
+    local output_file="$TMP_DIR/prep_pdir_out.md"
+    echo 'Process: ${PROCESS_DIR}' > "$template"
+
+    # Configured case
+    export MODE="plan" SPECS_DIR="specs" RALPH_HOME=".ralph" PROCESS_DIR="specs/process"
+    prepare_prompt "$template" "$output_file"
+    assert_eq "PROCESS_DIR substitutes when set" "Process: specs/process" "$(cat "$output_file")"
+
+    # Unset case — must render gracefully (empty), not error
+    unset PROCESS_DIR
+    prepare_prompt "$template" "$output_file"
+    assert_eq "PROCESS_DIR substitutes empty when unset" "Process: " "$(cat "$output_file")"
+}
+
 test_plan_process_has_decomposition_ledger() {
     echo "--- plan-process.md contains decomposition ledger ---"
     local template

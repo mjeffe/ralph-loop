@@ -504,7 +504,6 @@ case "$MODE" in
             echo "Error: align-specs requires completed build work. Run 'ralph build' first." >&2
             exit 1
         fi
-        export PROCESS_DIR
         PROMPT_TEMPLATE="$RALPH_DIR/prompts/align-specs.md"
         if [[ ! -f "$PROMPT_TEMPLATE" ]]; then
             echo "Error: align-specs prompt template not found: $PROMPT_TEMPLATE" >&2
