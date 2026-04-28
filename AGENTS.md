@@ -31,6 +31,16 @@ short-circuit expensive operations.
 - **Keep the root `README.md` in sync** with any significant structural or behavioral changes.
 - The `ralph` script lives at the project root — there is no `ralph/` subdirectory.
 
+### Adding a New Shipped Ad-Hoc Prompt
+
+When adding a new `prompts/adhoc-*.md` to the shipped set:
+
+1. Verify the prompt follows the structural conventions in `specs/adhoc-prompts.md` (Goal, Operating Contract, Context, Iteration Strategy or Pre-flight Checks, Workflow, domain sections, Rules, Exit Signal, closing imperative).
+2. Add the file path to `MANAGED_FILES` in **both** `install.sh` and `update.sh` so it ships to user projects.
+3. Update the catalog in `lib/help/prompt.txt` (under `SHIPPED PROMPTS`) and the `ralph help prompt` content list in `specs/help-system.md`.
+4. If the prompt demonstrates a durable-state pattern not currently represented in the shipped set, mention that in `lib/help/prompt.txt`'s `DURABLE-STATE PATTERNS` section. If it duplicates a pattern, consider extending the existing example instead (see `specs/adhoc-prompts.md`).
+5. Run `./tests/test_ralph.sh` and confirm the structural test (`test_adhoc_prompts_single_exit_signal`) passes for the new file.
+
 ## Commit Messages
 
 - No agent attribution or "Generated with" footers

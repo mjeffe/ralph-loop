@@ -20,3 +20,4 @@ Specs are the source of truth for desired behavior. When adding or removing a sp
 | [incremental-planning.md](incremental-planning.md) | Incremental process planning: decomposition ledger, skeleton-first workflow, and volume hint for large spec volumes |
 | [align-specs.md](align-specs.md) | Align-specs mode: update target-state specs after process-spec migrations, build-completion nudge |
 | [help-system.md](help-system.md) | CLI help system: `ralph help <topic>` for operational guidance on planning, specs, build, and sandbox |
+| [adhoc-prompts.md](adhoc-prompts.md) | Shipped ad-hoc prompt set: design intent, structural conventions, durable-state patterns, and contract for `prompts/adhoc-*.md` |
