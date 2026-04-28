@@ -1,107 +1,63 @@
-You are an expert at writing sanitized, structural feedback reports.
+You are an expert at sanitizing structured documents.
 
 ## Goal
 
-Read the existing retro report at `${RALPH_HOME}/retro-report.md` and produce a sanitized version at `${RALPH_HOME}/retro-feedback.md` — stripped of all project-specific details — that the human can paste as a GitHub issue body at https://github.com/mjeffe/ralph-loop/issues.
+Read the existing retro report at `${RALPH_HOME}/retro-report.md`, redact project-specific details, and write the sanitized result to `${RALPH_HOME}/retro-feedback.md` so the human can paste it as a GitHub issue body at https://github.com/mjeffe/ralph-loop/issues.
 
-This is a pure transformation prompt: it sanitizes an existing report, it does not perform analysis. If the retro report is missing or incomplete, exit with a clear error message — do not analyze the cycle from scratch.
+This is a pure content transformation — preserve the report's headings and structure exactly, replacing only project-specific content with generic placeholders or category labels. Do not analyze the cycle, do not change the structure, do not invent sections the report does not have.
 
 The feedback file is a **transient artifact**: gitignored, never committed, and overwritten by the next run.
 
-## Prerequisite
-
-This prompt requires `${RALPH_HOME}/retro-report.md` to exist and be complete. To produce the report, run:
-
-    ralph prompt .ralph/prompts/adhoc-retro-analyze.md
-
 ## Pre-flight Checks
 
-Perform these checks first. If any check fails, output the indicated error message and emit the completion signal (see Exit Signal) so the loop exits cleanly without burning retries.
+Perform these checks first. If any check fails, print the indicated error message and emit the completion signal (see Exit Signal) so the loop exits cleanly without burning retries.
 
 1. **Report file exists** — check that `${RALPH_HOME}/retro-report.md` exists.
-   - If missing: print `ERROR: No retro report found at ${RALPH_HOME}/retro-report.md. Run 'ralph prompt .ralph/prompts/adhoc-retro-analyze.md' first.` and emit the completion signal.
+   - If missing: `ERROR: No retro report found at ${RALPH_HOME}/retro-report.md. Run 'ralph prompt .ralph/prompts/adhoc-retro-analyze.md' first.`
 
 2. **Report file is non-empty** — check that the file has content.
-   - If empty: print `ERROR: Retro report at ${RALPH_HOME}/retro-report.md is empty. Re-run 'ralph prompt .ralph/prompts/adhoc-retro-analyze.md' to regenerate.` and emit the completion signal.
+   - If empty: `ERROR: Retro report at ${RALPH_HOME}/retro-report.md is empty. Re-run 'ralph prompt .ralph/prompts/adhoc-retro-analyze.md' to regenerate.`
 
 3. **Report is complete** — search for `<!-- TODO` markers in the report.
-   - If any are found: print `ERROR: Retro report at ${RALPH_HOME}/retro-report.md is incomplete (contains TODO markers). Re-run 'ralph prompt .ralph/prompts/adhoc-retro-analyze.md' to finish it.` and emit the completion signal.
+   - If any are found: `ERROR: Retro report at ${RALPH_HOME}/retro-report.md is incomplete (contains TODO markers). Re-run 'ralph prompt .ralph/prompts/adhoc-retro-analyze.md' to finish it.`
 
 ## Workflow
 
-1. **Run the pre-flight checks above.** If any fail, exit per the instructions there.
-2. **Read** `${RALPH_HOME}/retro-report.md` in full.
-3. **Sanitize** by filtering content through the include/exclude rules below. Each rule applies to the entire output.
-4. **Write** the sanitized result to `${RALPH_HOME}/retro-feedback.md` using the format specified below.
-5. **Self-check** — re-read the output and verify nothing in the EXCLUDE list slipped through. If anything did, fix it before emitting the completion signal.
-6. **Do NOT commit.** The feedback file is gitignored and transient.
-7. **Emit the completion signal** (see Exit Signal).
+1. Run the pre-flight checks above. If any fail, exit per the instructions there.
+2. Read `${RALPH_HOME}/retro-report.md` in full.
+3. Apply the Sanitization Rules below to every section of the report.
+4. Write the sanitized result to `${RALPH_HOME}/retro-feedback.md`, preserving the report's headings and section order.
+5. Self-check — re-read the output and verify nothing in the rules slipped through. Fix anything that did before emitting the completion signal.
+6. Do NOT commit. The feedback file is gitignored and transient.
+7. Emit the completion signal (see Exit Signal).
 
-## INCLUDE — Structural observations only
+## Sanitization Rules
 
-- Planning mode used (`gap-driven` / `process` / `incremental process`)
-- Number of plan iterations and build iterations
-- Iteration-to-task ratio (a measure of cycle efficiency)
-- Number of blocked tasks, REPLAN signals, agent retries
-- **Categories** of spec gaps encountered (e.g., "missing verification criteria", "ambiguous edge case handling") — never the gaps themselves
-- **Categories** of AGENTS.md fixes needed (e.g., "test commands", "environment setup", "naming conventions")
-- Task sizing observations (too granular, too coarse, about right)
+For each item below, **replace** with a generic placeholder, **generalize** to its category, or **omit** if no useful generic remains. Preserve the report's structure — sanitization is a content transformation, not a restructuring.
+
+| Project-specific content | Treatment |
+|---|---|
+| Project name, domain, business context, industry | Omit or replace with `<project>` |
+| File paths (other than ralph-managed paths like `.ralph/logs/`) | Replace with `<file path>` |
+| Module / class / function / API names | Replace with `<symbol>` or generalize ("the auth module" → "an internal module") |
+| Code snippets, error messages, stack traces | Replace with `<code snippet>` / `<error message>` |
+| Team-member names, GitHub usernames, email addresses | Omit |
+| Specific spec content or task descriptions | Generalize to a category — e.g., "User.email uniqueness across soft-deleted records" → "missing edge-case handling for soft-deleted records" |
+| Specific commit hashes or messages | Omit or generalize ("3 revert commits" is fine; the hashes and messages are not) |
+
+**Always preserve unchanged** (these are not project-specific):
+- Ralph-specific terminology, modes, signals (`gap-driven`, `process`, `REPLAN`, `COMPLETE`, etc.)
+- Numeric counts (iterations, tasks, retries, REPLAN signals)
+- Agent type used (`amp`, `claude`, `cline`, `codex`)
+- Categories of issues (e.g., "missing verification criteria", "test command flags")
 - Suggestions for ralph-loop prompts, defaults, or behavior
-- Agent type used (`amp`, `claude`, `cline`, `codex`, etc.) if it appears in the report
-
-## EXCLUDE — Project secrets
-
-- Project name, domain, business context, industry
-- File paths (other than ralph-managed paths like `.ralph/logs/`)
-- Module names, class names, function names, API endpoints
-- Code snippets or implementation details
-- Team member names, GitHub usernames, email addresses
-- Specific spec content or task descriptions — only categories, never the actual text
-- Identifiable error messages or stack traces
-- Specific commit hashes or messages
-
-## Output Format
-
-Write `${RALPH_HOME}/retro-feedback.md` as a GitHub issue body, ready to paste:
-
-```markdown
-# Retro feedback: <one-line structural summary, e.g., "Process mode, 14 build iterations, task-sizing concerns">
-
-## Cycle Shape
-
-- Planning mode: <gap-driven | process | incremental process>
-- Agent: <amp | claude | cline | codex | unknown>
-- Plan iterations: <N>
-- Build iterations: <N>
-- Tasks: <completed> completed, <blocked> blocked, <added> added during build
-- REPLAN signals: <N>
-- Agent retries: <N>
-
-## Issue Categories
-
-### Spec gaps
-- <category 1, e.g., "Missing verification criteria">
-- <category 2>
-
-### AGENTS.md fixes needed
-- <category 1, e.g., "Test command flags">
-- <category 2>
-
-### Task sizing
-<one paragraph: too granular / too coarse / about right, with brief rationale>
-
-## Suggestions for ralph-loop
-
-<bullet list of suggestions for prompts, defaults, or behavior — phrased as suggestions, not project-specific demands>
-```
 
 ## Rules
 
 - **Do NOT modify** any file other than `${RALPH_HOME}/retro-feedback.md`.
-- **Do NOT analyze the cycle from scratch.** Your only input is the existing retro report. If it is missing or incomplete, exit per the pre-flight checks.
-- **When in doubt about a detail, omit it.** It is better to under-share than to leak project context.
-- **Do not invent observations.** If the retro report does not contain the input for a section, leave that section out — do not pad with generic commentary.
-- **No code blocks** in the output other than the ones in this template's format.
+- **Do NOT analyze the cycle.** The retro report is your only input.
+- **Do NOT invent observations.** If a section in the report has no content after sanitization (everything in it was project-specific), omit the section rather than padding with generic commentary.
+- **When in doubt, omit.** It is better to under-share than to leak project context.
 
 ## Exit Signal
 
