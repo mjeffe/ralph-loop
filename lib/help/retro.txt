@@ -9,13 +9,20 @@ THE THREE-STAGE WORKFLOW
 ------------------------
 
   1. ANALYZE (automated)
-     ralph prompt .ralph/prompts/adhoc-retro-analyze.md 10
+     ralph prompt .ralph/prompts/adhoc-retro-analyze.md
 
      The agent reads session logs, the implementation plan, git history,
      AGENTS.md, and specs from the most recent cycle. It produces a
      structured report at .ralph/retro-report.md ranking the top issues
      by wasted effort and proposing fixes categorized as AGENTS.md / spec
      / prompt. The agent does NOT apply any fixes.
+
+     Most retros complete in 1–2 iterations. The example above omits an
+     iteration cap to let ralph's default (10) apply — this gives the
+     agent room to continue if the cycle's inputs are large enough that
+     a single iteration cannot finish. The agent self-decides whether
+     it needs to continue and uses TODO markers in the report itself
+     for resumption.
 
   2. DISCUSS (interactive)
      Open an interactive session with your preferred agent and use the
@@ -119,7 +126,7 @@ edits — not for redoing the analysis.
 RETRO CHECKLIST
 ---------------
 
-  [ ] Run: ralph prompt .ralph/prompts/adhoc-retro-analyze.md 10
+  [ ] Run: ralph prompt .ralph/prompts/adhoc-retro-analyze.md
   [ ] Review .ralph/retro-report.md
   [ ] Open an interactive session with the discussion prompt above
   [ ] Apply the agreed-on fixes to AGENTS.md, specs, and/or prompts
