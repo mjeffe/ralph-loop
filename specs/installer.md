@@ -56,11 +56,17 @@ The installer script lives at the root of the ralph-loop repository so the curl 
    │   └── codex.sh
    ├── prompts/
    │   ├── plan.md
+   │   ├── plan-process.md
    │   ├── build.md
+   │   ├── build-process.md
+   │   ├── align-specs.md
    │   ├── sandbox-analyze.md
    │   ├── sandbox-render.md
    │   ├── sandbox-repair.md
-   │   ├── align-specs.md
+   │   ├── adhoc-test-analysis.md
+   │   ├── adhoc-process-spec-review.md
+   │   ├── adhoc-retro-analyze.md
+   │   ├── adhoc-retro-feedback.md
    │   ├── templates/
    │   │   └── Dockerfile.base
    │   └── playbooks/
@@ -77,7 +83,7 @@ The installer script lives at the root of the ralph-loop repository so the curl 
     - Copy `sandbox-preferences.sh` (user sandbox environment preferences, make executable)
     - Copy `lib/` modules: `lib/sandbox.sh`, `lib/plan-filter.sh`, `lib/help/*.txt`
     - Copy agent scripts from `agents/` (canonical source in ralph-loop repo)
-    - Copy prompt templates from `prompts/` including sandbox-analyze.md, sandbox-render.md, sandbox-repair.md, align-specs.md
+    - Copy prompt templates from `prompts/` including sandbox-analyze.md, sandbox-render.md, sandbox-repair.md, align-specs.md, and the shipped ad-hoc prompts (`prompts/adhoc-*.md`)
     - Copy `prompts/templates/Dockerfile.base`
     - Copy playbooks directory (`prompts/playbooks/`)
     - Copy `specs/overview.md` as `README.md` (overview of how Ralph works)

@@ -122,6 +122,18 @@ Cover:
   `<promise>COMPLETE</promise>` when done — this is the only way the loop
   knows to stop. Without it, ralph iterates until `max_iterations` is reached.
 - Point users to the built-in prompts in `.ralph/prompts/` as starting templates
+- Document the `adhoc-` filename prefix convention for user-authored prompts
+  (distinguishes them from ralph's system prompts like `plan.md` and `build.md`)
+- List the shipped ad-hoc prompts and what each is for:
+  - `adhoc-test-analysis.md` — study a project's test suite and enhance specs
+    with rules, edge cases, and validation logic the specs are missing
+  - `adhoc-process-spec-review.md` — study the codebase and target-state specs
+    to find gaps, ordering problems, and missing dependencies in process specs
+    before running `ralph plan --process`
+  - `adhoc-retro-analyze.md` — produce a structured retro report from the most
+    recent plan+build cycle (see `ralph help retro`)
+  - `adhoc-retro-feedback.md` — produce a sanitized retro feedback report
+    suitable for sharing as a ralph-loop GitHub issue (see `ralph help retro`)
 
 ### `ralph help sandbox`
 
@@ -167,24 +179,31 @@ The troubleshooting section should include an entry like:
 Cover:
 - When to do a retro: after every significant plan+build cycle, especially
   when builds struggled, blocked frequently, or triggered REPLAN
-- What to review: session logs (iterations per task, failures, retries),
-  implementation plan (blocked tasks, spec gap notes, conflict notes, tasks
-  added during build, task sizing), git history (revert/fixup commits),
-  AGENTS.md effectiveness (test commands, conventions), spec quality
-  (misinterpretations, unclear verification criteria)
+- The three-stage workflow:
+  1. **Analyze (automated)** — `ralph prompt adhoc-retro-analyze.md` produces
+     a structured report at `.ralph/retro-report.md` ranking the top issues
+     by wasted effort and proposing fixes categorized as AGENTS.md / spec /
+     prompt. The agent does not apply fixes.
+  2. **Discuss (interactive)** — the user opens an interactive session with a
+     ready-to-paste prompt that points the agent at `.ralph/retro-report.md`
+     and drives a dialog to pressure-test rankings, decide where to apply
+     fixes, and draft the actual edits. The discussion prompt presupposes
+     analysis is done — it is for review and decision-making, not redoing
+     the work.
+  3. **Share (optional, automated)** — `ralph prompt adhoc-retro-feedback.md`
+     produces a sanitized report at `.ralph/retro-feedback.md` suitable for
+     pasting as a ralph-loop GitHub issue body. All project-specific details
+     (paths, domain names, code, team names) are stripped out.
+- What the analysis covers (the five dimensions the analyze prompt examines):
+  iteration economics, plan quality, git history, AGENTS.md effectiveness,
+  spec quality
 - Common failure patterns and where to fix them: wrong test commands →
   AGENTS.md, unclear done state → spec Verify blocks, agent scope creep →
   spec constraints, repeated mistakes → AGENTS.md pitfalls section
 - Where to apply fixes: AGENTS.md (operational), specs (behavioral),
   prompts (structural — change rarely)
-- A checklist for working through the retro process
-- Agent-assisted analysis: a sample prompt users can paste into an
-  interactive agent session to walk through the retro; explains how to
-  identify session log files for a cycle (filenames encode mode and
-  timestamp, a cycle may span multiple build sessions)
-- Sharing feedback with ralph-loop: a sanitization prompt that generates
-  a structured summary stripped of project-specific details (no paths,
-  domain names, code, or team names); output formatted as a GitHub issue
+- A retro checklist that walks through the three-stage workflow
+- The interactive discussion prompt copy-paste block (used in stage 2)
 
 ## Implementation
 

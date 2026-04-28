@@ -238,12 +238,14 @@ test_help_retro_shows_content() {
     output=$("$RALPH_DIR/ralph" help retro 2>&1)
     assert_contains "retro help shows header" "RETROSPECTIVE" "$output"
     assert_contains "retro help shows when" "WHEN TO DO A RETRO" "$output"
-    assert_contains "retro help shows what to review" "WHAT TO REVIEW" "$output"
+    assert_contains "retro help shows three-stage workflow" "THREE-STAGE WORKFLOW" "$output"
+    assert_contains "retro help shows analyze prompt" "adhoc-retro-analyze.md" "$output"
+    assert_contains "retro help shows feedback prompt" "adhoc-retro-feedback.md" "$output"
+    assert_contains "retro help shows what analysis covers" "WHAT THE ANALYSIS COVERS" "$output"
     assert_contains "retro help shows failure patterns" "COMMON FAILURE PATTERNS" "$output"
     assert_contains "retro help shows where to apply" "WHERE TO APPLY FIXES" "$output"
     assert_contains "retro help shows checklist" "RETRO CHECKLIST" "$output"
-    assert_contains "retro help shows agent-assisted" "AGENT-ASSISTED ANALYSIS" "$output"
-    assert_contains "retro help shows feedback sharing" "SHARING FEEDBACK" "$output"
+    assert_contains "retro help shows interactive discussion prompt" "INTERACTIVE DISCUSSION PROMPT" "$output"
 }
 
 test_help_align_specs_shows_content() {

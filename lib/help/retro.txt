@@ -2,8 +2,34 @@ RETROSPECTIVE
 =============
 
 After a plan+build cycle, review what happened and improve your inputs
-for the next cycle. This is a human-driven process — you analyze the
-results, identify patterns, and update specs, AGENTS.md, and prompts.
+for the next cycle. The retro is human-driven, but two shipped ad-hoc
+prompts handle the mechanical parts so you can focus on judgment.
+
+THE THREE-STAGE WORKFLOW
+------------------------
+
+  1. ANALYZE (automated)
+     ralph prompt .ralph/prompts/adhoc-retro-analyze.md 10
+
+     The agent reads session logs, the implementation plan, git history,
+     AGENTS.md, and specs from the most recent cycle. It produces a
+     structured report at .ralph/retro-report.md ranking the top issues
+     by wasted effort and proposing fixes categorized as AGENTS.md / spec
+     / prompt. The agent does NOT apply any fixes.
+
+  2. DISCUSS (interactive)
+     Open an interactive session with your preferred agent and use the
+     prompt below to pressure-test the report and draft the actual edits.
+     This is where human judgment lives — deciding rankings, scope, and
+     timing.
+
+  3. SHARE (optional, automated)
+     ralph prompt .ralph/prompts/adhoc-retro-feedback.md 2
+
+     If you want to share structural feedback with the ralph-loop project,
+     this prompt produces a sanitized report at .ralph/retro-feedback.md,
+     ready to paste as a GitHub issue body. All project-specific details
+     are stripped out.
 
 WHEN TO DO A RETRO
 ------------------
@@ -13,35 +39,27 @@ After every significant plan+build cycle, especially when:
   - You see repeated patterns in agent mistakes
   - The plan needed manual editing mid-build
 
-WHAT TO REVIEW
---------------
+WHAT THE ANALYSIS COVERS
+------------------------
 
-  1. Session logs (.ralph/logs/session-*.log or logs/session-*.log)
-     - How many iterations did each task take?
-     - Were there retries or agent failures?
-     - Did agents waste iterations on wrong approaches?
+The adhoc-retro-analyze prompt examines five dimensions:
 
-  2. Implementation plan (implementation_plan.md)
-     - Blocked tasks: why were they blocked? Could the spec have prevented it?
-     - "Assumption / Spec gap:" notes: these are specs that need tightening
-     - "Conflict:" notes: sources of truth that disagree
-     - Tasks added during build: were they foreseeable during planning?
-     - Task sizing: were tasks too large (multi-iteration) or too small?
+  1. Iteration economics — iterations per task, retries, agent failures,
+     REPLAN signals; tasks that consumed disproportionate iterations.
 
-  3. Git history (git log --oneline)
-     - Are commit messages clear and descriptive?
-     - Were there revert commits or fix-up commits?
-     - Did agents commit unrelated changes?
+  2. Plan quality — blocked tasks, "Assumption / Spec gap:" notes,
+     "Conflict:" notes, tasks added during build that could have been
+     planned, task sizing.
 
-  4. AGENTS.md effectiveness
-     - Did agents use the correct test/build/lint commands?
-     - Did agents follow project conventions?
-     - Were there environment-specific issues (paths, tools, versions)?
+  3. Git history — revert commits, fix-up commits, unclear messages,
+     unrelated changes committed together.
 
-  5. Spec quality
-     - Did agents misinterpret any specs?
-     - Were verification criteria clear enough for agents to know when done?
-     - Were there ambiguities that led to guessing?
+  4. AGENTS.md effectiveness — wrong test/build/lint commands, missing
+     conventions, environment-specific issues that should have been
+     prevented.
+
+  5. Spec quality — misinterpretations, unclear verification criteria,
+     ambiguities that led to guessing.
 
 COMMON FAILURE PATTERNS
 -----------------------
@@ -50,10 +68,10 @@ COMMON FAILURE PATTERNS
   Unclear "done" state    → Add a Verify section to specs with concrete checks
   Agent scope creep       → Tighten task descriptions in specs, add constraints
   Repeated mistakes       → Add a "Pitfalls" or "Do NOT" section to AGENTS.md
-  Bad task sizing          → Review task sizing heuristics in your specs;
-                             add examples of good vs bad decomposition
+  Bad task sizing         → Review task sizing heuristics in your specs;
+                            add examples of good vs bad decomposition
   Spec ambiguity          → Add concrete examples, explicit edge cases,
-                             sample inputs/outputs
+                            sample inputs/outputs
   Missing prerequisites   → Add dependency/environment setup to AGENTS.md
   Stale plan              → Delete implementation_plan.md and re-plan more often
 
@@ -72,74 +90,45 @@ WHERE TO APPLY FIXES
                           building. Change these rarely and carefully — they affect
                           all projects using ralph.
 
-RETRO CHECKLIST
----------------
+INTERACTIVE DISCUSSION PROMPT
+-----------------------------
 
-  [ ] Read the session log — note iterations per task, failures, retries
-  [ ] Scan the plan for Assumption/Spec gap and Conflict notes
-  [ ] Check git log for revert/fixup commits or unclear messages
-  [ ] Identify the top 2-3 issues that cost the most wasted iterations
-  [ ] For each issue, decide: AGENTS.md fix, spec fix, or prompt fix?
-  [ ] Apply the fixes
-  [ ] Commit the improvements before the next plan+build cycle
-
-AGENT-ASSISTED ANALYSIS
-------------------------
-You can use an interactive agent session to help analyze a cycle. Start
-a session with your preferred agent and paste the prompt below. The agent
-will read your session logs, plan, and git history, then walk through the
-retro with you.
-
-Session log files are in .ralph/logs/ (or logs/ in the ralph-loop repo).
-Filenames encode the mode and timestamp, e.g.:
-
-  session-20250320-140000-plan.log
-  session-20250320-150000-build.log
-  session-20250321-090000-build.log
-
-A single plan+build cycle may span multiple session files (e.g., two
-separate 'ralph build' runs). Tell the agent which sessions to review,
-or let it identify the most recent cycle from the timestamps.
+After the analyze prompt produces .ralph/retro-report.md, start an
+interactive agent session and paste the prompt below. The session is for
+exploring findings, pressure-testing rankings, and drafting the actual
+edits — not for redoing the analysis.
 
   --- copy from here ---
 
-  Ralph is an iterative development system for LLM coding agents. It
-  works in cycles: plan mode analyzes specs and creates an implementation
-  plan, then build mode implements one task per iteration with fresh
-  agent context. Help me do a retrospective on my last plan+build cycle.
+  I just ran ralph's automated retro analysis. The report is at
+  .ralph/retro-report.md (or retro-report.md). Read it along with the
+  session logs in .ralph/logs/, .ralph/implementation_plan.md, and the
+  recent git log it cites, then help me:
 
-  1. List the session logs in .ralph/logs/ (or logs/) and identify
-     which sessions belong to the most recent plan+build cycle.
-     Confirm with me before proceeding.
+  1. Pressure-test the top issues — are the rankings right? Anything
+     missed? Any "issue" that's actually fine?
+  2. For each proposed fix, decide AGENTS.md vs spec vs prompt — and
+     whether to apply it now or defer.
+  3. Draft the actual edits for the fixes we agree to apply now.
+  4. Highlight any patterns I should watch for in the next cycle.
 
-  2. Read those session logs, .ralph/implementation_plan.md (or
-     implementation_plan.md), and run 'git log --oneline' for the
-     relevant date range.
-
-  3. Analyze and report:
-     - Iterations per task (how many iterations did each task take?)
-     - Agent failures, retries, and wasted iterations
-     - Blocked tasks and REPLAN signals — root causes
-     - All "Assumption / Spec gap:" and "Conflict:" notes in the plan
-     - Tasks added during build that could have been planned
-     - Task sizing issues (too large, too small)
-     - Git history: reverts, fixups, unclear commit messages
-     - AGENTS.md issues: wrong commands, missing conventions
-     - Spec quality: ambiguities, missing verification criteria
-
-  4. Rank the top issues by wasted iterations / effort.
-
-  5. For each issue, recommend where to fix it:
-     - AGENTS.md (operational: commands, environment, pitfalls)
-     - Specs (behavioral: verification, examples, constraints)
-     - Prompts (structural: change rarely, affects all projects)
-
-  6. Let's discuss the findings and decide which fixes to apply.
+  Ask me before making any file changes.
 
   --- end copy ---
 
+RETRO CHECKLIST
+---------------
+
+  [ ] Run: ralph prompt .ralph/prompts/adhoc-retro-analyze.md 10
+  [ ] Review .ralph/retro-report.md
+  [ ] Open an interactive session with the discussion prompt above
+  [ ] Apply the agreed-on fixes to AGENTS.md, specs, and/or prompts
+  [ ] Commit the improvements before the next plan+build cycle
+  [ ] (Optional) ralph prompt .ralph/prompts/adhoc-retro-feedback.md 2
+  [ ] (Optional) Paste .ralph/retro-feedback.md into a ralph-loop GitHub issue
+
 BUILDING INSTITUTIONAL KNOWLEDGE
-----------------------------------
+---------------------------------
 The retro isn't just about fixing past issues — it's about preventing
 future ones.
 
@@ -175,48 +164,3 @@ When you catch yourself doing work manually, ask:
 
 The goal isn't to remove yourself — it's to move from doing the work to
 reviewing the work, and eventually to spot-checking the work.
-
-SHARING FEEDBACK WITH RALPH-LOOP
----------------------------------
-After a retro, you can share structural observations with the ralph-loop
-project to help improve prompts and defaults — without revealing anything
-about your project.
-
-Use the prompt below to generate a sanitized summary. The agent reads your
-retro artifacts and produces a report stripped of project-specific details:
-no file paths, domain names, business logic, or code snippets. Only
-structural patterns and ralph-specific observations are included.
-
-  --- copy from here ---
-
-  Ralph is an iterative development system for LLM coding agents. It
-  works in cycles: plan mode analyzes specs and creates an implementation
-  plan, then build mode implements one task per iteration with fresh
-  agent context. Generate a sanitized retro summary I can share with the
-  ralph-loop project. Read the session logs, implementation plan, and
-  git log from the cycle we just reviewed.
-
-  INCLUDE (structural observations only):
-  - Planning mode used (gap-driven / process)
-  - Number of plan iterations and build iterations
-  - Iteration-to-task ratio (how efficient was the cycle?)
-  - Number of blocked tasks, REPLAN signals, agent retries
-  - Categories of spec gaps encountered (not the gaps themselves)
-  - Categories of AGENTS.md fixes needed (e.g., "test commands",
-    "environment setup", "conventions")
-  - Task sizing observations (too granular, too coarse, about right)
-  - Any suggestions for ralph-loop prompts or defaults
-  - Agent type used (amp, claude, cline, etc.)
-
-  EXCLUDE (project secrets):
-  - Project name, domain, or business context
-  - File paths, module names, or API endpoints
-  - Code snippets or implementation details
-  - Team member names
-  - Specific spec content or task descriptions
-
-  Format as a GitHub issue body I can paste into:
-    https://github.com/mjeffe/ralph-loop/issues
-  Use the title: "Retro feedback: [one-line summary]"
-
-  --- end copy ---

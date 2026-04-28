@@ -41,10 +41,15 @@ ralph-loop/                         # Project root = Ralph's home
 │   ├── plan.md
 │   ├── plan-process.md
 │   ├── build.md
+│   ├── build-process.md
+│   ├── align-specs.md
 │   ├── sandbox-analyze.md
 │   ├── sandbox-render.md
 │   ├── sandbox-repair.md
-│   ├── align-specs.md
+│   ├── adhoc-test-analysis.md
+│   ├── adhoc-process-spec-review.md
+│   ├── adhoc-retro-analyze.md
+│   ├── adhoc-retro-feedback.md
 │   ├── templates/
 │   │   └── Dockerfile.base
 │   └── playbooks/                  # Stack-specific sandbox setup playbooks
@@ -88,10 +93,15 @@ parent-project/
 │   │   ├── plan.md
 │   │   ├── plan-process.md
 │   │   ├── build.md
+│   │   ├── build-process.md
+│   │   ├── align-specs.md
 │   │   ├── sandbox-analyze.md
 │   │   ├── sandbox-render.md
 │   │   ├── sandbox-repair.md
-│   │   ├── align-specs.md
+│   │   ├── adhoc-test-analysis.md
+│   │   ├── adhoc-process-spec-review.md
+│   │   ├── adhoc-retro-analyze.md
+│   │   ├── adhoc-retro-feedback.md
 │   │   ├── templates/
 │   │   │   └── Dockerfile.base
 │   │   └── playbooks/             # Stack-specific sandbox setup playbooks

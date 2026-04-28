@@ -34,6 +34,8 @@ MANAGED_FILES=(
     prompts/align-specs.md
     prompts/adhoc-test-analysis.md
     prompts/adhoc-process-spec-review.md
+    prompts/adhoc-retro-analyze.md
+    prompts/adhoc-retro-feedback.md
     prompts/templates/Dockerfile.base
     prompts/templates/wait-for-db
     prompts/playbooks/php-laravel.md
@@ -69,6 +71,8 @@ declare -A SOURCE_PATHS=(
     [prompts/align-specs.md]="prompts/align-specs.md"
     [prompts/adhoc-test-analysis.md]="prompts/adhoc-test-analysis.md"
     [prompts/adhoc-process-spec-review.md]="prompts/adhoc-process-spec-review.md"
+    [prompts/adhoc-retro-analyze.md]="prompts/adhoc-retro-analyze.md"
+    [prompts/adhoc-retro-feedback.md]="prompts/adhoc-retro-feedback.md"
     [prompts/sandbox-analyze.md]="prompts/sandbox-analyze.md"
     [prompts/sandbox-render.md]="prompts/sandbox-render.md"
     [prompts/sandbox-repair.md]="prompts/sandbox-repair.md"
