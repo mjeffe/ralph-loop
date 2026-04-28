@@ -66,13 +66,13 @@ SHIPPED PROMPTS
   Test analysis — study your test suite to enhance specs with business
   rules, edge cases, and validation logic the specs are missing:
 
-    ralph prompt .ralph/prompts/test-analysis.md 10
+    ralph prompt .ralph/prompts/adhoc-test-analysis.md 10
 
   Process spec review — study the codebase to find gaps, ordering
   problems, and missing dependencies in your process specs before
   running ralph plan --process:
 
-    ralph prompt .ralph/prompts/process-spec-review.md 10
+    ralph prompt .ralph/prompts/adhoc-process-spec-review.md 10
 
 BUILDING YOUR OWN PROMPT LIBRARY
 ---------------------------------
