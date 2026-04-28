@@ -342,6 +342,33 @@ test_plan_process_has_decomposition_ledger() {
     assert_contains "plan-process.md mentions skeleton-first workflow" "Skeleton" "$template"
 }
 
+test_plan_process_has_destructive_change_analysis() {
+    echo "--- plan-process.md requires destructive-change analysis ---"
+    local template
+    template=$(cat "$RALPH_DIR/prompts/plan-process.md")
+    assert_contains "plan-process.md has Destructive-change analysis step" "Destructive-change analysis" "$template"
+    assert_contains "plan-process.md instructs deletion-scope verification" "deletion scope" "$template"
+    assert_contains "plan-process.md has Pre-check task-format requirement" "Pre-check" "$template"
+    assert_contains "plan-process.md describes preserve list" "preserve list" "$template"
+}
+
+test_build_process_executes_pre_check() {
+    echo "--- build-process.md executes Pre-check before destruction ---"
+    local template
+    template=$(cat "$RALPH_DIR/prompts/build-process.md")
+    assert_contains "build-process.md references Pre-check block" "Pre-check" "$template"
+    assert_contains "build-process.md instructs blocking on pre-check disagreement" "blocked" "$template"
+    assert_contains "build-process.md fails closed on missing Pre-check" "Planning gap: destructive task missing Pre-check" "$template"
+}
+
+test_process_planning_spec_documents_destructive_safety() {
+    echo "--- process-planning.md documents destructive-change safety ---"
+    local spec
+    spec=$(cat "$RALPH_DIR/specs/process-planning.md")
+    assert_contains "process-planning.md has Destructive-Change Safety section" "Destructive-Change Safety" "$spec"
+    assert_contains "process-planning.md describes Pre-check block" "Pre-check" "$spec"
+}
+
 test_run_iteration_has_empty_response_check() {
     echo "--- run_iteration has empty response detection ---"
     local ralph_src

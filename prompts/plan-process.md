@@ -36,12 +36,13 @@ When the volume hint indicates single-iteration is safe, collapse both phases in
 
 1. **Read inputs** — Study `AGENTS.md`, `${SPECS_DIR}/README.md`, all top-level `*.md` files in `${PROCESS_DIR}/` (not subdirectories), and optionally target-state specs in `${SPECS_DIR}/` for background context (domain knowledge, naming conventions, architectural patterns). If `${RALPH_HOME}/implementation_plan.md` exists, read it to understand prior progress.
 2. **Survey the codebase** — Understand the current state of the project, focusing on areas touched by the process specs. Survey enough of the codebase to accurately size remaining phases and identify sequencing-relevant constraints.
-3. **Check for completed specs** — If your survey reveals that all work described by a process spec is already complete, do not generate tasks for it. Instead, note it at the top of the plan: "Process spec `<file>` appears complete — consider moving it to `${PROCESS_DIR}/archive/`."
-4. **Decompose phases** — For each active process spec, determine whether each phase and step fits in a single build iteration or needs splitting. Split based on independently verifiable or behaviorally distinct concerns, but keep child tasks adjacent within their parent phase. You may emit **discovery/investigation tasks** (inventories, measurements, feasibility assessments) when a phase requires understanding before implementation.
-5. **Write the plan** — Create or update `${RALPH_HOME}/implementation_plan.md`. If the plan already contains build progress, apply the Regeneration Rules below before writing the updated plan.
-6. **Commit** all changes with a descriptive commit message.
-7. **If planning is complete**, output the completion signal (see Exit Signal).
-8. **If planning is not yet complete**, stop without a signal — the loop will start another iteration.
+3. **Destructive-change analysis** — This rule applies to removal of **pre-existing shared or long-lived artifacts** that may be referenced outside the files being edited (deleting files or directories, dropping dependencies, removing migrations, removing shared interfaces, deleting infrastructure). It does **not** apply to task-local cleanup of private symbols, generated artifacts, or scaffolding created and removed within the same task after all callers are updated. For each in-scope destructive phase or step, independently verify against the live codebase that no active code outside the deletion scope depends on the items being removed. Use grep/search/import analysis to find active references; distinguish active dependencies from comments, dead code that is itself slated for removal, and unrelated string matches. Capture the findings: items to preserve as explicit exceptions, items to remove, and any cross-phase dependencies (where the dependent is scheduled for removal in a later phase). Do not trust the process spec's deletion scope as exhaustive — the spec defines intent, but the codebase defines actual dependencies.
+4. **Check for completed specs** — If your survey reveals that all work described by a process spec is already complete, do not generate tasks for it. Instead, note it at the top of the plan: "Process spec `<file>` appears complete — consider moving it to `${PROCESS_DIR}/archive/`."
+5. **Decompose phases** — For each active process spec, determine whether each phase and step fits in a single build iteration or needs splitting. Split based on independently verifiable or behaviorally distinct concerns, but keep child tasks adjacent within their parent phase. You may emit **discovery/investigation tasks** (inventories, measurements, feasibility assessments) when a phase requires understanding before implementation. Carry the destructive-change findings from step 3 into the relevant tasks as preserve/delete exceptions and `Pre-check:` blocks (see Task Format).
+6. **Write the plan** — Create or update `${RALPH_HOME}/implementation_plan.md`. If the plan already contains build progress, apply the Regeneration Rules below before writing the updated plan.
+7. **Commit** all changes with a descriptive commit message.
+8. **If planning is complete**, output the completion signal (see Exit Signal).
+9. **If planning is not yet complete**, stop without a signal — the loop will start another iteration.
 
 ### Large Projects (incremental, skeleton-first)
 
@@ -60,10 +61,11 @@ When the volume hint indicates the spec volume exceeds single-iteration capacity
 1. Read the plan file (including ledger and all tasks so far).
 2. Pick the next `pending` spec file from the ledger.
 3. Read that spec file fully. Survey the relevant codebase areas.
-4. Decompose it into build-sized tasks. Append tasks to the plan.
-5. If the spec introduces a discovered prerequisite or conflict with already-decomposed work, use the existing mechanisms (insert prerequisite before affected phase, add `Conflict:` note).
-6. Mark the spec file `decomposed` in the ledger. Commit and stop.
-7. Repeat until all specs are decomposed, then emit `COMPLETE`.
+4. Run the destructive-change analysis (see step 3 of the small-projects workflow) for any phase or step in this spec that performs destructive operations. Carry findings into the decomposition.
+5. Decompose it into build-sized tasks. Append tasks to the plan, including `Pre-check:` blocks on tasks that perform destructive operations.
+6. If the spec introduces a discovered prerequisite or conflict with already-decomposed work, use the existing mechanisms (insert prerequisite before affected phase, add `Conflict:` note).
+7. Mark the spec file `decomposed` in the ledger. Commit and stop.
+8. Repeat until all specs are decomposed, then emit `COMPLETE`.
 
 You may process multiple pending specs in a single iteration if context permits, but default to one. The cost of unnecessary single-spec iterations is low; the cost of exceeding context is high.
 
@@ -103,6 +105,7 @@ Each task must include enough context for a build agent starting with fresh cont
 - **Key symbols** (classes, methods, routes, config keys) if known from survey
 - **End state** — what the code should look like after (e.g., "method removed", "column dropped", "getter returns X")
 - A **`Verify:`** block (see Verification below)
+- A **`Pre-check:`** block when the task performs destructive operations (see Pre-check below)
 - `Exclusions:` only when the spec or plan forbids tempting adjacent changes
 - `Deferred work:` only when related cleanup is intentionally handled by a later task (cite which task)
 - Do not emit empty placeholder fields
@@ -122,6 +125,21 @@ Acceptable forms:
 - For blocked, manual, or investigation tasks: completion evidence or the exact manual procedure
 
 Not acceptable: bare "Run tests" or "Verify it works" without qualification.
+
+### Pre-check
+
+Tasks that remove **pre-existing shared or long-lived artifacts** (deleting files or directories, dropping dependencies, removing migrations, removing shared interfaces, deleting infrastructure) must include a `Pre-check:` block. The pre-check makes the planner's destructive-change analysis (workflow step 3) executable by the build agent.
+
+A `Pre-check:` block contains:
+
+- The specific grep/search/import-analysis commands the build agent must run before deletion, grounded in actual repo tooling and paths observed during the survey.
+- The expected results consistent with the planning analysis (e.g., "matches only in `tests/legacy/` which is removed in this same task").
+- An explicit **preserve list** for any files, classes, or symbols the analysis identified as still in use outside the deletion scope, with the named usage sites.
+- Instructions to mark the task `blocked` if the pre-check uncovers active references not accounted for by the preserve list.
+
+Skip the `Pre-check:` block only for genuinely local changes: task-local cleanup of private symbols after all callers are updated in the same task, scaffolding created earlier in the same task, generated artifacts, files the spec explicitly describes as orphan-only, or items already verified by an immediately prior task whose evidence is still valid.
+
+When dependent code is scheduled for removal in a later phase, do not silently reorder. **Prefer splitting the destructive task** so the safely-removable subset ships in this phase and the still-used subset is deferred to the appropriate later phase, with a `Conflict:` note describing the cross-phase dependency and a `Deferred work:` reference to the later task. Block this task on the later phase only when safe partitioning is unclear.
 
 ### Decomposition Ledger
 

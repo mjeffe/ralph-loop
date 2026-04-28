@@ -162,6 +162,55 @@ is authoritative.
 - If it is unclear whether a step sequence is mandatory and the ambiguity affects safe
   execution, the agent preserves written order and adds a `Process gap:` note.
 
+### Destructive-Change Safety
+
+Process specs describe intent: which files, dependencies, infrastructure, or interfaces
+should be removed at each phase. They define the *deletion scope* the author had in mind.
+The codebase defines the *actual dependencies* — which other parts of the system still
+use those artifacts. The two often diverge: the spec lists `app/Http/Resources/` as
+removable, but a subset is still imported by an active controller for CSV export.
+
+When the planner decomposes a phase or step that performs destructive operations
+(deleting files or directories, dropping dependencies, removing migrations, removing
+shared interfaces, deleting infrastructure), it must independently verify against the
+live codebase that no active code outside the deletion scope depends on the items being
+removed. The process spec's enumeration of what to delete is treated as intent, not as
+an exhaustive dependency list.
+
+When shared dependencies are found:
+
+- Note them as **explicit preserve/delete exceptions** in the task with named files or
+  symbols.
+- Bundle the removal and any required dependent-code updates into a single task per the
+  existing sizing rule on destructive changes.
+- If the dependent code is scheduled to be removed by a later phase, do not silently
+  reorder. **Prefer splitting** the destructive task so the safely-removable subset
+  ships in this phase and the still-used subset is deferred to the appropriate later
+  phase. Add a `Conflict:` note describing the cross-phase dependency and a
+  `Deferred work:` reference to the later task. Block the destructive task on the
+  later phase only when safe partitioning is unclear.
+
+Tasks that perform destructive operations include a **`Pre-check:`** block listing the
+specific grep/search commands the build agent must run before executing the deletion,
+plus any preserve-exceptions identified during planning. The build agent runs the
+pre-check first; if results contradict the planning analysis, the agent marks the task
+`blocked` rather than proceeding. If a build agent is assigned a task that performs
+destructive operations on shared or long-lived artifacts and no `Pre-check:` block is
+present, the agent treats this as a planning defect and marks the task `blocked` with
+a `Planning gap: destructive task missing Pre-check` note rather than executing the
+destruction.
+
+This requirement is scoped to destructive changes that affect **pre-existing shared or
+long-lived artifacts** that may be referenced outside the files being edited. It does
+not apply to task-local cleanup of private symbols after all callers are updated in the
+same task, scaffolding created earlier in the same task, generated artifacts, or files
+the spec explicitly describes as orphan-only.
+
+Distinguishing active references from incidental matches matters. A grep match inside
+a comment, a dead module that is itself slated for removal, or a string literal in an
+unrelated test fixture is not an active dependency. Use repo conventions and
+import/usage analysis rather than treating any text match as a blocker.
+
 ### Multiple Process Specs
 
 When multiple process specs are present:

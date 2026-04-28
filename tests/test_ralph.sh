@@ -99,6 +99,9 @@ run_core_tests() {
     test_plan_prompt_excludes_process_specs
     test_prepare_prompt_exports_process_dir
     test_plan_process_has_decomposition_ledger
+    test_plan_process_has_destructive_change_analysis
+    test_build_process_executes_pre_check
+    test_process_planning_spec_documents_destructive_safety
     test_managed_files_in_sync
     test_run_iteration_has_empty_response_check
 }
