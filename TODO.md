@@ -37,20 +37,42 @@ installed runs `ralph update`, it will finish with something like:
 I'm fairly certain this happens because the running script (`ralph`) is
 modified as part of the update itself.
 
-## Automated Retrospective (`ralph retro`)
+## Promote Retro Adhocs to a Formal `ralph retro` Command
 
-`ralph help retro` provides a manual retro process with sample prompts for
-agent-assisted analysis. Once we've accumulated experience with manual retros
-(via feedback from teams and our own usage), consider a `ralph retro` mode that
-automates the analysis phase: the agent reads session logs, the plan, and git
-history, then produces a structured retro report. The human still decides what
-to act on — same pattern as `ralph align-specs` (agent analyzes, human acts).
+The retro workflow is now shipped as ad-hoc prompts:
 
-Key design questions to answer from experience first:
-- Which analysis steps are mechanical enough to automate vs. need discussion?
-- What report format is most actionable?
-- Should retro produce a file (like alignment_ledger.md) or just terminal output?
-- Can the agent reliably identify wasted iterations from logs alone?
+- `ralph prompt .ralph/prompts/adhoc-retro-analyze.md` — produces a structured
+  retro report at `.ralph/retro-report.md`
+- `ralph prompt .ralph/prompts/adhoc-retro-feedback.md` — sanitizes the report
+  into `.ralph/retro-feedback.md` for sharing as a ralph-loop GitHub issue
+- An interactive discussion prompt in `lib/help/retro.txt` for stage 2
+
+Once we've accumulated real-world experience with this workflow, consider
+promoting it to a formal top-level command. **This would be a purely
+mechanical change to invocation** — the underlying prompts and behavior stay
+the same.
+
+Possible CLI shape (mirrors `ralph plan` / `ralph plan --process`):
+- `ralph retro` → invokes the analyze prompt
+- `ralph retro --feedback` → invokes the feedback prompt
+- `ralph help retro` → already covers the full three-stage workflow
+
+Pros:
+- Discoverability: `ralph --help` lists it next to plan/build/align-specs
+- Shorter to type than the full adhoc path
+- Conceptually elevates retro to a first-class capability
+
+Cons:
+- Adds another top-level command to maintain
+- Demotes "adhoc prompts as first-class workflows" — currently the retro
+  adhocs are the most polished example of that pattern
+- Forces a choice on the `--feedback` flag shape; alternatives (e.g.,
+  `ralph retro feedback` as a subcommand) each carry their own trade-offs
+
+Decide after using the adhoc workflow on several real plan+build cycles. If
+the bare `ralph prompt .ralph/prompts/adhoc-retro-analyze.md` invocation feels
+like friction, promote. If it feels fine, leave it alone — the adhoc form
+already works.
 
 ## Scoped Process Planning (`ralph plan --process <spec-file>`)
 
