@@ -8,6 +8,13 @@ Study the project's test files and use what you learn to enhance the specs in `$
 
 The work product is the enhanced specs themselves. A small progress file at `${RALPH_HOME}/test-analysis-progress.md` tracks the inventory of test areas across iterations so resumption is reliable.
 
+## Operating Contract
+
+- You have full autonomy on test-area inventory, grouping, and per-iteration pacing.
+- Tests are authoritative for **observed behavior** — describe what they verify, not what you think the system *should* do.
+- Source files (controllers, models, policies) are in scope only when test imports or setup reference them directly. Do not go digging through source code beyond what the tests reference.
+- Commit at the end of each iteration with a descriptive message.
+
 ## Context
 
 - **Specifications:** ${SPECS_DIR}
@@ -39,43 +46,47 @@ You may use subagents to keep the main context focused if your agent supports th
 
 Do not duplicate spec content into the progress file. The specs are the work product.
 
+## Analysis Dimensions
+
+When studying a test area, extract these dimensions and use them to enhance the corresponding spec(s):
+
+1. **Business rules and validation logic** — what inputs are accepted, rejected, normalized.
+2. **State machine transitions and constraints** — allowed transitions, terminal states, guards.
+3. **Role-based access control rules** — who may perform what action under what conditions.
+4. **Edge cases and error conditions** — boundary values, error responses, recovery paths.
+5. **API endpoint behavior** — request/response shapes, status codes, headers, idempotency.
+6. **Resource relationships and prerequisites** — required setup, ownership, cascading effects.
+7. **Setup/teardown patterns** — implicit dependencies revealed by fixtures and factories.
+
+When updating specs, cite the test files that verify each added rule or behavior (e.g., `See: tests/feature/UserAuthTest.php`). Also cite source files (controllers, models, policies) when they appear directly in test imports or setup.
+
+When tests and the spec disagree, mark the discrepancy with `**Conflict (test vs spec):**` rather than silently choosing a side. Humans resolve these.
+
 ## Workflow
 
 1. **Read inputs** — `AGENTS.md`, `${SPECS_DIR}/README.md`, and `${RALPH_HOME}/test-analysis-progress.md` (create it on the first iteration by surveying the test directory).
 2. **Pick the next unchecked area(s)** from the progress file. Group small areas together if they fit; split large areas if they don't.
-3. **Study tests thoroughly** — Read and analyze the test files in the chosen area(s). Extract:
-   - Business rules and validation logic
-   - State machine transitions and constraints
-   - Role-based access control rules
-   - Edge cases and error conditions
-   - API endpoint behavior (request/response shapes, status codes)
-   - Relationships and prerequisites between resources
-   - Setup/teardown patterns that reveal implicit dependencies
-4. **Cross-reference specs** — Read the corresponding spec(s) for the domain area. Identify:
-   - Rules in tests that are missing from the spec
-   - Details in tests that are more specific than the spec
-   - Contradictions between tests and specs (note these, do not silently resolve)
+3. **Study tests thoroughly** — Read and analyze the test files in the chosen area(s). Extract the seven dimensions (see Analysis Dimensions).
+4. **Cross-reference specs** — Read the corresponding spec(s) for the domain area. Identify rules in tests that are missing from the spec, details in tests that are more specific than the spec, and contradictions between tests and specs.
 5. **Update specs** — Enhance the relevant spec(s) with findings:
-   - Add missing business rules, validation details, edge cases
-   - Cite the test files that verify each added rule or behavior (e.g., `See: tests/feature/UserAuthTest.php`)
-   - Also cite source files (controllers, models, policies) when they appear directly in test imports or setup — but do not go digging through source code beyond what the tests reference
-   - Add missing state transitions or permission details
-   - If no appropriate spec exists, create one following the project's existing spec conventions
-   - Do NOT remove existing spec content — only add or refine
+   - Add missing business rules, validation details, edge cases, state transitions, permission details.
+   - Cite tests and (when referenced by tests) source files per Analysis Dimensions.
+   - If no appropriate spec exists, create one following the project's existing spec conventions.
+   - Do NOT remove existing spec content — only add or refine.
 6. **Update the progress file** — check off the areas you analyzed and note which specs were updated.
 7. **Commit** all changes with a descriptive message (e.g., `docs(specs): enhance user auth spec from test analysis`).
 8. **Emit the completion signal** (see Exit Signal) only if every area in the progress file is checked. Otherwise stop without a signal — the loop will resume you.
 
 ## Rules
 
-- Do NOT modify test files — this is a read-only analysis of tests.
+- Do NOT modify test files.
 - Do NOT modify application code.
-- Follow the project's existing spec conventions when updating specs.
+- Do NOT remove existing spec content.
 - Update `${SPECS_DIR}/README.md` if you create new specs.
-- Mark contradictions between tests and specs with `**Conflict (test vs spec):**` so they can be reviewed by a human.
-- Keep spec updates factual — describe what the tests verify, not what you think the system *should* do.
 
 ## Exit Signal
 
 - **All test areas analyzed (every checkbox in the progress file is checked):** output exactly `<promise>COMPLETE</promise>` — the loop cannot exit without it.
 - **Work remains (any unchecked areas):** stop without any signal so the loop schedules another iteration.
+
+Begin analysis now.

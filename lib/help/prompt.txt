@@ -31,8 +31,8 @@ WRITING A MULTI-ITERATION PROMPT
   Each iteration starts with fresh context — the agent has no memory of
   prior iterations. Effective multi-iteration prompts include:
 
-  - A progress tracking file the agent reads first and updates last,
-    serving as durable memory across iterations
+  - A durable-state mechanism the agent reads first and updates last,
+    serving as memory across iterations
   - A "fresh context" reminder so the agent treats repo files as the
     sole source of truth
   - Iteration sizing guidance (how much work per iteration)
@@ -46,6 +46,27 @@ WRITING A MULTI-ITERATION PROMPT
   The built-in prompts in .ralph/prompts/ are good starting templates.
   Study .ralph/prompts/build.md or .ralph/prompts/plan.md for structure
   and conventions.
+
+  DURABLE-STATE PATTERNS
+  ----------------------
+
+  The four shipped adhoc prompts intentionally demonstrate different
+  approaches to durable state — pick the one that fits your work product:
+
+  - Transient analysis report — adhoc-retro-analyze.md writes the report
+    itself as durable state, with <!-- TODO --> markers for resumption
+  - Pre-flight gate (single-shot) — adhoc-retro-feedback.md validates
+    inputs and exits cleanly if the prerequisite isn't met
+  - Explicit progress file — adhoc-test-analysis.md and
+    adhoc-process-spec-review.md track an inventory checklist in a
+    small file the agent reads each iteration
+  - Deliverable as state — work products themselves (specs, edited
+    files) carry the resumable state, so no separate progress file is
+    needed
+
+  When in doubt, an explicit progress file is the boring, reliable
+  default. Use deliverable-as-state when the deliverable already
+  encodes "what's done" cleanly (e.g., a report with TODO markers).
 
 EXAMPLES
 --------
