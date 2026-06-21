@@ -7,6 +7,9 @@
 
 # shellcheck disable=SC2034  # read by ralph after sourcing
 AGENT_CLI="codex"
+# Command to install the agent CLI in the sandbox base image (see Dockerfile.base
+# AGENT_INSTALL build arg, injected by sandbox_build_base in lib/sandbox.sh).
+AGENT_INSTALL="npm install -g @openai/codex"
 
 # Invoke the agent CLI with a prompt file; must stream raw output to stdout.
 agent_invoke() {

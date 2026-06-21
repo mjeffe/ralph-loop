@@ -2,6 +2,9 @@
 # Agent script for Claude Code (https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)
 
 AGENT_CLI="claude"
+# Command to install the agent CLI in the sandbox base image (see Dockerfile.base
+# AGENT_INSTALL build arg, injected by sandbox_build_base in lib/sandbox.sh).
+AGENT_INSTALL="npm install -g @anthropic-ai/claude-code"
 # --output-format stream-json: emit one JSON object per line (same schema as amp)
 # -p: read prompt from stdin (piped mode)
 AGENT_ARGS="--output-format stream-json -p"

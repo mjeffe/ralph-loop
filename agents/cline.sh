@@ -6,6 +6,9 @@
 # JSON output format: {"type": "ask"|"say", "text": "...", "ts": <ms>, "reasoning"?: "...", "partial"?: bool}
 
 AGENT_CLI="cline"
+# Command to install the agent CLI in the sandbox base image (see Dockerfile.base
+# AGENT_INSTALL build arg, injected by sandbox_build_base in lib/sandbox.sh).
+AGENT_INSTALL="npm install -g cline"
 # -y: yolo mode (auto-approve all actions, exit when complete)
 # --json: output messages as JSON (one object per line), forces plain text mode
 AGENT_ARGS="-y --json"

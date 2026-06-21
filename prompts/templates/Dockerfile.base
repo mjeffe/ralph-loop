@@ -8,15 +8,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini supervisor \
     && rm -rf /var/lib/apt/lists/*
 
-# Node.js (for Amp CLI)
+# Node.js — required by the agent CLIs. nodesource LTS satisfies every shipped
+# agent (e.g. pi requires Node >= 22.19.0, well within the current LTS line).
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Amp CLI
-# TODO: Make agent-configurable. Consider adding agent_install() to the
-# agents/*.sh script interface so each agent defines its own install command.
-RUN npm install -g @sourcegraph/amp
+# Agent CLI — the install command is injected per agent via the AGENT_INSTALL
+# build arg, sourced from agents/${AGENT}.sh by ralph (sandbox_build_base). The
+# default installs Amp so the base image still builds standalone with a bare
+# `docker build`. Changing the arg busts this layer's cache and reinstalls.
+ARG AGENT_INSTALL="npm install -g @sourcegraph/amp"
+RUN ${AGENT_INSTALL}
 
 # Ralph dependencies from dependencies file are covered above (git, curl,
 # jq, gettext-base). If dependencies file grows, this section must be
