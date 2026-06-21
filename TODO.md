@@ -5,6 +5,14 @@ thoughs, reminders, ideas, things to watch for, etc.
 
 ## List of Items to Implement or Refactor
 
+- I have run an interactive agent during a ralph build to analyze certain
+  things ralph was doing. This could be a really interesting architecture
+  to pursue. Having ralph kick off a monitoring agent to watch the loop
+  build agents. I frequently run `ralph plan` then use an interactive
+  session to analyze the plan against certain criteria I've provided.
+  This invariable leads to some spec changes, or things to watch for
+  during the build, etc. Providing this sort of analysis to the "watcher"
+  agent could be interesting...
 - process-planner-prompt-improvements.md is unimplemented but has been updated with advice from an analysis. The agent said:
   "The proposed changes in the doc are raw prompt text — they were written before the canonical template moved into the spec. The implementing agent will need to adapt them to the spec's structure (prose + embedded template) rather than copy-pasting the code blocks directly."
 - How can I monitor/track the % of context window used during an iteration?
