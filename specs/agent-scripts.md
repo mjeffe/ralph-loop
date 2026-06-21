@@ -18,6 +18,7 @@ agents/
   claude.sh
   cline.sh
   codex.sh
+  pi.sh
 ```
 
 The active agent is selected by the `AGENT` variable in `config`:
@@ -107,8 +108,25 @@ Agent scripts **must** set:
 | Variable | Purpose | Example |
 |----------|---------|---------|
 | `AGENT_CLI` | The CLI command name | `amp` |
+| `AGENT_INSTALL` | Command to install the agent CLI in the sandbox base image | `npm install -g @sourcegraph/amp` |
 
 Ralph uses `AGENT_CLI` to validate that the agent is installed (via `command -v`).
+
+`AGENT_INSTALL` is injected as the `AGENT_INSTALL` Docker build arg when building
+the sandbox base image (see `sandbox_build_base()` in the sandbox spec). This
+makes the base image agent-configurable: switching `AGENT` and rebuilding installs
+the matching CLI. If an agent script omits `AGENT_INSTALL`, the base image falls
+back to its Dockerfile default (Amp).
+
+### Agent-Specific Configuration
+
+Ralph sources `config` **before** the agent script, so agent scripts may read
+agent-specific variables defined in `config`. For example, `pi.sh` reads `PI_MODEL`
+to select the model passed to the `pi` CLI (e.g. `openrouter/anthropic/claude-3.5-haiku`),
+falling back to a built-in default when unset. This keeps model selection in `config`
+rather than hard-coded in the agent script. (A future enhancement could select a
+different model per task by keying off the exported `MODE`; the current contract is a
+single model per agent.)
 
 ### Optional Functions
 
@@ -182,10 +200,11 @@ To add support for a new agent:
 
 1. Create `agents/{name}.sh`
 2. Set `AGENT_CLI` to the CLI command name
-3. Implement `agent_invoke`, `agent_extract_response`, and `agent_format_display`
-4. Optionally implement `agent_pre_iteration` and `agent_post_iteration`
-5. Set `AGENT="{name}"` in config
-6. Test with `ralph plan`
+3. Set `AGENT_INSTALL` to the command that installs the CLI (for sandbox builds)
+4. Implement `agent_invoke`, `agent_extract_response`, and `agent_format_display`
+5. Optionally implement `agent_pre_iteration` and `agent_post_iteration`
+6. Set `AGENT="{name}"` in config
+7. Test with `ralph plan`
 
 The agent CLI must:
 - Accept a prompt via stdin

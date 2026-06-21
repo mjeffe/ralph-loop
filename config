@@ -10,3 +10,9 @@ MAX_RETRIES=3
 
 # Agent selection — corresponds to agents/{name}.sh
 AGENT="amp"
+
+# Model for the pi agent (only used when AGENT="pi").
+# Format: provider/id with optional :<thinking>, e.g. openrouter/anthropic/claude-3.5-haiku
+# Requires OPENROUTER_API_KEY in the environment for openrouter/* models.
+# Run `pi --list-models openrouter` to see available models.
+PI_MODEL="openrouter/anthropic/claude-3.5-haiku"

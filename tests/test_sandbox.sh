@@ -618,3 +618,30 @@ DOCK
 
     rm -rf "$sdir"
 }
+
+test_sandbox_agent_configurable_base_install() {
+    echo "--- Base image: agent-configurable AGENT_INSTALL ---"
+
+    local dockerfile="$RALPH_DIR/prompts/templates/Dockerfile.base"
+
+    # Dockerfile.base declares the build arg with the Amp default and uses it
+    assert_eq "Dockerfile.base declares ARG AGENT_INSTALL" "1" \
+        "$(grep -qE '^ARG AGENT_INSTALL=' "$dockerfile" && echo 1 || echo 0)"
+    assert_eq "Dockerfile.base default installs amp" "1" \
+        "$(grep -qE '^ARG AGENT_INSTALL=.*@sourcegraph/amp' "$dockerfile" && echo 1 || echo 0)"
+    assert_eq "Dockerfile.base RUNs the arg" "1" \
+        "$(grep -qE '^RUN \$\{AGENT_INSTALL\}' "$dockerfile" && echo 1 || echo 0)"
+
+    # sandbox_build_base helper exists and injects the build arg
+    assert_eq "lib/sandbox.sh defines sandbox_build_base" "1" \
+        "$(grep -qE '^sandbox_build_base\(\)' "$RALPH_DIR/lib/sandbox.sh" && echo 1 || echo 0)"
+    assert_eq "sandbox_build_base passes AGENT_INSTALL build arg" "1" \
+        "$(grep -qE -- '--build-arg "AGENT_INSTALL=\$AGENT_INSTALL"' "$RALPH_DIR/lib/sandbox.sh" && echo 1 || echo 0)"
+
+    # Both build paths (setup, up) route through the helper
+    assert_eq "setup and up call sandbox_build_base" "2" \
+        "$(grep -cE '^[[:space:]]*sandbox_build_base$' "$RALPH_DIR/lib/sandbox.sh")"
+    # The only base-image docker build is the one inside the helper
+    assert_eq "single ralph-sandbox-base docker build (in helper)" "1" \
+        "$(grep -cE 'docker build -t ralph-sandbox-base' "$RALPH_DIR/lib/sandbox.sh")"
+}

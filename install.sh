@@ -24,6 +24,7 @@ MANAGED_FILES=(
     agents/claude.sh
     agents/cline.sh
     agents/codex.sh
+    agents/pi.sh
     prompts/plan.md
     prompts/plan-process.md
     prompts/build.md
@@ -64,6 +65,7 @@ declare -A SOURCE_PATHS=(
     [agents/claude.sh]="agents/claude.sh"
     [agents/cline.sh]="agents/cline.sh"
     [agents/codex.sh]="agents/codex.sh"
+    [agents/pi.sh]="agents/pi.sh"
     [prompts/plan.md]="prompts/plan.md"
     [prompts/plan-process.md]="prompts/plan-process.md"
     [prompts/build.md]="prompts/build.md"

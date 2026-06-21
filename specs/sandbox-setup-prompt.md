@@ -135,15 +135,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini supervisor \
     && rm -rf /var/lib/apt/lists/*
 
-# Node.js (for Amp CLI)
+# Node.js — required by the agent CLIs (nodesource LTS; satisfies pi's Node >= 22.19.0)
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Amp CLI
-# TODO: Make agent-configurable. Consider adding agent_install() to the
-# agents/*.sh script interface so each agent defines its own install command.
-RUN npm install -g @sourcegraph/amp
+# Agent CLI — install command injected per agent via the AGENT_INSTALL build arg
+# (sourced from agents/${AGENT}.sh by ralph). Default installs Amp so the base
+# image still builds standalone.
+ARG AGENT_INSTALL="npm install -g @sourcegraph/amp"
+RUN ${AGENT_INSTALL}
 
 # Ralph dependencies from dependencies file are covered above (git, curl,
 # jq, gettext-base). If dependencies file grows, this section must be
@@ -179,14 +180,31 @@ as its `FROM` layer.
 ### Build Sequence
 
 The base image is built during `ralph sandbox setup` (before the agent runs)
-and auto-refreshed on every `ralph sandbox up`:
+and auto-refreshed on every `ralph sandbox up`. Both paths call the shared
+`sandbox_build_base()` helper (in `lib/sandbox.sh`):
 
 ```bash
-cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
+sandbox_build_base() {
+    local sandbox_dir="$RALPH_DIR/sandbox"
 
-docker build -t ralph-sandbox-base \
-    -f "$sandbox_dir/Dockerfile.base" \
-    "$sandbox_dir/"
+    cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
+    cp "$RALPH_DIR/prompts/templates/wait-for-db" "$sandbox_dir/wait-for-db"
+    cp "$RALPH_DIR/sandbox-preferences.sh" "$sandbox_dir/sandbox-preferences.sh"
+
+    # agents/${AGENT}.sh defines AGENT_INSTALL. sandbox_setup sources the agent
+    # script already; sandbox_up does not, so source it here when unset.
+    if [[ -z "${AGENT_INSTALL:-}" && -f "$RALPH_DIR/agents/${AGENT}.sh" ]]; then
+        source "$RALPH_DIR/agents/${AGENT}.sh"
+    fi
+
+    local build_args=()
+    [[ -n "${AGENT_INSTALL:-}" ]] && build_args+=(--build-arg "AGENT_INSTALL=$AGENT_INSTALL")
+
+    docker build -t ralph-sandbox-base \
+        "${build_args[@]+"${build_args[@]}"}" \
+        -f "$sandbox_dir/Dockerfile.base" \
+        "$sandbox_dir/"
+}
 ```
 
 The `Dockerfile.base` is copied into the sandbox directory so both the base
@@ -194,9 +212,18 @@ image build and the project Dockerfile build share the same build context
 (`.ralph/sandbox/`). This keeps the Docker build context entirely within
 ralph's directory and separate from any parent project Docker context.
 
+The agent CLI installed into the base image is **agent-configurable**: each
+`agents/*.sh` script defines an `AGENT_INSTALL` command (e.g.
+`npm install -g @sourcegraph/amp`, `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`)
+which is injected as the `AGENT_INSTALL` Docker build arg. Both build paths use
+the helper so switching `AGENT` and rebuilding installs the matching CLI;
+without this, `sandbox up` would silently rebuild the base back to the
+Dockerfile default.
+
 Auto-refreshing on every `ralph sandbox up` ensures that `ralph update`
 changes to the base image take effect without manual intervention. Docker
-layer cache makes the rebuild instant when the Dockerfile is unchanged.
+layer cache makes the rebuild instant when neither the Dockerfile nor the
+`AGENT_INSTALL` arg has changed.
 
 The generated project Dockerfile references it:
 
@@ -1257,16 +1284,10 @@ sandbox_setup() {
 
     mkdir -p "$sandbox_dir"
 
-    # Copy base Dockerfile, wait-for-db, and sandbox-preferences into build context
-    cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
-    cp "$RALPH_DIR/prompts/templates/wait-for-db" "$sandbox_dir/wait-for-db"
-    cp "$RALPH_DIR/sandbox-preferences.sh" "$sandbox_dir/sandbox-preferences.sh"
-
-    # Build base image (deterministic, no LLM involved)
+    # Build base image (deterministic, no LLM involved). sandbox_build_base copies
+    # the build-context files and injects the agent's AGENT_INSTALL command.
     echo "Building sandbox base image..."
-    docker build -t ralph-sandbox-base \
-        -f "$sandbox_dir/Dockerfile.base" \
-        "$sandbox_dir/"
+    sandbox_build_base
 
     if [[ "$render_only" -eq 0 ]]; then
         # Detect stack and resolve playbook

@@ -87,6 +87,7 @@ run_core_tests() {
     test_prepare_prompt_preserves_literals
     test_init_session_log
     test_claude_agent_script
+    test_pi_agent_script
     test_stub_agent_scripts
     test_detect_stack
     test_spec_volume_hint_in_prompt_template
@@ -168,6 +169,7 @@ run_sandbox_tests() {
     test_sandbox_name_defaults_to_app
     test_sandbox_help_has_docker_tips
     test_sandbox_validate_runtime_manager_refs
+    test_sandbox_agent_configurable_base_install
 }
 
 # ---------------------------------------------------------------------------
