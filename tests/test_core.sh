@@ -131,7 +131,7 @@ test_pi_agent_script() {
     assert_eq "pi AGENT_CLI is pi" "pi" "$output"
 
     output=$(bash -c "source '$RALPH_DIR/agents/pi.sh' && echo \$AGENT_INSTALL")
-    assert_eq "pi AGENT_INSTALL is set" "npm install -g --ignore-scripts @earendil-works/pi-coding-agent" "$output"
+    assert_eq "pi AGENT_INSTALL is set" "curl -fsSL https://raw.githubusercontent.com/mjeffe/nix-profile/master/coding-agents/pi/install.sh | bash" "$output"
 
     output=$(bash -c "source '$RALPH_DIR/agents/pi.sh' && type -t agent_invoke")
     assert_eq "pi agent_invoke is defined" "function" "$output"

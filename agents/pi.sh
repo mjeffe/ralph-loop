@@ -23,8 +23,10 @@
 AGENT_CLI="pi"
 # Command to install the agent CLI in the sandbox base image (see Dockerfile.base
 # AGENT_INSTALL build arg, injected by sandbox_build_base in lib/sandbox.sh).
-# --ignore-scripts matches pi's documented npm install (no lifecycle scripts needed).
-AGENT_INSTALL="npm install -g --ignore-scripts @earendil-works/pi-coding-agent"
+# Uses the project's custom pi installer (subagent extension, agent definitions, skills,
+# keybindings). Changes to the nix-profile pi config require a base-image rebuild:
+#   docker rmi ralph-sandbox-base && ralph sandbox setup
+AGENT_INSTALL="curl -fsSL https://raw.githubusercontent.com/mjeffe/nix-profile/master/coding-agents/pi/install.sh | bash"
 
 # Model is configurable via PI_MODEL in config (sourced before this script).
 # Format: provider/id with optional :<thinking> level, e.g.
