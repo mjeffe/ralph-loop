@@ -138,9 +138,20 @@ Ralph sources `config` **before** the agent script, so agent scripts may read
 agent-specific variables defined in `config`. For example, `pi.sh` reads `PI_MODEL`
 to select the model passed to the `pi` CLI (e.g. `openrouter/anthropic/claude-3.5-haiku`),
 falling back to a built-in default when unset. This keeps model selection in `config`
-rather than hard-coded in the agent script. (A future enhancement could select a
+(versioned with the project and preserved across `ralph update`) rather than
+hard-coded in the managed agent script. (A future enhancement could select a
 different model per task by keying off the exported `MODE`; the current contract is a
 single model per agent.)
+
+**Convention.** Agent-specific config keys are named `<AGENT>_<SETTING>` (e.g.
+`PI_MODEL`) and are **shipped commented-out** in `config`, with the real default
+living in the agent script's fallback (`PI_MODEL="${PI_MODEL:-...}"`). This keeps
+the shared `config` uncluttered for projects that use a different agent, while the
+commented line documents the key and makes overriding a one-line edit. Each agent
+script owns reading its own keys — no central registry or per-agent config files.
+(If a future agent needs several settings, or 3+ agents each carry their own keys,
+revisit with a per-agent config section or file; the flat convention is sufficient
+until then.)
 
 ### Optional Functions
 
