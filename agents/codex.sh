@@ -9,6 +9,10 @@ AGENT_CLI="codex"
 # Command to install the agent CLI in the sandbox base image (see Dockerfile.base
 # AGENT_INSTALL build arg, injected by sandbox_build_base in lib/sandbox.sh).
 AGENT_INSTALL="npm install -g @openai/codex"
+# Environment variable(s) holding this agent's API credentials. Ralph forwards
+# these into the sandbox (docker-compose env pass-through + .env.example) so the
+# agent can authenticate inside the container. Space-separated if more than one.
+AGENT_ENV_KEYS="OPENAI_API_KEY"
 
 # Invoke the agent CLI with a prompt file; must stream raw output to stdout.
 agent_invoke() {

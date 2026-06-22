@@ -220,6 +220,17 @@ the helper so switching `AGENT` and rebuilding installs the matching CLI;
 without this, `sandbox up` would silently rebuild the base back to the
 Dockerfile default.
 
+Agent **authentication** is configurable the same way installation is. Installing
+a non-Amp CLI is not enough — it must also authenticate inside the container. Each
+`agents/*.sh` declares `AGENT_ENV_KEYS`, the API-credential env var(s) the agent
+needs (e.g. `AMP_API_KEY`, `OPENROUTER_API_KEY`, or empty for agents configured
+out-of-band like cline). `sandbox setup` exports `AGENT_ENV_KEYS` before rendering
+so the generated `docker-compose.yml` forwards (pass-through) those vars into the
+container and `.env.example` documents them; `sandbox_agent_env_keys()` resolves
+the value (sourcing the agent script when needed) for the setup/up next-steps
+messages. Without this, the sandbox would only ever forward `AMP_API_KEY` and a
+non-Amp agent could not authenticate.
+
 Auto-refreshing on every `ralph sandbox up` ensures that `ralph update`
 changes to the base image take effect without manual intervention. Docker
 layer cache makes the rebuild instant when neither the Dockerfile nor the
@@ -764,6 +775,8 @@ services:
       - SANDBOX=1
       - GIT_REPO
       - GIT_BRANCH
+      # Agent credential var(s) — one pass-through line per var in AGENT_ENV_KEYS
+      # (e.g. AMP_API_KEY for amp); omitted when AGENT_ENV_KEYS is empty.
       - AMP_API_KEY
       # Credential vars based on profile.git_provider:
       # GitHub: GITHUB_TOKEN
@@ -819,8 +832,9 @@ volumes:
 - **Environment uses list syntax**, never map syntax. Quote any entry whose
   value contains a colon. For secret vars that come from `env_file` or the
   host environment, use **pass-through syntax** (bare name, no `=`):
-  `- GIT_REPO`, `- AMP_API_KEY`, `- GITHUB_TOKEN`. For vars with literal
-  values, use `- KEY=value` syntax: `- SANDBOX=1`.
+  `- GIT_REPO`, the agent credential var(s) from `AGENT_ENV_KEYS`
+  (e.g. `- AMP_API_KEY`), `- GITHUB_TOKEN`. For vars with literal values, use
+  `- KEY=value` syntax: `- SANDBOX=1`.
 - **Only infrastructure vars** — do NOT include app-config vars (`DB_*`,
   `MAIL_*`, `CACHE_STORE`, etc.) which would shadow the framework's dotenv
   loader.
@@ -872,7 +886,8 @@ GITHUB_TOKEN=
 # GIT_CRED_USER=
 # GIT_CRED_PASS=
 
-# Amp API key (https://ampcode.com)
+# Agent API credentials — one `VAR=` line per var in the agent's AGENT_ENV_KEYS
+# (e.g. AMP_API_KEY for amp); omitted when AGENT_ENV_KEYS is empty.
 AMP_API_KEY=
 
 # --- Resource Limits ---
@@ -1376,7 +1391,7 @@ sandbox_setup() {
         echo ""
         echo "Next steps:"
         echo "  1. cp $sandbox_dir/.env.example $sandbox_dir/.env"
-        echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN and AMP_API_KEY"
+        echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN${AGENT_ENV_KEYS:+ and $AGENT_ENV_KEYS}"
         echo "  3. Run 'ralph sandbox up' to start the sandbox"
     fi
 }

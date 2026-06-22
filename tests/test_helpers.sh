@@ -1,7 +1,7 @@
 #!/bin/bash
 # Shared test helpers — sourced by test_ralph.sh and individual test files.
 #
-# Provides: assert_eq, assert_contains, assert_not_contains, assert_exit_code,
+# Provides: assert_eq, assert_ne, assert_contains, assert_not_contains, assert_exit_code,
 #           setup, teardown, RALPH_DIR, TMP_DIR, PASS, FAIL, TESTS counters.
 
 set -euo pipefail
@@ -23,6 +23,20 @@ assert_eq() {
     else
         echo "  FAIL: $label"
         echo "    expected: $expected"
+        echo "    actual:   $actual"
+        FAIL=$(( FAIL + 1 ))
+    fi
+}
+
+assert_ne() {
+    local label="$1" unexpected="$2" actual="$3"
+    TESTS=$(( TESTS + 1 ))
+    if [[ "$unexpected" != "$actual" ]]; then
+        echo "  PASS: $label"
+        PASS=$(( PASS + 1 ))
+    else
+        echo "  FAIL: $label"
+        echo "    expected to differ from: $unexpected"
         echo "    actual:   $actual"
         FAIL=$(( FAIL + 1 ))
     fi

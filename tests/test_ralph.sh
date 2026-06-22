@@ -170,6 +170,7 @@ run_sandbox_tests() {
     test_sandbox_help_has_docker_tips
     test_sandbox_validate_runtime_manager_refs
     test_sandbox_agent_configurable_base_install
+    test_sandbox_agent_configurable_auth
 }
 
 # ---------------------------------------------------------------------------
