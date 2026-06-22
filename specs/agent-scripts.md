@@ -304,3 +304,17 @@ agent_post_iteration() {
     fi
 }
 ```
+
+## Switching Agents on an Existing Sandbox
+
+The sandbox base image and docker-compose.yml are built against the agent
+configured at `sandbox setup` time. To switch agents on an existing sandbox:
+
+1. Change `AGENT` in config
+2. Run `ralph sandbox setup --render-only --force` — this rebuilds the base
+   image with the new agent's CLI and re-renders docker-compose.yml with the
+   new agent's env keys, without re-analyzing the project.
+
+Note: this is a workaround for the current single-agent architecture. Multi-agent
+support (installing all CLIs and forwarding all keys at build time, so switching
+agents requires no rebuild or re-render) is tracked separately.
