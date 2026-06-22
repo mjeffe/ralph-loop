@@ -38,17 +38,25 @@ AGENT_INSTALL="npm install -g --ignore-scripts @earendil-works/pi-coding-agent"
 # `plan`) instead of a single PI_MODEL. Keep this single-model for now.
 PI_MODEL="${PI_MODEL:-openrouter/anthropic/claude-3.5-haiku}"
 
+# Derive the credential env var from the model's provider (first path segment),
+# e.g. openrouter/... -> OPENROUTER_API_KEY, anthropic/... -> ANTHROPIC_API_KEY.
+# This is the variable ralph forwards into the sandbox so pi can authenticate
+# inside the container (docker-compose env pass-through + .env.example).
+PI_PROVIDER="${PI_MODEL%%/*}"
+AGENT_ENV_KEYS="$(printf '%s' "$PI_PROVIDER" | tr '[:lower:]-' '[:upper:]_')_API_KEY"
+
 AGENT_ARGS="--mode json --approve --no-session --model $PI_MODEL"
 
 # Invoke the agent CLI with a prompt file; must stream raw NDJSON to stdout.
 agent_invoke() {
     local prompt_file="$1"
 
-    # Pre-flight: when targeting OpenRouter, fail with a clear message instead of
-    # an opaque provider error if the API key is missing.
-    if [[ "$PI_MODEL" == openrouter/* && -z "${OPENROUTER_API_KEY:-}" ]]; then
-        echo "Error: PI_MODEL targets OpenRouter ($PI_MODEL) but OPENROUTER_API_KEY is not set." >&2
-        echo "Export OPENROUTER_API_KEY or add an 'openrouter' key to ~/.pi/agent/auth.json." >&2
+    # Pre-flight: fail with a clear message instead of an opaque provider error
+    # if the model's API key is missing. Uses indirect expansion on the key var
+    # derived from the provider (AGENT_ENV_KEYS).
+    if [[ -z "${!AGENT_ENV_KEYS:-}" ]]; then
+        echo "Error: PI_MODEL is '$PI_MODEL' (provider '$PI_PROVIDER') but $AGENT_ENV_KEYS is not set." >&2
+        echo "Export $AGENT_ENV_KEYS or add a '$PI_PROVIDER' key to ~/.pi/agent/auth.json." >&2
         return 1
     fi
 

@@ -25,7 +25,8 @@ FIRST-TIME SETUP
 
        cp .ralph/sandbox/.env.example .ralph/sandbox/.env
 
-     Edit .ralph/sandbox/.env and set GITHUB_TOKEN and AMP_API_KEY.
+     Edit .ralph/sandbox/.env and set GITHUB_TOKEN and your agent's API key
+     (e.g. AMP_API_KEY for amp; .env.example lists the var(s) for your agent).
 
   3. Start the sandbox:
 

@@ -367,6 +367,20 @@ sandbox_build_base() {
         "$sandbox_dir/"
 }
 
+# Resolve the configured agent's credential env var(s) (AGENT_ENV_KEYS from
+# agents/${AGENT}.sh) and echo them space-separated. Ralph forwards these into
+# the sandbox so the agent can authenticate inside the container. sandbox_setup
+# sources the agent script already; sandbox_up does not, so source it here when
+# AGENT_ENV_KEYS is unset. Echoes nothing when the agent declares no key var
+# (e.g. cline, which is configured via `cline auth`).
+sandbox_agent_env_keys() {
+    if [[ -z "${AGENT_ENV_KEYS:-}" && -f "$RALPH_DIR/agents/${AGENT}.sh" ]]; then
+        # shellcheck source=/dev/null
+        source "$RALPH_DIR/agents/${AGENT}.sh"
+    fi
+    echo "${AGENT_ENV_KEYS:-}"
+}
+
 sandbox_setup() {
     local sandbox_dir="$RALPH_DIR/sandbox"
     local force=0
@@ -471,8 +485,11 @@ sandbox_setup() {
         exit 1
     fi
 
-    # Pass 2: Generate files from profile
+    # Pass 2: Generate files from profile. Export the agent's credential env
+    # var(s) so the render prompt forwards the right key into docker-compose.yml
+    # and .env.example (the agent script is already sourced above).
     echo "Generating sandbox files..."
+    export AGENT_ENV_KEYS="${AGENT_ENV_KEYS:-}"
     local render_prompt
     render_prompt=$(mktemp)
     prepare_prompt "$RALPH_DIR/prompts/sandbox-render.md" "$render_prompt"
@@ -540,7 +557,7 @@ NOTES
         echo ""
         echo "Next steps:"
         echo "  1. cp $sandbox_dir/.env.example $sandbox_dir/.env"
-        echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN and AMP_API_KEY"
+        echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN${AGENT_ENV_KEYS:+ and $AGENT_ENV_KEYS}"
         echo "  3. Run 'ralph sandbox up' to start the sandbox"
     fi
     echo ""
@@ -558,8 +575,10 @@ sandbox_up() {
 
     local env_file="$RALPH_DIR/sandbox/.env"
     if [[ ! -f "$env_file" ]]; then
+        local agent_keys
+        agent_keys=$(sandbox_agent_env_keys)
         echo "Warning: $env_file not found." >&2
-        echo "Copy .env.example to .env and set GITHUB_TOKEN and AMP_API_KEY:" >&2
+        echo "Copy .env.example to .env and set GITHUB_TOKEN${agent_keys:+ and $agent_keys}:" >&2
         echo "  cp $RALPH_DIR/sandbox/.env.example $env_file" >&2
         exit 1
     fi

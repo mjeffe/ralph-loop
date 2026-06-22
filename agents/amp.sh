@@ -5,6 +5,10 @@ AGENT_CLI="amp"
 # Command to install the agent CLI in the sandbox base image (see Dockerfile.base
 # AGENT_INSTALL build arg, injected by sandbox_build_base in lib/sandbox.sh).
 AGENT_INSTALL="npm install -g @sourcegraph/amp"
+# Environment variable(s) holding this agent's API credentials. Ralph forwards
+# these into the sandbox (docker-compose env pass-through + .env.example) so the
+# agent can authenticate inside the container. Space-separated if more than one.
+AGENT_ENV_KEYS="AMP_API_KEY"
 # -x: non-interactive (exit after response, no follow-up prompt)
 # --dangerously-allow-all: skip tool-use confirmation prompts
 # --stream-json-thinking: emit one JSON object per line, including thinking blocks

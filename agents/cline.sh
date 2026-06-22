@@ -9,6 +9,12 @@ AGENT_CLI="cline"
 # Command to install the agent CLI in the sandbox base image (see Dockerfile.base
 # AGENT_INSTALL build arg, injected by sandbox_build_base in lib/sandbox.sh).
 AGENT_INSTALL="npm install -g cline"
+# Cline has no single API-key env var: it is configured interactively via
+# `cline auth`, which persists provider/model state to ~/.cline/data. There is
+# therefore nothing for ralph to forward into the sandbox, so AGENT_ENV_KEYS is
+# empty. (Running cline in the sandbox additionally requires persisting that
+# config dir, which is out of scope here.)
+AGENT_ENV_KEYS=""
 # -y: yolo mode (auto-approve all actions, exit when complete)
 # --json: output messages as JSON (one object per line), forces plain text mode
 AGENT_ARGS="-y --json"

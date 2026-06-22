@@ -266,7 +266,9 @@ services:
       - SANDBOX=1
       - GIT_REPO
       - GIT_BRANCH
-      - AMP_API_KEY
+      # Agent credential var(s): add ONE pass-through line per variable listed
+      # in AGENT_ENV_KEYS below. Omit entirely if the list is empty.
+      # AGENT_ENV_KEYS: ${AGENT_ENV_KEYS}
       # Credential vars based on profile.git_provider:
       # GitHub: GITHUB_TOKEN
       # Other: GIT_CRED_USER, GIT_CRED_PASS
@@ -312,10 +314,12 @@ Key points:
 - **Environment uses list syntax**, never map syntax. Quote any entry whose
   value contains a colon (see Appendix B). For secret vars that come from
   `env_file` or the host environment, use **pass-through syntax** (bare name,
-  no `=`): `- GIT_REPO`, `- AMP_API_KEY`, `- GITHUB_TOKEN`. For vars with
-  literal values, use `- KEY=value` syntax: `- SANDBOX=1`.
+  no `=`): `- GIT_REPO`, the agent credential var(s) from `AGENT_ENV_KEYS`
+  (e.g. `- AMP_API_KEY`), `- GITHUB_TOKEN`. For vars with literal values, use
+  `- KEY=value` syntax: `- SANDBOX=1`.
 - **Only infrastructure vars** in the app service environment: `SANDBOX=1`,
-  `GIT_REPO`, `AMP_API_KEY`, credential vars, `GIT_CONFIG` vars.
+  `GIT_REPO`, the agent credential var(s) (`${AGENT_ENV_KEYS}`), credential
+  vars, `GIT_CONFIG` vars.
 - **No app-config vars** (`DB_*`, `MAIL_*`, `CACHE_STORE`, etc.).
 - Named volumes only — no bind mounts.
 - `env_file` with `required: false`.
@@ -348,8 +352,10 @@ GITHUB_TOKEN=
 # GIT_CRED_USER=
 # GIT_CRED_PASS=
 
-# Amp API key (https://ampcode.com)
-AMP_API_KEY=
+# Agent API credentials — add one `VAR=` line for each variable in the
+# configured agent's AGENT_ENV_KEYS. Omit this block if the list is empty.
+# AGENT_ENV_KEYS: ${AGENT_ENV_KEYS}
+${AGENT_ENV_KEYS}=
 
 # --- Resource Limits ---
 SANDBOX_MEMORY_LIMIT=4g

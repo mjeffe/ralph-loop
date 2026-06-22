@@ -109,6 +109,7 @@ Agent scripts **must** set:
 |----------|---------|---------|
 | `AGENT_CLI` | The CLI command name | `amp` |
 | `AGENT_INSTALL` | Command to install the agent CLI in the sandbox base image | `npm install -g @sourcegraph/amp` |
+| `AGENT_ENV_KEYS` | API-credential env var(s) ralph forwards into the sandbox (space-separated; may be empty) | `AMP_API_KEY` |
 
 Ralph uses `AGENT_CLI` to validate that the agent is installed (via `command -v`).
 
@@ -117,6 +118,19 @@ the sandbox base image (see `sandbox_build_base()` in the sandbox spec). This
 makes the base image agent-configurable: switching `AGENT` and rebuilding installs
 the matching CLI. If an agent script omits `AGENT_INSTALL`, the base image falls
 back to its Dockerfile default (Amp).
+
+`AGENT_ENV_KEYS` lists the environment variable(s) holding the agent's API
+credentials. Installing an agent's CLI is only half of running it in the sandbox —
+it must also authenticate. Ralph exports `AGENT_ENV_KEYS` when rendering the
+sandbox so the generated `docker-compose.yml` forwards (pass-through) the right
+key(s) into the container and `.env.example` documents them. This makes
+authentication agent-configurable the same way `AGENT_INSTALL` makes installation
+configurable. The value may be:
+- a single var (`AMP_API_KEY` for amp, `ANTHROPIC_API_KEY` for claude),
+- derived dynamically (pi derives `<PROVIDER>_API_KEY` from `PI_MODEL`, e.g.
+  `OPENROUTER_API_KEY`), or
+- empty when the agent authenticates out-of-band (cline, configured via
+  `cline auth`); ralph then forwards no agent key.
 
 ### Agent-Specific Configuration
 
@@ -201,10 +215,12 @@ To add support for a new agent:
 1. Create `agents/{name}.sh`
 2. Set `AGENT_CLI` to the CLI command name
 3. Set `AGENT_INSTALL` to the command that installs the CLI (for sandbox builds)
-4. Implement `agent_invoke`, `agent_extract_response`, and `agent_format_display`
-5. Optionally implement `agent_pre_iteration` and `agent_post_iteration`
-6. Set `AGENT="{name}"` in config
-7. Test with `ralph plan`
+4. Set `AGENT_ENV_KEYS` to the agent's API-credential env var(s), or `""` if the
+   agent authenticates out-of-band (so the sandbox forwards the right key)
+5. Implement `agent_invoke`, `agent_extract_response`, and `agent_format_display`
+6. Optionally implement `agent_pre_iteration` and `agent_post_iteration`
+7. Set `AGENT="{name}"` in config
+8. Test with `ralph plan`
 
 The agent CLI must:
 - Accept a prompt via stdin
