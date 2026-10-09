@@ -22,3 +22,6 @@ Specs are the source of truth for desired behavior. When adding or removing a sp
 | [help-system.md](help-system.md) | CLI help system: `ralph help <topic>` for operational guidance on planning, specs, build, and sandbox |
 | [adhoc-prompts.md](adhoc-prompts.md) | Shipped ad-hoc prompt set: design intent, structural conventions, durable-state patterns, and contract for `prompts/adhoc-*.md` |
 | [tech-debt.md](tech-debt.md) | Known structural debt, brittle areas, and migration strategy — when and how to move beyond bash |
+| [known-issues.md](known-issues.md) | User-facing bugs without workarounds that users should know about before they bite |
+| [open-questions.md](open-questions.md) | Unresolved questions, speculative ideas, and design tensions needing more thought |
+| [proposals/](proposals/) | Design proposals (spec pre-drafts) — provisional, not yet committed to |
