@@ -370,3 +370,66 @@ test_filter_overview_progressive_disclosure() {
     assert_contains "progressive shows summary of remaining" "+2 more sections" "$output"
     assert_contains "progressive shows remaining count" "planned tasks" "$output"
 }
+
+# ---------------------------------------------------------------------------
+# Tests: meta, summary, validate (#33)
+# ---------------------------------------------------------------------------
+test_filter_meta_tolerates_markdown() {
+    echo "--- filter meta: header fields tolerate Markdown decoration ---"
+    local plan="$TMP_DIR/meta_plan.md" form
+    for form in 'Plan Type: process' '**Plan Type:** process' '- **Plan Type:** process' \
+                '- `Plan Type: process`' '* Plan type: `process`'; do
+        printf '# Plan\n\n%s\n\n### Task 1 — X\n**Status:** planned\n' "$form" > "$plan"
+        assert_eq "reads: $form" "process" "$(bash "$FILTER" meta "$plan" "Plan Type")"
+    done
+    printf '# Plan\n\n### Task 1 — X\nPlan Type: process\n' > "$plan"
+    assert_eq "ignores fields below first task" "" "$(bash "$FILTER" meta "$plan" "Plan Type")"
+}
+
+test_filter_summary_counts_decorated_statuses() {
+    echo "--- filter summary: counts statuses in any supported form ---"
+    cat > "$TMP_DIR/summary_plan.md" << 'EOF'
+# Plan
+
+Plan Type: process
+
+### Task 1 — A
+- **Status:** `complete` (merged)
+
+### Task 2 — B
+Status: Blocked
+
+### Task 3 — C
+**Status**: planned
+EOF
+    assert_eq "counts statuses" "planned=1 blocked=1 complete=1" \
+        "$(bash "$FILTER" summary "$TMP_DIR/summary_plan.md")"
+}
+
+test_filter_validate() {
+    echo "--- filter validate: accepts valid plans, reports each problem ---"
+    create_process_plan
+    assert_exit_code "valid plan passes" 0 bash "$FILTER" validate "$TMP_DIR/process_plan.md"
+
+    cat > "$TMP_DIR/invalid_plan.md" << 'EOF'
+# Plan
+
+Plan Type: waterfall
+
+### Task 1 — A
+**Status:** done
+
+### Task 2 — B
+No status here.
+EOF
+    local output rc=0
+    output=$(bash "$FILTER" validate "$TMP_DIR/invalid_plan.md") || rc=$?
+    assert_eq "invalid plan exits 1" "1" "$rc"
+    assert_contains "reports unknown plan type" "unrecognized Plan Type 'waterfall'" "$output"
+    assert_contains "reports invalid status" "line 5: '### Task 1 — A' has invalid status 'done'" "$output"
+    assert_contains "reports missing status" "line 8: '### Task 2 — B' has no '**Status:**' line" "$output"
+
+    printf '# Plan\n\nPlan Type: process\n' > "$TMP_DIR/notask_plan.md"
+    output=$(bash "$FILTER" validate "$TMP_DIR/notask_plan.md") || true
+    assert_contains "reports missing tasks" "no task headings found" "$output"
+}

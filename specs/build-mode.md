@@ -49,16 +49,42 @@ the agent on a process plan, ralph stops the session when:
 
 - no eligible task exists and all tasks are `complete` → exit 0 (same as the completion signal)
 - no eligible task exists but `planned`/`blocked` tasks remain → exit 3 (same as the replan signal)
-- the plan cannot be parsed for selection → exit 1
+- the plan fails validation (any plan type) → exit 1
 - the same task is selected as in the previous iteration → exit 6 ("no progress"); a build
   iteration must complete or block its task, so re-selection means the agent made no progress
+
+### Plan Parsing and Validation
+
+`lib/plan-filter.sh` is the only code that reads plan structure; the `ralph` script never greps
+the plan directly. One parser means one definition of the accepted format.
+
+**Accepted field forms.** Header fields (`Plan Type:`, `Plan Command:`) and task fields
+(`Status:`, `Depends on:`) are matched case-insensitively and tolerate a leading list marker
+(`-`, `*`, `+`) and bold/backtick decoration around the label or value, e.g. `Plan Type: process`,
+`**Plan Type:** process`, `- **Plan Type:** process`, `` - `Plan Type: process` ``. Status values
+use the first word, lowercased (`` **Status:** `complete` (merged) `` → `complete`). Plan prompts
+still ask for the plain form; leniency absorbs agent drift (issue #33).
+
+**Validation** (`plan-filter.sh validate`) requires:
+- `Plan Type:` present in the header, with value `process` or `gap-driven`
+- at least one `### Task` heading
+- every task block has a status line with value `planned`, `blocked`, or `complete`
+
+Each problem is reported with its line number. Validation runs at every point where ralph relies
+on the plan, so format drift fails loudly instead of silently changing behavior:
+- end of a `ralph plan` session that emitted the completion signal (exit 1 if invalid)
+- start of `ralph build` and before every build iteration (exit 1 if invalid)
+- start of `ralph align-specs` (exit 1 if invalid)
+
+Validation is skipped when a plan session ends without the completion signal, because
+incremental planning legitimately leaves partial plans between sessions.
 
 ### Bifurcated Prompt Selection
 
 Ralph selects the build prompt based on `Plan Type:` in the plan header:
 
 - `Plan Type: process` → `prompts/build-process.md` (task pre-assigned by infrastructure)
-- `Plan Type: gap-driven` (or absent) → `prompts/build.md` (agent selects from overview)
+- `Plan Type: gap-driven` → `prompts/build.md` (agent selects from overview)
 
 This eliminates conditional branching within a single prompt — the previous single-prompt
 approach required plan-type-specific instructions that added complexity and diluted the
@@ -79,7 +105,7 @@ prompt-level fixes — issue #20). The root cause was fundamental: asking agents
 mechanical procedures via prompt instructions is unreliable (~40% skip rate). Moving selection
 to infrastructure eliminates this error class entirely.
 
-If `Plan Type:` is absent, the plan is treated as gap-driven (backward compatibility).
+`Plan Type:` is required; a plan without it fails validation (see Plan Parsing and Validation).
 
 ### Single Task Focus
 

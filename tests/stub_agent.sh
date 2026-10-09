@@ -6,8 +6,8 @@
 #   - saves the rendered prompt to $STUB_DIR/prompt-N.md
 #   - performs the action on line N of $STUB_DIR/actions (missing line = noop):
 #       noop               respond without changing anything
-#       complete-selected  mark the prompt's selected task (first "### Task" line) complete
-#       block-selected     mark the prompt's selected task blocked
+#       mark-selected <S>  set the status of the prompt's selected task (first "### Task" line)
+#                          from planned to S (e.g. complete, blocked, or an invalid value)
 #       signal <NAME>      respond with <promise>NAME</promise>
 #       empty              exit 0 with no response
 #       fail               exit 1
@@ -23,10 +23,9 @@ agent_invoke() {
     heading=$(grep -m1 '^### Task' "$prompt_file" || true)
 
     case "$action" in
-        complete-selected|block-selected)
+        mark-selected\ *)
             [[ -n "$heading" ]] || { echo "stub: no selected task in prompt"; return 0; }
-            local plan="$RALPH_DIR/implementation_plan.md" status="${action%-selected}"
-            [[ "$status" == "block" ]] && status="blocked" || status="complete"
+            local plan="$RALPH_DIR/implementation_plan.md" status="${action#mark-selected }"
             awk -v h="$heading" -v s="$status" \
                 '$0 == h { f = 1 } f && /Status:/ { sub(/planned/, s); f = 0 } { print }' \
                 "$plan" > "$plan.tmp" && mv "$plan.tmp" "$plan"

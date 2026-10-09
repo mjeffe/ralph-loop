@@ -183,9 +183,12 @@ Loop exits when any of these occur:
 6. **Git operation failure** - Exit code 5
 7. **Process build: no eligible task** - Checked before each iteration (see `build-mode.md`).
    All tasks complete → exit code 0; blocked or unready tasks remain → exit code 3 (with the
-   same re-planning message as the replan signal); plan cannot be parsed → exit code 1
+   same re-planning message as the replan signal)
 8. **Process build: no progress** - The same task is selected in two consecutive iterations
    (the previous iteration neither completed nor blocked it) - Exit code 6
+9. **Invalid plan** - The plan fails validation at the start of build/align-specs, before a
+   build iteration, or after a plan session emits the completion signal - Exit code 1, with
+   each problem listed (see "Plan Parsing and Validation" in `build-mode.md`)
 
 ## Iteration Logging
 

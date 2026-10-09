@@ -1,10 +1,14 @@
 #!/bin/bash
-# Plan filter — extracts plan slices for build prompt injection.
+# Plan filter — the single parser for implementation_plan.md. Extracts plan slices for build
+# prompt injection, reads header fields, and validates the structure ralph relies on.
 #
 # Usage:
 #   lib/plan-filter.sh header   <plan_file>
 #   lib/plan-filter.sh overview <plan_file>
 #   lib/plan-filter.sh select   <plan_file>
+#   lib/plan-filter.sh summary  <plan_file>
+#   lib/plan-filter.sh validate <plan_file>
+#   lib/plan-filter.sh meta     <plan_file> <field>
 #
 # Modes:
 #   header   — emit everything above the first ### Task heading
@@ -12,10 +16,16 @@
 #              expanded incomplete sections with line numbers)
 #   select   — emit the deterministically selected next task block
 #              plus adjacent context (process plans only)
+#   summary  — emit task status counts: planned=N blocked=N complete=N
+#   validate — report problems (missing/unknown Plan Type, no tasks, missing/invalid statuses)
+#   meta     — emit a header field value, e.g. meta plan.md "Plan Type"
+#
+# Field lines (Plan Type, Plan Command, Status, Depends on) tolerate a leading list marker and
+# bold/backtick decoration, e.g. "- **Plan Type:** process".
 #
 # Exit codes:
 #   0 — success
-#   1 — usage error or parse failure (zero tasks found)
+#   1 — usage error, parse failure (zero tasks found), or validation failure
 
 set -euo pipefail
 
@@ -33,24 +43,56 @@ is_section_heading() {
     [[ "$1" =~ ^##[[:space:]] && ! "$1" =~ ^###[[:space:]] ]]
 }
 
-# Extract status value from a status line (bold, bare, or backtick format)
-# Returns: planned, blocked, complete, or empty
+# Strip surrounding bold markers, backticks, and whitespace from a value
+strip_decoration() {
+    local re='^[*`[:space:]]*(.*[^*`[:space:]])[*`[:space:]]*$'
+    if [[ "$1" =~ $re ]]; then echo "${BASH_REMATCH[1]}"; fi
+}
+
+# Match a "Label: value" field line, tolerating a leading list marker and bold/backtick
+# decoration: "Status: planned", "**Status:** planned", "- **Plan Type:** process",
+# "- `Plan Type: process`". Label match is case-insensitive.
+# Sets FIELD_VALUE (decoration stripped) and returns 0 on match; returns 1 otherwise.
+FIELD_VALUE=""
+field_value() {
+    local label="${1// /[[:space:]]+}" line="$2" rc=0
+    local re='^([-*+][[:space:]]+)?[*`]*'"${label}"'[*`]*:[*`]*[[:space:]]*(.*)$'
+    shopt -s nocasematch
+    [[ "$line" =~ $re ]] || rc=1
+    shopt -u nocasematch
+    [[ $rc -eq 0 ]] || return 1
+    FIELD_VALUE=$(strip_decoration "${BASH_REMATCH[2]}")
+}
+
+# Match a status line. Sets STATUS_VALUE to the lowercased first word of the value
+# (expected: planned, blocked, complete) and returns 0; returns 1 if not a status line.
+STATUS_VALUE=""
 extract_status() {
-    local line="$1"
-    if [[ "$line" =~ ^\*?\*?Status:\*?\*?[[:space:]]*(.*) ]]; then
-        local val="${BASH_REMATCH[1]}"
-        # Strip bold markers, backticks, and whitespace
-        val="${val%%\*\*}"
-        val="${val#\`}"
-        val="${val%%\`*}"
-        val="${val%% *}"
-        echo "$val"
-    fi
+    field_value "Status" "$1" || return 1
+    STATUS_VALUE=$(strip_decoration "${FIELD_VALUE%%[[:space:]]*}")
+    STATUS_VALUE="${STATUS_VALUE,,}"
 }
 
 # Check if a line is a Depends on: field
 is_depends_line() {
-    [[ "$1" =~ ^\*?\*?Depends[[:space:]]+on:\*?\*? ]]
+    field_value "Depends on" "$1"
+}
+
+# Populate T_LINES, T_HEADINGS, T_STATUSES for every task block (a section heading ends a block)
+scan_tasks() {
+    T_LINES=() T_HEADINGS=() T_STATUSES=()
+    local line line_num=0 idx=-1
+    while IFS= read -r line; do
+        line_num=$(( line_num + 1 ))
+        if is_task_heading "$line"; then
+            idx=${#T_LINES[@]}
+            T_LINES+=("$line_num") T_HEADINGS+=("$line") T_STATUSES+=("")
+        elif is_section_heading "$line"; then
+            idx=-1
+        elif [[ $idx -ge 0 ]] && extract_status "$line"; then
+            T_STATUSES[$idx]="$STATUS_VALUE"
+        fi
+    done < "$1"
 }
 
 # ---------------------------------------------------------------------------
@@ -156,10 +198,8 @@ mode_overview() {
 
         # Inside a task block — capture status and depends
         if [[ -n "$current_task_heading" ]]; then
-            local status_val
-            status_val=$(extract_status "$line")
-            if [[ -n "$status_val" ]]; then
-                current_task_status="$status_val"
+            if extract_status "$line"; then
+                current_task_status="$STATUS_VALUE"
             fi
             if is_depends_line "$line"; then
                 current_task_depends="$line"
@@ -307,10 +347,8 @@ mode_select() {
 
         if [[ $current_task_idx -ge 0 ]]; then
             block+=$'\n'"$line"
-            local status_val
-            status_val=$(extract_status "$line")
-            if [[ -n "$status_val" ]]; then
-                task_statuses[$current_task_idx]="$status_val"
+            if extract_status "$line"; then
+                task_statuses[$current_task_idx]="$STATUS_VALUE"
             fi
             if is_depends_line "$line"; then
                 task_depends[$current_task_idx]="$line"
@@ -434,10 +472,77 @@ mode_select() {
 }
 
 # ---------------------------------------------------------------------------
+# Mode: meta
+# ---------------------------------------------------------------------------
+# Emit the value of a header field (searched above the first task heading).
+mode_meta() {
+    local plan_file="$1" field="$2" line
+    while IFS= read -r line; do
+        is_task_heading "$line" && break
+        if field_value "$field" "$line"; then
+            echo "$FIELD_VALUE"
+            return 0
+        fi
+    done < "$plan_file"
+}
+
+# ---------------------------------------------------------------------------
+# Mode: summary
+# ---------------------------------------------------------------------------
+# Emit task status counts: planned=N blocked=N complete=N
+mode_summary() {
+    scan_tasks "$1"
+    [[ ${#T_LINES[@]} -gt 0 ]] || return 1
+    local planned=0 blocked=0 complete=0 status
+    for status in "${T_STATUSES[@]}"; do
+        case "$status" in
+            planned)  planned=$(( planned + 1 )) ;;
+            blocked)  blocked=$(( blocked + 1 )) ;;
+            complete) complete=$(( complete + 1 )) ;;
+        esac
+    done
+    echo "planned=${planned} blocked=${blocked} complete=${complete}"
+}
+
+# ---------------------------------------------------------------------------
+# Mode: validate
+# ---------------------------------------------------------------------------
+# Check the parts of the plan that ralph relies on. Emits one problem per line and
+# exits 1 if any are found.
+mode_validate() {
+    local plan_file="$1" errors=0 plan_type i
+    plan_type=$(mode_meta "$plan_file" "Plan Type")
+    case "${plan_type,,}" in
+        process|gap-driven) ;;
+        "") echo "missing 'Plan Type:' header line (expected 'Plan Type: process' or 'Plan Type: gap-driven')"
+            errors=$(( errors + 1 )) ;;
+        *)  echo "unrecognized Plan Type '${plan_type}' (expected process or gap-driven)"
+            errors=$(( errors + 1 )) ;;
+    esac
+
+    scan_tasks "$plan_file"
+    if [[ ${#T_LINES[@]} -eq 0 ]]; then
+        echo "no task headings found (expected '### Task N — Title' or '### Task N: Title')"
+        errors=$(( errors + 1 ))
+    fi
+    for i in "${!T_LINES[@]}"; do
+        case "${T_STATUSES[$i]}" in
+            planned|blocked|complete) ;;
+            "") echo "line ${T_LINES[$i]}: '${T_HEADINGS[$i]}' has no '**Status:**' line"
+                errors=$(( errors + 1 )) ;;
+            *)  echo "line ${T_LINES[$i]}: '${T_HEADINGS[$i]}' has invalid status '${T_STATUSES[$i]}' (expected planned, blocked, or complete)"
+                errors=$(( errors + 1 )) ;;
+        esac
+    done
+    [[ $errors -eq 0 ]]
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 if [[ $# -lt 2 ]]; then
-    echo "Usage: $0 <header|overview|select> <plan_file>" >&2
+    echo "Usage: $0 <header|overview|select|summary|validate> <plan_file>" >&2
+    echo "       $0 meta <plan_file> <field>" >&2
     exit 1
 fi
 
@@ -453,8 +558,11 @@ case "$mode" in
     header)   mode_header "$plan_file" ;;
     overview) mode_overview "$plan_file" ;;
     select)   mode_select "$plan_file" ;;
+    summary)  mode_summary "$plan_file" ;;
+    validate) mode_validate "$plan_file" ;;
+    meta)     mode_meta "$plan_file" "${3:?meta mode requires a field name}" ;;
     *)
-        echo "Error: unknown mode: $mode (expected: header, overview, select)" >&2
+        echo "Error: unknown mode: $mode (expected: header, overview, select, summary, validate, meta)" >&2
         exit 1
         ;;
 esac

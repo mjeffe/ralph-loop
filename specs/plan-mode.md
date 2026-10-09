@@ -47,9 +47,17 @@ The `implementation_plan.md` file lives at the root of the ralph script director
 `.ralph/implementation_plan.md` in a parent project, or `implementation_plan.md` in the
 ralph-loop repo itself).
 
-The plan begins with a metadata header:
-- `Plan Type: gap-driven`
-- `Plan Command: ralph plan`
+The plan begins with a metadata header, written as plain lines (the prompt shows a literal
+block; the parser also tolerates Markdown decoration — see "Plan Parsing and Validation" in
+`build-mode.md`):
+
+```
+Plan Type: gap-driven
+Plan Command: ralph plan
+```
+
+When a plan session emits the completion signal, ralph validates the plan and exits 1, listing
+each problem, if build mode could not parse it.
 
 Below the metadata and summary, the plan includes a `## Cross-cutting constraints` section.
 This section starts empty or with spec-derived constraints and accumulates build-agent

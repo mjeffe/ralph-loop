@@ -33,6 +33,10 @@ behavior.
 3. **At least one `complete` task in the plan** — confirms that build work actually
    happened. A plan with only `planned` tasks means the migration hasn't started.
 
+The plan must also pass validation, and all three checks read the plan through
+`lib/plan-filter.sh` (see "Plan Parsing and Validation" in `build-mode.md`), so a decorated
+header such as `- **Plan Type:** process` is accepted.
+
 If any prerequisite is missing, exit with an informative error:
 
 - No `PROCESS_DIR`: "align-specs requires process specs. Set PROCESS_DIR in config."
@@ -250,10 +254,8 @@ In `run_loop()`, after writing the session summary and before the `exit` call. A
 needed state (`$exit_reason`, `$MODE`) is already local to `run_loop()`:
 
 ```bash
-if [[ "$MODE" == "build" && "$exit_reason" == "completion signal" ]]; then
-    plan_type=$(grep -m1 '^Plan Type:' "$RALPH_HOME/implementation_plan.md" 2>/dev/null \
-        | sed 's/^Plan Type:[[:space:]]*//')
-    if [[ "$plan_type" == "process" ]]; then
+if [[ "$MODE" == "build" && ( "$exit_reason" == "completion signal" || "$exit_reason" == "all tasks complete" ) ]]; then
+    if [[ "$(plan_type)" == "process" ]]; then   # plan_type reads the header via lib/plan-filter.sh
         log ""
         log "╔══════════════════════════════════════════════════════════════════════════════════╗"
         log "║  Process-plan build complete. Target-state specs may need updating.            ║"

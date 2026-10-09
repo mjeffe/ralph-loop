@@ -88,14 +88,23 @@ Planning is complete when:
 
 ## Plan Format
 
-At the top of the plan, include:
-- `Plan Type: process`
-- `Plan Command: ralph plan --process`
-- `Primary Process Specs:` comma-separated list of active process spec files
+At the top of the plan, include these header lines as plain lines (no list markers, bold, or backticks) — ralph parses them:
+
+```
+Plan Type: process
+Plan Command: ralph plan --process
+Primary Process Specs: <comma-separated list of active process spec files>
+```
 
 Below the metadata and summary, include a `## Cross-cutting constraints` section. This section starts empty or with spec-derived constraints (architectural invariants, testing rules, naming conventions). During build iterations, agents add discoveries here that would affect correctness or verification of future tasks. The plan header (everything above the first task) is injected into every build iteration, making this section automatically visible without agents needing to search for it.
 
-Structure the main body using phase headings (e.g., `## Phase 0 — Inventory and safety rails`). Each phase should include its source process spec traceability and an optional `Depends on:` line when helpful. Use `### Task N — Title` headings for each task (e.g., `### Task 1 — Install Dependencies (1a)`) — the task number is the plan's identifier; the parenthetical is spec traceability. Use `**Status:**` for the status field (e.g., `**Status:** planned`). These heading and status formats are required — the build infrastructure parses them to generate task overviews, inject plan context, and perform deterministic task selection.
+Structure the main body using phase headings (e.g., `## Phase 0 — Inventory and safety rails`). Each phase should include its source process spec traceability and an optional `Depends on:` line when helpful. Use `### Task N — Title` headings for each task (e.g., `### Task 1 — Install Dependencies (1a)`) — the task number is the plan's identifier; the parenthetical is spec traceability. Use `**Status:**` for the status field (e.g., `**Status:** planned`). These heading and status formats are required — the build infrastructure parses them to generate task overviews, inject plan context, and perform deterministic task selection. Ralph validates the plan when planning completes and before every build iteration, and stops if a task heading lacks a status or a status is not one of the values listed under Task Status Values. Each task starts like this:
+
+```
+### Task 3 — Add posts table (2b)
+**Status:** planned
+**Depends on:** Task 2
+```
 
 Each task must include enough context for a build agent starting with fresh context and no memory of prior iterations. At minimum:
 - A short title and brief description

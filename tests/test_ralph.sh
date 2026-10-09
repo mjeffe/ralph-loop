@@ -137,6 +137,9 @@ run_plan_filter_tests() {
     test_filter_missing_file_fails
     test_filter_no_args_fails
     test_filter_overview_progressive_disclosure
+    test_filter_meta_tolerates_markdown
+    test_filter_summary_counts_decorated_statuses
+    test_filter_validate
 }
 
 run_sandbox_tests() {
@@ -181,6 +184,11 @@ run_loop_tests() {
     test_loop_retries_exhausted
     test_loop_max_iterations
     test_loop_plan_mode_runs
+    test_loop_plan_mode_rejects_invalid_plan
+    test_loop_process_build_decorated_header
+    test_loop_build_rejects_invalid_plan
+    test_loop_build_stops_when_agent_corrupts_plan
+    test_loop_align_specs_decorated_header
     test_loop_prompt_mode_substitutes_variables
 }
 

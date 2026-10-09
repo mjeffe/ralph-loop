@@ -205,34 +205,60 @@ prepare_prompt() {
 }
 
 # ---------------------------------------------------------------------------
-# Build mode: re-read the plan and refresh injected plan slices.
+# Implementation plan access — all plan parsing goes through lib/plan-filter.sh
+# ---------------------------------------------------------------------------
+PLAN_FILE="$RALPH_DIR/implementation_plan.md"
+
+plan_filter() {
+    bash "$RALPH_DIR/lib/plan-filter.sh" "$1" "$PLAN_FILE" "${@:2}"
+}
+
+plan_meta() {
+    plan_filter meta "$1" 2>/dev/null || true
+}
+
+plan_type() {
+    local plan_type
+    plan_type=$(plan_meta "Plan Type")
+    echo "${plan_type,,}"
+}
+
+# Print plan format problems and return 1 if the plan is not in the format ralph parses
+validate_plan() {
+    local problems
+    problems=$(plan_filter validate 2>&1) && return 0
+    echo "Error: implementation_plan.md is not in the format ralph parses:"
+    echo "$problems" | sed 's/^/  - /'
+    return 1
+}
+
+# ---------------------------------------------------------------------------
+# Build mode: validate the plan and refresh injected plan slices.
 # Called before every build iteration so prompts reflect prior iterations' plan updates.
 # Returns:
 #   0 - context refreshed (task selected, or gap-driven plan)
-#   1 - plan could not be parsed for task selection
+#   1 - plan failed validation
 #   2 - process plan: no eligible task, all tasks complete
 #   3 - process plan: no eligible task, blocked/unready tasks remain
 # ---------------------------------------------------------------------------
 refresh_plan_context() {
-    local plan_file="$RALPH_DIR/implementation_plan.md"
-    local filter="$RALPH_DIR/lib/plan-filter.sh"
-    local plan_type select_output
-    plan_type=$(grep -m1 '^Plan Type:' "$plan_file" 2>/dev/null \
-        | sed 's/^Plan Type:[[:space:]]*//' || true)
+    local problems select_output
+    if ! problems=$(validate_plan); then
+        log "$problems"
+        return 1
+    fi
 
-    PLAN_HEADER=$(bash "$filter" header "$plan_file" 2>/dev/null || true)
-    TASK_OVERVIEW=$(bash "$filter" overview "$plan_file" 2>/dev/null || true)
+    PLAN_HEADER=$(plan_filter header 2>/dev/null || true)
+    TASK_OVERVIEW=$(plan_filter overview 2>/dev/null || true)
     SELECTED_TASK=""
     ADJACENT_CONTEXT=""
 
-    [[ "$plan_type" == "process" ]] || return 0
+    [[ "$(plan_type)" == "process" ]] || return 0
 
-    select_output=$(bash "$filter" select "$plan_file") || return 1
+    select_output=$(plan_filter select) || return 1
     if [[ "$select_output" == "NO_ELIGIBLE_TASK" ]]; then
-        if grep -qE '^\*{0,2}Status:\*{0,2}[[:space:]]*`?(planned|blocked)' "$plan_file"; then
-            return 3
-        fi
-        return 2
+        [[ "$(plan_filter summary)" == "planned=0 blocked=0 "* ]] && return 2
+        return 3
     fi
     SELECTED_TASK=$(echo "$select_output" | sed -n '/^---SELECTED_TASK---$/,/^---END_SELECTED_TASK---$/{ /^---.*---$/d; p; }')
     ADJACENT_CONTEXT=$(echo "$select_output" | sed -n '/^---ADJACENT_CONTEXT---$/,/^---END_ADJACENT_CONTEXT---$/{ /^---.*---$/d; p; }')
@@ -241,8 +267,7 @@ refresh_plan_context() {
 
 log_replan_hint() {
     local message="$1" plan_cmd
-    plan_cmd=$(grep -m1 '^Plan Command:' "${RALPH_HOME}/implementation_plan.md" 2>/dev/null \
-        | sed 's/^Plan Command:[[:space:]]*//' || true)
+    plan_cmd=$(plan_meta "Plan Command")
     [[ -z "$plan_cmd" ]] && plan_cmd="ralph plan"
     log "${message} Run '${plan_cmd}' to regenerate the implementation plan."
 }
@@ -346,8 +371,7 @@ run_loop() {
             local plan_rc=0
             refresh_plan_context || plan_rc=$?
             case $plan_rc in
-                1) log "Error: could not parse implementation_plan.md for task selection"
-                   exit_reason="plan parse failure"; exit_code=1; break ;;
+                1) exit_reason="invalid plan"; exit_code=1; break ;;
                 2) exit_reason="all tasks complete"; break ;;
                 3) exit_reason="no eligible task"; exit_code=3
                    log_replan_hint "No eligible task: remaining tasks are blocked or depend on blocked tasks."
@@ -393,6 +417,15 @@ run_loop() {
         esac
     done
 
+    # A finished plan must be parseable by build mode; catch format drift now, not at build time
+    if [[ "$MODE" == "plan" && "$exit_reason" == "completion signal" ]]; then
+        local problems
+        if ! problems=$(validate_plan); then
+            log "$problems"
+            exit_reason="completion signal, but plan is invalid"; exit_code=1
+        fi
+    fi
+
     log "================================================================================"
     log "SESSION SUMMARY"
     log "================================================================================"
@@ -407,9 +440,7 @@ run_loop() {
     log "================================================================================"
 
     if [[ "$MODE" == "build" && ( "$exit_reason" == "completion signal" || "$exit_reason" == "all tasks complete" ) ]]; then
-        plan_type=$(grep -m1 '^Plan Type:' "$RALPH_HOME/implementation_plan.md" 2>/dev/null \
-            | sed 's/^Plan Type:[[:space:]]*//' || true)
-        if [[ "$plan_type" == "process" ]]; then
+        if [[ "$(plan_type)" == "process" ]]; then
             log ""
             log "╔══════════════════════════════════════════════════════════════════════════════════╗"
             log "║  Process-plan build complete. Target-state specs may need updating.            ║"
@@ -488,17 +519,14 @@ case "$MODE" in
         ;;
 
     build)
-        if [[ ! -f "$RALPH_DIR/implementation_plan.md" ]]; then
+        if [[ ! -f "$PLAN_FILE" ]]; then
             echo "Implementation plan not found. Run 'ralph plan' first." >&2
             exit 2
         fi
+        validate_plan >&2 || exit 1
 
         # Plan slices (header, overview, selected task) are refreshed per iteration in run_loop
-        plan_type_check=$(grep -m1 '^Plan Type:' "$RALPH_DIR/implementation_plan.md" 2>/dev/null \
-            | sed 's/^Plan Type:[[:space:]]*//' || true)
-
-        # Select prompt template by plan type
-        if [[ "$plan_type_check" == "process" ]]; then
+        if [[ "$(plan_type)" == "process" ]]; then
             PROMPT_TEMPLATE="$RALPH_DIR/prompts/build-process.md"
         else
             PROMPT_TEMPLATE="$RALPH_DIR/prompts/build.md"
@@ -516,18 +544,16 @@ case "$MODE" in
             echo "Error: align-specs requires process specs. Set PROCESS_DIR in config." >&2
             exit 1
         fi
-        local_plan="$RALPH_DIR/implementation_plan.md"
-        if [[ ! -f "$local_plan" ]]; then
+        if [[ ! -f "$PLAN_FILE" ]]; then
             echo "Error: align-specs requires a process-type implementation plan. Run 'ralph plan --process' and 'ralph build' first." >&2
             exit 1
         fi
-        local_plan_type=$(grep -m1 '^Plan Type:' "$local_plan" 2>/dev/null \
-            | sed 's/^Plan Type:[[:space:]]*//' || true)
-        if [[ "$local_plan_type" != "process" ]]; then
+        validate_plan >&2 || exit 1
+        if [[ "$(plan_type)" != "process" ]]; then
             echo "Error: align-specs requires a process-type implementation plan. Run 'ralph plan --process' and 'ralph build' first." >&2
             exit 1
         fi
-        if ! grep -q 'Status:.*complete' "$local_plan" 2>/dev/null; then
+        if [[ "$(plan_filter summary)" == *" complete=0" ]]; then
             echo "Error: align-specs requires completed build work. Run 'ralph build' first." >&2
             exit 1
         fi

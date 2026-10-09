@@ -30,6 +30,10 @@ EXIT SIGNALS
   tasks remain (exit 3), or when the same task is selected twice in a row
   because the previous iteration neither completed nor blocked it (exit 6).
 
+  Ralph validates implementation_plan.md before every build iteration (Plan
+  Type header, ### Task headings, a planned/blocked/complete status per task)
+  and exits 1 listing each problem, so a malformed plan fails loudly.
+
 MID-IMPLEMENTATION DISCOVERIES
 -------------------------------
   Spec gaps:      Resolve via spec → code → conventions. Document assumptions.

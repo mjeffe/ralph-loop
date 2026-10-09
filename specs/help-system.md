@@ -104,6 +104,7 @@ Cover:
 - Build mode is plan-type agnostic — it respects the plan's structure regardless of how it was created
 - Exit signals: `COMPLETE` (all done), `REPLAN` (plan needs restructuring)
 - Process-plan pre-iteration stops: all complete (0), only blocked tasks (3), no progress (6)
+- Plan validation before every build iteration (exit 1 listing each problem)
 - Mid-implementation discoveries: spec gaps, new work, blocked tasks
 
 ### `ralph help prompt`
