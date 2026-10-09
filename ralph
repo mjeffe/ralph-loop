@@ -47,6 +47,7 @@ Modes:
   align-specs [max_iterations]         Update target-state specs after process migration
   prompt <file> [max_iterations]       Run an ad-hoc prompt from file in the loop
   update                               Update ralph to the latest upstream version
+  version                              Print the installed ralph version (upstream commit)
   sandbox setup [--force]              Generate sandbox files by prompting the agent
   sandbox up                           Start the sandbox container
   sandbox stop                         Stop the sandbox container
@@ -68,6 +69,17 @@ https://github.com/mjeffe/ralph-loop
 EOF
 }
 
+# .version is written by install.sh/update.sh; a source checkout reports its own HEAD
+print_version() {
+    if [[ -f "$RALPH_DIR/.version" ]]; then
+        echo "ralph $(cat "$RALPH_DIR/.version")"
+    elif [[ -d "$RALPH_DIR/.git" ]]; then
+        echo "ralph $(git -C "$RALPH_DIR" rev-parse --short HEAD) (source checkout)"
+    else
+        echo "ralph (unknown version)"
+    fi
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         plan|build|align-specs|prompt|update|sandbox|help)
@@ -85,6 +97,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --help|-h)
             usage
+            exit 0
+            ;;
+        version|--version)
+            print_version
             exit 0
             ;;
         *)

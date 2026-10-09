@@ -5,6 +5,7 @@
 # Each function below is a stub that errors out. To implement, replace with
 # real invocation/parsing logic following the interface defined in specs/agent-scripts.md.
 
+# shellcheck disable=SC2034  # read by ralph after sourcing
 AGENT_CLI="codex"
 
 # Invoke the agent CLI with a prompt file; must stream raw output to stdout.

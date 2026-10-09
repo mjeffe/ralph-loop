@@ -24,6 +24,9 @@ ralph <mode> [max_iterations]
 - `build [max_iterations]` - Run build mode iterations
 - `prompt <file> [max_iterations]` - Run an ad-hoc prompt in the loop
 - `help [topic]` - Show operational guidance (overview, specs, plan, build, prompt, sandbox, align-specs, retro)
+- `version` (or `--version`) - Print the installed version: the upstream commit recorded in
+  `.version` by `install.sh`/`update.sh`, the checkout's `HEAD` when run from a ralph-loop
+  source checkout, or "unknown version". Runs before config loading and prerequisite checks.
 
 The `--process` flag is only valid with `plan`. If used with `build`, `prompt`, or other
 modes, ralph exits with an error: "--process is only valid with 'ralph plan'."

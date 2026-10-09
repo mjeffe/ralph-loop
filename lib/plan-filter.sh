@@ -102,16 +102,10 @@ scan_tasks() {
 # first ### Task heading.
 mode_header() {
     local plan_file="$1"
-    local found_task=0
     while IFS= read -r line; do
-        if is_task_heading "$line"; then
-            found_task=1
-            break
-        fi
+        is_task_heading "$line" && break
         echo "$line"
     done < "$plan_file"
-
-    # Strip trailing blank lines from output
     return 0
 }
 

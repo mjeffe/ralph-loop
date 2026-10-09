@@ -109,19 +109,9 @@ test_validate_prerequisites_skipped_for_sandbox() {
 
 test_build_requires_plan() {
     echo "--- Build mode requires implementation plan ---"
-    # Temporarily hide the plan file to test the missing-plan check.
-    # RALPH_DIR resolves from the script's own location, so we must move
-    # the actual file rather than changing the working directory.
-    local plan="$RALPH_DIR/implementation_plan.md"
-    local stash="$RALPH_DIR/implementation_plan.md.teststash"
-    if [[ -f "$plan" ]]; then
-        mv "$plan" "$stash"
-    fi
-    assert_exit_code "build without plan exits 2" 2 \
-        "$RALPH_DIR/ralph" build 1
-    if [[ -f "$stash" ]]; then
-        mv "$stash" "$plan"
-    fi
+    loop_setup noplan
+    loop_run build 1
+    assert_eq "build without plan exits 2" "2" "$LOOP_RC"
 }
 
 test_prompt_requires_completion_signal() {
@@ -140,36 +130,29 @@ test_process_flag_rejected_with_non_plan_modes() {
 
 test_process_requires_process_dir() {
     echo "--- --process requires PROCESS_DIR ---"
-    local output rc=0
-    output=$("$RALPH_DIR/ralph" plan --process 2>&1) || rc=$?
-    assert_eq "--process without PROCESS_DIR exits 1" "1" "$rc"
-    assert_contains "error mentions PROCESS_DIR" "No PROCESS_DIR configured" "$output"
+    loop_setup noprocdir
+    loop_run plan --process
+    assert_eq "--process without PROCESS_DIR exits 1" "1" "$LOOP_RC"
+    assert_contains "error mentions PROCESS_DIR" "No PROCESS_DIR configured" "$LOOP_OUTPUT"
 }
 
 test_process_dir_must_exist() {
     echo "--- --process validates PROCESS_DIR exists ---"
-    local config_backup
-    config_backup=$(cat "$RALPH_DIR/config")
-    echo 'PROCESS_DIR="/nonexistent/dir"' >> "$RALPH_DIR/config"
-    local output rc=0
-    output=$("$RALPH_DIR/ralph" plan --process 2>&1) || rc=$?
-    echo "$config_backup" > "$RALPH_DIR/config"
-    assert_eq "--process with missing dir exits 1" "1" "$rc"
-    assert_contains "error mentions dir not found" "not found" "$output"
+    loop_setup procdirmissing
+    echo 'PROCESS_DIR="/nonexistent/dir"' >> "$LOOP_DIR/project/.ralph/config"
+    loop_run plan --process
+    assert_eq "--process with missing dir exits 1" "1" "$LOOP_RC"
+    assert_contains "error mentions dir not found" "not found" "$LOOP_OUTPUT"
 }
 
 test_process_dir_must_have_md_files() {
     echo "--- --process validates *.md files in PROCESS_DIR ---"
-    local empty_dir="$TMP_DIR/empty_process"
-    mkdir -p "$empty_dir"
-    local config_backup
-    config_backup=$(cat "$RALPH_DIR/config")
-    echo "PROCESS_DIR=\"$empty_dir\"" >> "$RALPH_DIR/config"
-    local output rc=0
-    output=$("$RALPH_DIR/ralph" plan --process 2>&1) || rc=$?
-    echo "$config_backup" > "$RALPH_DIR/config"
-    assert_eq "--process with empty dir exits 1" "1" "$rc"
-    assert_contains "error mentions no process specs" "No process specs found" "$output"
+    loop_setup procdirempty
+    mkdir -p "$LOOP_DIR/project/process"
+    echo 'PROCESS_DIR="process"' >> "$LOOP_DIR/project/.ralph/config"
+    loop_run plan --process
+    assert_eq "--process with empty dir exits 1" "1" "$LOOP_RC"
+    assert_contains "error mentions no process specs" "No process specs found" "$LOOP_OUTPUT"
 }
 
 test_usage_shows_process() {
@@ -266,72 +249,41 @@ test_help_index_shows_align_specs() {
 
 test_align_specs_requires_process_dir() {
     echo "--- align-specs requires PROCESS_DIR ---"
-    local output rc=0
-    output=$("$RALPH_DIR/ralph" align-specs 2>&1) || rc=$?
-    assert_eq "align-specs without PROCESS_DIR exits 1" "1" "$rc"
-    assert_contains "error mentions process specs" "align-specs requires process specs" "$output"
+    loop_setup alignnoprocdir
+    loop_run align-specs
+    assert_eq "align-specs without PROCESS_DIR exits 1" "1" "$LOOP_RC"
+    assert_contains "error mentions process specs" "align-specs requires process specs" "$LOOP_OUTPUT"
 }
 
 test_align_specs_requires_process_plan() {
     echo "--- align-specs requires process-type plan ---"
-    local config_backup
-    config_backup=$(cat "$RALPH_DIR/config")
-    echo "PROCESS_DIR=\"$TMP_DIR/project/specs\"" >> "$RALPH_DIR/config"
-
-    local plan_backup=""
-    if [[ -f "$RALPH_DIR/implementation_plan.md" ]]; then
-        plan_backup=$(cat "$RALPH_DIR/implementation_plan.md")
-    fi
-    cat > "$RALPH_DIR/implementation_plan.md" <<'PLAN'
-# Implementation Plan
-
-Plan Type: gap-driven
-
-### Task 1: Something
-**Status:** planned
-PLAN
-
-    local output rc=0
-    output=$("$RALPH_DIR/ralph" align-specs 2>&1) || rc=$?
-
-    # Restore config and plan
-    echo "$config_backup" > "$RALPH_DIR/config"
-    if [[ -n "$plan_backup" ]]; then
-        echo "$plan_backup" > "$RALPH_DIR/implementation_plan.md"
-    fi
-
-    assert_eq "align-specs with gap-driven plan exits 1" "1" "$rc"
-    assert_contains "error mentions process-type" "process-type implementation plan" "$output"
+    loop_setup aligngap
+    echo 'PROCESS_DIR="specs"' >> "$LOOP_DIR/project/.ralph/config"
+    printf '# Plan\n\nPlan Type: gap-driven\n\n### Task 1: Something\n**Status:** complete\n' \
+        > "$LOOP_DIR/project/.ralph/implementation_plan.md"
+    loop_run align-specs
+    assert_eq "align-specs with gap-driven plan exits 1" "1" "$LOOP_RC"
+    assert_contains "error mentions process-type" "process-type implementation plan" "$LOOP_OUTPUT"
 }
 
 test_align_specs_requires_completed_tasks() {
     echo "--- align-specs requires completed tasks ---"
-    local config_backup
-    config_backup=$(cat "$RALPH_DIR/config")
-    echo "PROCESS_DIR=\"$TMP_DIR/project/specs\"" >> "$RALPH_DIR/config"
+    loop_setup alignnocomplete
+    echo 'PROCESS_DIR="specs"' >> "$LOOP_DIR/project/.ralph/config"
+    printf '# Plan\n\nPlan Type: process\n\n### Task 1: Something\n**Status:** planned\n' \
+        > "$LOOP_DIR/project/.ralph/implementation_plan.md"
+    loop_run align-specs
+    assert_eq "align-specs without completed tasks exits 1" "1" "$LOOP_RC"
+    assert_contains "error mentions completed build work" "align-specs requires completed build work" "$LOOP_OUTPUT"
+}
 
-    local plan_backup=""
-    if [[ -f "$RALPH_DIR/implementation_plan.md" ]]; then
-        plan_backup=$(cat "$RALPH_DIR/implementation_plan.md")
-    fi
-    cat > "$RALPH_DIR/implementation_plan.md" <<'PLAN'
-# Implementation Plan
-
-Plan Type: process
-
-### Task 1: Something
-**Status:** planned
-PLAN
-
-    local output rc=0
-    output=$("$RALPH_DIR/ralph" align-specs 2>&1) || rc=$?
-
-    # Restore
-    echo "$config_backup" > "$RALPH_DIR/config"
-    if [[ -n "$plan_backup" ]]; then
-        echo "$plan_backup" > "$RALPH_DIR/implementation_plan.md"
-    fi
-
-    assert_eq "align-specs without completed tasks exits 1" "1" "$rc"
-    assert_contains "error mentions completed build work" "align-specs requires completed build work" "$output"
+test_version_reports_installed_version() {
+    echo "--- ralph version reports the installed version ---"
+    loop_setup version
+    echo "abc1234" > "$LOOP_DIR/project/.ralph/.version"
+    loop_run version
+    assert_eq "prints .version contents" "ralph abc1234" "$LOOP_OUTPUT"
+    rm "$LOOP_DIR/project/.ralph/.version"
+    loop_run --version
+    assert_eq "falls back to unknown without .version" "ralph (unknown version)" "$LOOP_OUTPUT"
 }

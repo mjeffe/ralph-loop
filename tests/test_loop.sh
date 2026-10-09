@@ -2,26 +2,6 @@
 # Loop tests — run the real ralph script end-to-end in a throwaway project with the
 # scripted stub agent (tests/stub_agent.sh). No LLM, no Docker, sub-second per scenario.
 
-# Install a copy of ralph into a fresh project at $LOOP_DIR/project/.ralph with the stub agent.
-# Usage: loop_setup <name> [action...]   (one stub action per agent invocation)
-loop_setup() {
-    LOOP_DIR="$TMP_DIR/loop-$1"
-    shift
-    mkdir -p "$LOOP_DIR/project/specs" "$LOOP_DIR/project/.ralph" "$LOOP_DIR/stub"
-    git init -q "$LOOP_DIR/project"
-    echo "# Specs Index" > "$LOOP_DIR/project/specs/README.md"
-    cp -r "$RALPH_DIR"/{ralph,lib,prompts,agents,config} "$LOOP_DIR/project/.ralph/"
-    cp "$RALPH_DIR/tests/stub_agent.sh" "$LOOP_DIR/project/.ralph/agents/stub.sh"
-    sed -i 's/^AGENT=.*/AGENT="stub"/; s/^MAX_RETRIES=.*/MAX_RETRIES=1/' "$LOOP_DIR/project/.ralph/config"
-    printf '%s\n' "$@" > "$LOOP_DIR/stub/actions"
-}
-
-# Run ralph in the loop project. Sets LOOP_RC and LOOP_OUTPUT.
-loop_run() {
-    LOOP_RC=0
-    LOOP_OUTPUT=$(cd "$LOOP_DIR/project" && STUB_DIR="$LOOP_DIR/stub" .ralph/ralph "$@" 2>&1) || LOOP_RC=$?
-}
-
 loop_invocations() { cat "$LOOP_DIR/stub/count" 2>/dev/null || echo 0; }
 loop_prompt() { cat "$LOOP_DIR/stub/prompt-$1.md"; }
 

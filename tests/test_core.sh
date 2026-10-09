@@ -377,6 +377,18 @@ test_run_iteration_has_empty_response_check() {
     assert_contains "ralph logs empty response warning" "Agent produced no response" "$ralph_src"
 }
 
+test_shellcheck_shipped_scripts() {
+    echo "--- shellcheck: shipped scripts have no warnings ---"
+    if ! command -v shellcheck &>/dev/null; then
+        echo "  SKIP: shellcheck not installed"
+        return 0
+    fi
+    local output rc=0
+    output=$(cd "$RALPH_DIR" && shellcheck -S warning ralph lib/*.sh install.sh update.sh agents/*.sh 2>&1) || rc=$?
+    assert_eq "no shellcheck warnings" "0" "$rc"
+    [[ $rc -eq 0 ]] || echo "$output"
+}
+
 extract_managed_files() {
     sed -n '/^MANAGED_FILES=(/,/^)/p' "$1" | grep -v '^MANAGED_FILES=\|^)' | tr -d ' ' | sort
 }

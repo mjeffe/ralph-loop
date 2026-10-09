@@ -66,6 +66,7 @@ run_cli_tests() {
     test_align_specs_requires_process_dir
     test_align_specs_requires_process_plan
     test_align_specs_requires_completed_tasks
+    test_version_reports_installed_version
 }
 
 run_signal_tests() {
@@ -106,6 +107,7 @@ run_core_tests() {
     test_managed_files_in_sync
     test_run_iteration_has_empty_response_check
     test_adhoc_prompts_single_exit_signal
+    test_shellcheck_shipped_scripts
 }
 
 run_install_update_tests() {

@@ -2,7 +2,7 @@
 # Shared test helpers — sourced by test_ralph.sh and individual test files.
 #
 # Provides: assert_eq, assert_contains, assert_not_contains, assert_exit_code,
-#           setup, teardown, RALPH_DIR, TMP_DIR, PASS, FAIL, TESTS counters.
+#           setup, teardown, loop_setup, loop_run, RALPH_DIR, TMP_DIR, PASS, FAIL, TESTS counters.
 
 set -euo pipefail
 
@@ -87,4 +87,28 @@ setup() {
 
 teardown() {
     rm -rf "$TMP_DIR"
+}
+
+# ---------------------------------------------------------------------------
+# Throwaway project: a copy of ralph installed at $LOOP_DIR/project/.ralph with the stub agent
+# (tests/stub_agent.sh). Lets tests run the real ralph script without touching this checkout.
+# ---------------------------------------------------------------------------
+# Usage: loop_setup <name> [action...]   (one stub action per agent invocation)
+loop_setup() {
+    LOOP_DIR="$TMP_DIR/loop-$1"
+    shift
+    mkdir -p "$LOOP_DIR/project/specs" "$LOOP_DIR/project/.ralph" "$LOOP_DIR/stub"
+    git init -q "$LOOP_DIR/project"
+    echo "# Specs Index" > "$LOOP_DIR/project/specs/README.md"
+    cp -r "$RALPH_DIR"/{ralph,lib,prompts,agents,config} "$LOOP_DIR/project/.ralph/"
+    cp "$RALPH_DIR/tests/stub_agent.sh" "$LOOP_DIR/project/.ralph/agents/stub.sh"
+    sed -i 's/^AGENT=.*/AGENT="stub"/; s/^MAX_RETRIES=.*/MAX_RETRIES=1/; s/^PROCESS_DIR=.*/PROCESS_DIR=""/' \
+        "$LOOP_DIR/project/.ralph/config"
+    printf '%s\n' "$@" > "$LOOP_DIR/stub/actions"
+}
+
+# Run ralph in the loop project. Sets LOOP_RC and LOOP_OUTPUT.
+loop_run() {
+    LOOP_RC=0
+    LOOP_OUTPUT=$(cd "$LOOP_DIR/project" && STUB_DIR="$LOOP_DIR/stub" .ralph/ralph "$@" 2>&1) || LOOP_RC=$?
 }

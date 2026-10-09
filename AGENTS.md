@@ -21,7 +21,9 @@ Tests are structural (grep/sed against source), isolated function exercises, or 
 (`tests/test_loop.sh`) that run the real `ralph` loop in a throwaway project with the scripted stub
 agent (`tests/stub_agent.sh`). Tests never call Docker and never invoke a real LLM agent.
 When changing loop behavior (iterations, signals, retries, exit codes, prompt rendering), add or
-update a loop test scenario.
+update a loop test scenario. Tests that need a ralph install (config, plan, `.version`) must use
+`loop_setup`/`loop_run` from `tests/test_helpers.sh` — never edit this checkout's own `config` or
+`implementation_plan.md`. Install `shellcheck`: the suite lints shipped scripts and fails on warnings.
 
 Running ralph itself can be expensive and time consuming. If you need to run it for testing
 purposes, ONLY run it after temporarily inserting debug statements or bypasses to

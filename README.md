@@ -119,6 +119,7 @@ ralph build [max_iterations]      # Build tasks from the implementation plan
 ralph prompt <file>               # Run a custom prompt in the loop
 ralph align-specs                 # Update target-state specs after a process migration
 ralph update                      # Update ralph to the latest upstream version
+ralph version                     # Print the installed ralph version (upstream commit)
 ralph sandbox setup               # Generate a Docker sandbox for isolated agent execution
 ralph help                        # List available help topics
 ralph help <topic>                # Detailed guidance (specs, plan, build, prompt, sandbox, ...)
@@ -173,7 +174,9 @@ Available groups: `cli`, `signals`, `core`, `install_update`, `plan_filter`, `sa
 
 All tests are deterministic, zero-cost (no real agent invocation), and run in under 10 seconds. The
 `loop` group runs the real `ralph` loop in a throwaway project with a scripted stub agent
-(`tests/stub_agent.sh`) to check iterations, signals, retries, exit codes, and rendered prompts. A pre-push git hook runs the full suite automatically.
+(`tests/stub_agent.sh`) to check iterations, signals, retries, exit codes, and rendered prompts. The `core`
+group also runs `shellcheck -S warning` on the shipped scripts when `shellcheck` is installed (skipped
+otherwise). A pre-push git hook runs the full suite automatically.
 
 ## References
 
