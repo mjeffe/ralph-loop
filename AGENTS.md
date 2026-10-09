@@ -46,17 +46,31 @@ When adding a new `prompts/adhoc-*.md` to the shipped set:
 4. If the prompt demonstrates a durable-state pattern not currently represented in the shipped set, mention that in `lib/help/prompt.txt`'s `DURABLE-STATE PATTERNS` section. If it duplicates a pattern, consider extending the existing example instead (see `specs/adhoc-prompts.md`).
 5. Run `./tests/test_ralph.sh` and confirm the structural test (`test_adhoc_prompts_single_exit_signal`) passes for the new file.
 
+## Writing style
+
+- Use plain ASCII characters only. No Unicode decorative glyphs: no smart
+  quotes, no fancy arrows, no bullet alternatives. Use standard ASCII
+  replacements: `->` for arrow, `*` or `-` for bullets, straight quotes.
+- Avoid stylistic tics common in LLM output. Do not use em-dashes; reword
+  with a comma, parentheses, or a separate sentence instead. Avoid sign-off
+  pleasantries ("Certainly!", "Let me know if..."), and overuse of
+  bold/italics for emphasis in documents meant for external sharing.
+- Objective and evidence-based. Cite sources: file paths with line numbers,
+  git history, query output.
+
 ## Commit Messages
 
+- Follow the Writing style rules above (ASCII only, no em dashes, etc.)
+- Use conventional commit prefixes such as `docs:`, `feat:`, `fix:`, `chore`, etc..
+- First line under 72 characters, followed by a blank line when body is needed.
 - No agent attribution or "Generated with" footers
-- Use conventional commits (feat:, fix:, etc.)
-- First line under 72 characters followed by a blank line.
 - Do not include `Closes #N` or `Fixes #N` in commit messages — issues often have
   multiple gaps to address across several commits. Auto-close would prematurely close
   the issue. Instead, close issues manually via `gh issue close --comment` once all
   gaps are addressed.
 - Reference the issue number in commit messages (e.g., `fix: add bundling constraint (#1)`)
   so GitHub creates cross-reference links on the issue.
+- No agent attribution or "Generated with" footers
 
 ## GitHub CLI
 
