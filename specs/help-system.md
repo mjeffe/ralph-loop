@@ -103,6 +103,7 @@ Cover:
 - Task selection: highest-priority `planned` task
 - Build mode is plan-type agnostic — it respects the plan's structure regardless of how it was created
 - Exit signals: `COMPLETE` (all done), `REPLAN` (plan needs restructuring)
+- Process-plan pre-iteration stops: all complete (0), only blocked tasks (3), no progress (6)
 - Mid-implementation discoveries: spec gaps, new work, blocked tasks
 
 ### `ralph help prompt`

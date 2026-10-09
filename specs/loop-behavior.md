@@ -181,6 +181,11 @@ Loop exits when any of these occur:
 4. **Plan missing (build mode)** - Exit code 2
 5. **Agent failure exceeds retries** - Exit code 4
 6. **Git operation failure** - Exit code 5
+7. **Process build: no eligible task** - Checked before each iteration (see `build-mode.md`).
+   All tasks complete → exit code 0; blocked or unready tasks remain → exit code 3 (with the
+   same re-planning message as the replan signal); plan cannot be parsed → exit code 1
+8. **Process build: no progress** - The same task is selected in two consecutive iterations
+   (the previous iteration neither completed nor blocked it) - Exit code 6
 
 ## Iteration Logging
 

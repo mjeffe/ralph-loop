@@ -205,6 +205,49 @@ prepare_prompt() {
 }
 
 # ---------------------------------------------------------------------------
+# Build mode: re-read the plan and refresh injected plan slices.
+# Called before every build iteration so prompts reflect prior iterations' plan updates.
+# Returns:
+#   0 - context refreshed (task selected, or gap-driven plan)
+#   1 - plan could not be parsed for task selection
+#   2 - process plan: no eligible task, all tasks complete
+#   3 - process plan: no eligible task, blocked/unready tasks remain
+# ---------------------------------------------------------------------------
+refresh_plan_context() {
+    local plan_file="$RALPH_DIR/implementation_plan.md"
+    local filter="$RALPH_DIR/lib/plan-filter.sh"
+    local plan_type select_output
+    plan_type=$(grep -m1 '^Plan Type:' "$plan_file" 2>/dev/null \
+        | sed 's/^Plan Type:[[:space:]]*//' || true)
+
+    PLAN_HEADER=$(bash "$filter" header "$plan_file" 2>/dev/null || true)
+    TASK_OVERVIEW=$(bash "$filter" overview "$plan_file" 2>/dev/null || true)
+    SELECTED_TASK=""
+    ADJACENT_CONTEXT=""
+
+    [[ "$plan_type" == "process" ]] || return 0
+
+    select_output=$(bash "$filter" select "$plan_file") || return 1
+    if [[ "$select_output" == "NO_ELIGIBLE_TASK" ]]; then
+        if grep -qE '^\*{0,2}Status:\*{0,2}[[:space:]]*`?(planned|blocked)' "$plan_file"; then
+            return 3
+        fi
+        return 2
+    fi
+    SELECTED_TASK=$(echo "$select_output" | sed -n '/^---SELECTED_TASK---$/,/^---END_SELECTED_TASK---$/{ /^---.*---$/d; p; }')
+    ADJACENT_CONTEXT=$(echo "$select_output" | sed -n '/^---ADJACENT_CONTEXT---$/,/^---END_ADJACENT_CONTEXT---$/{ /^---.*---$/d; p; }')
+    return 0
+}
+
+log_replan_hint() {
+    local message="$1" plan_cmd
+    plan_cmd=$(grep -m1 '^Plan Command:' "${RALPH_HOME}/implementation_plan.md" 2>/dev/null \
+        | sed 's/^Plan Command:[[:space:]]*//' || true)
+    [[ -z "$plan_cmd" ]] && plan_cmd="ralph plan"
+    log "${message} Run '${plan_cmd}' to regenerate the implementation plan."
+}
+
+# ---------------------------------------------------------------------------
 # Signal detection
 # ---------------------------------------------------------------------------
 check_signals() {
@@ -295,9 +338,32 @@ run_loop() {
     local session_start iteration=0 success=0 failures=0
     local exit_reason="max iterations reached" exit_code=0
     local context_min="" context_max="" context_sum=0 context_count=0 context_window=""
+    local task_heading prev_task_heading=""
     session_start=$(date +%s)
 
     while [[ $iteration -lt $MAX_ITERATIONS ]]; do
+        if [[ "$MODE" == "build" ]]; then
+            local plan_rc=0
+            refresh_plan_context || plan_rc=$?
+            case $plan_rc in
+                1) log "Error: could not parse implementation_plan.md for task selection"
+                   exit_reason="plan parse failure"; exit_code=1; break ;;
+                2) exit_reason="all tasks complete"; break ;;
+                3) exit_reason="no eligible task"; exit_code=3
+                   log_replan_hint "No eligible task: remaining tasks are blocked or depend on blocked tasks."
+                   break ;;
+            esac
+
+            # A build iteration must complete or block its task; re-selecting it means no progress
+            task_heading="${SELECTED_TASK%%$'\n'*}"
+            if [[ -n "$task_heading" && "$task_heading" == "$prev_task_heading" ]]; then
+                log "⚠ '${task_heading}' selected again: previous iteration neither completed nor blocked it"
+                exit_reason="no progress"; exit_code=6
+                break
+            fi
+            prev_task_heading="$task_heading"
+        fi
+
         iteration=$(( iteration + 1 ))
         _ITER_CONTEXT_USED="" _ITER_CONTEXT_MAX="" _ITER_CONTEXT_PCT=""
 
@@ -320,11 +386,7 @@ run_loop() {
             0) success=$(( success + 1 )) ;;
             2) success=$(( success + 1 )); exit_reason="completion signal"; break ;;
             3) success=$(( success + 1 )); exit_reason="replan signal"; exit_code=3
-               local plan_cmd
-               plan_cmd=$(grep -m1 '^Plan Command:' "${RALPH_HOME}/implementation_plan.md" 2>/dev/null \
-                   | sed 's/^Plan Command:[[:space:]]*//' || true)
-               [[ -z "$plan_cmd" ]] && plan_cmd="ralph plan"
-               log "Agent requested re-planning. Run '${plan_cmd}' to regenerate the implementation plan."
+               log_replan_hint "Agent requested re-planning."
                break ;;
             *) failures=$(( failures + 1 )); exit_reason="agent failure exceeded retries"; exit_code=4
                break ;;
@@ -344,7 +406,7 @@ run_loop() {
     log "Exit: ${exit_reason} (code ${exit_code})"
     log "================================================================================"
 
-    if [[ "$MODE" == "build" && "$exit_reason" == "completion signal" ]]; then
+    if [[ "$MODE" == "build" && ( "$exit_reason" == "completion signal" || "$exit_reason" == "all tasks complete" ) ]]; then
         plan_type=$(grep -m1 '^Plan Type:' "$RALPH_HOME/implementation_plan.md" 2>/dev/null \
             | sed 's/^Plan Type:[[:space:]]*//' || true)
         if [[ "$plan_type" == "process" ]]; then
@@ -431,41 +493,9 @@ case "$MODE" in
             exit 2
         fi
 
-        plan_file="$RALPH_DIR/implementation_plan.md"
-        filter="$RALPH_DIR/lib/plan-filter.sh"
-
-        # Extract plan type
-        plan_type_check=$(grep -m1 '^Plan Type:' "$plan_file" 2>/dev/null \
+        # Plan slices (header, overview, selected task) are refreshed per iteration in run_loop
+        plan_type_check=$(grep -m1 '^Plan Type:' "$RALPH_DIR/implementation_plan.md" 2>/dev/null \
             | sed 's/^Plan Type:[[:space:]]*//' || true)
-
-        # Extract plan header (everything above first ### Task)
-        PLAN_HEADER=""
-        if [[ -f "$filter" ]]; then
-            PLAN_HEADER=$(bash "$filter" header "$plan_file" 2>/dev/null || true)
-        fi
-        export PLAN_HEADER
-
-        # Generate smart task overview
-        TASK_OVERVIEW=""
-        if [[ -f "$filter" ]]; then
-            overview=$(bash "$filter" overview "$plan_file" 2>/dev/null || true)
-            if [[ -n "$overview" ]]; then
-                TASK_OVERVIEW="$overview"
-            fi
-        fi
-        export TASK_OVERVIEW
-
-        # For process plans: deterministic task selection
-        SELECTED_TASK=""
-        ADJACENT_CONTEXT=""
-        if [[ "$plan_type_check" == "process" && -f "$filter" ]]; then
-            select_output=$(bash "$filter" select "$plan_file" 2>/dev/null || true)
-            if [[ -n "$select_output" && "$select_output" != "NO_ELIGIBLE_TASK" ]]; then
-                SELECTED_TASK=$(echo "$select_output" | sed -n '/^---SELECTED_TASK---$/,/^---END_SELECTED_TASK---$/{ /^---.*---$/d; p; }')
-                ADJACENT_CONTEXT=$(echo "$select_output" | sed -n '/^---ADJACENT_CONTEXT---$/,/^---END_ADJACENT_CONTEXT---$/{ /^---.*---$/d; p; }')
-            fi
-        fi
-        export SELECTED_TASK ADJACENT_CONTEXT
 
         # Select prompt template by plan type
         if [[ "$plan_type_check" == "process" ]]; then

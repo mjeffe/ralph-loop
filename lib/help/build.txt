@@ -25,6 +25,11 @@ EXIT SIGNALS
                                 planning command shown in Plan Command: at the
                                 top of the plan.
 
+  Process plans: ralph re-selects the task before every iteration and also
+  stops on its own when all tasks are complete (exit 0), when only blocked
+  tasks remain (exit 3), or when the same task is selected twice in a row
+  because the previous iteration neither completed nor blocked it (exit 6).
+
 MID-IMPLEMENTATION DISCOVERIES
 -------------------------------
   Spec gaps:      Resolve via spec → code → conventions. Document assumptions.

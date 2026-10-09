@@ -43,6 +43,16 @@ only. Ralph deterministically selects the next task (earliest incomplete section
 task with resolved dependencies) and injects it with 1-2 adjacent tasks for local orientation.
 Agents implement the assigned task — they do not participate in selection.
 
+All slices are recomputed from the current plan file before every iteration, never once per
+session — each iteration must see the status updates made by the previous one. Before invoking
+the agent on a process plan, ralph stops the session when:
+
+- no eligible task exists and all tasks are `complete` → exit 0 (same as the completion signal)
+- no eligible task exists but `planned`/`blocked` tasks remain → exit 3 (same as the replan signal)
+- the plan cannot be parsed for selection → exit 1
+- the same task is selected as in the previous iteration → exit 6 ("no progress"); a build
+  iteration must complete or block its task, so re-selection means the agent made no progress
+
 ### Bifurcated Prompt Selection
 
 Ralph selects the build prompt based on `Plan Type:` in the plan header:
@@ -384,3 +394,5 @@ Build mode session exits when:
 2. `<promise>REPLAN</promise>` detected (replan needed, exit code 3)
 3. Max iterations reached (success, incomplete)
 4. Agent failure exit from iteration (failure)
+5. Process plan pre-iteration checks: no eligible task or no progress (see Infrastructure-Managed
+   Plan Context)
