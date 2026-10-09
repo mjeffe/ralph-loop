@@ -175,6 +175,57 @@ directly to ralph's needs:
 
 Estimated line count reduction if fully migrated: ~5,500 bash to ~2,500 Python.
 
+### 4. Dual Agent-Sourcing Pattern in Sandbox Mode — LOW
+
+Two places in `lib/sandbox.sh` source the agent script, with implicit coupling about
+who does it when:
+
+- `sandbox_setup` (line ~440) sources the agent script unconditionally.
+- `sandbox_build_base` and `sandbox_agent_env_keys` conditionally source the agent
+  script only "when sandbox_up called me, because sandbox_setup already sourced it."
+
+This is documented in comments but fragile: a third sandbox command that needs to
+build the base image must remember to source the agent first or rely on the
+conditional fallback.
+
+**Remediation:** Source the agent script unconditionally in `ralph`'s main body,
+then remove the source from both `sandbox_setup` and `sandbox_build_base`.
+`validate_prerequisites` already returns early for sandbox/help modes, so sourcing
+the agent in sandbox mode will not trigger the `command -v "$AGENT_CLI"` check.
+Removes ~8 lines of conditional sourcing logic.
+
+### 5. pi Agent: No Context-Window Warnings — LOW
+
+pi.sh does not set `_ITER_CONTEXT_PCT`, `_ITER_CONTEXT_USED`, or `_ITER_CONTEXT_MAX`
+because pi's NDJSON stream does not expose the model's max context window
+(`maxTokens` is not in pi's `usage` object). This means pi users lose:
+
+- The "context usage high" warning in the terminal
+- Session-level context min/avg/max in the summary
+
+This is a pi limitation, not a bug, but it is a meaningful feature gap compared to
+amp/claude.
+
+**Remediation:** pi's model name is known from `PI_MODEL` or the stream metadata.
+A lookup table of model -> max context (or shelling out to `pi --list-models`)
+could provide the missing value. Alternatively, accept it as not worth the
+complexity — pi is positioned as the "cheap model on low-value iterations" agent
+where context warnings matter less.
+
+### 6. pi.sh Token/Cost Asymmetry Comment — TRIVIAL
+
+In `agents/pi.sh`, the `agent_post_iteration` awk block sums cost across all
+`message_end` events but captures `totalTokens` from only the last message:
+
+```awk
+{ cost += $1; tokens = $2 }
+```
+
+This is intentional (cost is cumulative; only the final turn's context size
+matters for context pressure), but the asymmetry could confuse a future maintainer.
+
+**Remediation:** Add a one-line comment in the awk block.
+
 ## Non-Goals
 
 - Multi-agent coordination, parallel execution, Web UI, cloud deployment (see

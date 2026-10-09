@@ -1,7 +1,15 @@
 #!/bin/bash
 # Agent script for Claude Code (https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)
 
+# shellcheck disable=SC2034  # AGENT_INSTALL, AGENT_ENV_KEYS: read by ralph after sourcing
 AGENT_CLI="claude"
+# Command to install the agent CLI in the sandbox base image (see Dockerfile.base
+# AGENT_INSTALL build arg, injected by sandbox_build_base in lib/sandbox.sh).
+AGENT_INSTALL="npm install -g @anthropic-ai/claude-code"
+# Environment variable(s) holding this agent's API credentials. Ralph forwards
+# these into the sandbox (docker-compose env pass-through + .env.example) so the
+# agent can authenticate inside the container. Space-separated if more than one.
+AGENT_ENV_KEYS="ANTHROPIC_API_KEY"
 # --output-format stream-json: emit one JSON object per line (same schema as amp)
 # -p: read prompt from stdin (piped mode)
 AGENT_ARGS="--output-format stream-json -p"

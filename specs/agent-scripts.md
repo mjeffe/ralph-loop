@@ -18,6 +18,7 @@ agents/
   claude.sh
   cline.sh
   codex.sh
+  pi.sh
 ```
 
 The active agent is selected by the `AGENT` variable in `config`:
@@ -107,8 +108,50 @@ Agent scripts **must** set:
 | Variable | Purpose | Example |
 |----------|---------|---------|
 | `AGENT_CLI` | The CLI command name | `amp` |
+| `AGENT_INSTALL` | Command to install the agent CLI in the sandbox base image | `npm install -g @sourcegraph/amp` |
+| `AGENT_ENV_KEYS` | API-credential env var(s) ralph forwards into the sandbox (space-separated; may be empty) | `AMP_API_KEY` |
 
 Ralph uses `AGENT_CLI` to validate that the agent is installed (via `command -v`).
+
+`AGENT_INSTALL` is injected as the `AGENT_INSTALL` Docker build arg when building
+the sandbox base image (see `sandbox_build_base()` in the sandbox spec). This
+makes the base image agent-configurable: switching `AGENT` and rebuilding installs
+the matching CLI. If an agent script omits `AGENT_INSTALL`, the base image falls
+back to its Dockerfile default (Amp).
+
+`AGENT_ENV_KEYS` lists the environment variable(s) holding the agent's API
+credentials. Installing an agent's CLI is only half of running it in the sandbox —
+it must also authenticate. Ralph exports `AGENT_ENV_KEYS` when rendering the
+sandbox so the generated `docker-compose.yml` forwards (pass-through) the right
+key(s) into the container and `.env.example` documents them. This makes
+authentication agent-configurable the same way `AGENT_INSTALL` makes installation
+configurable. The value may be:
+- a single var (`AMP_API_KEY` for amp, `ANTHROPIC_API_KEY` for claude),
+- derived dynamically (pi derives `<PROVIDER>_API_KEY` from `PI_MODEL`, e.g.
+  `OPENROUTER_API_KEY`), or
+- empty when the agent authenticates out-of-band (cline, configured via
+  `cline auth`); ralph then forwards no agent key.
+
+### Agent-Specific Configuration
+
+Ralph sources `config` **before** the agent script, so agent scripts may read
+agent-specific variables defined in `config`. For example, `pi.sh` reads `PI_MODEL`
+to select the model passed to the `pi` CLI (e.g. `openrouter/anthropic/claude-3.5-haiku`),
+falling back to a built-in default when unset. This keeps model selection in `config`
+(versioned with the project and preserved across `ralph update`) rather than
+hard-coded in the managed agent script. (A future enhancement could select a
+different model per task by keying off the exported `MODE`; the current contract is a
+single model per agent.)
+
+**Convention.** Agent-specific config keys are named `<AGENT>_<SETTING>` (e.g.
+`PI_MODEL`) and are **shipped commented-out** in `config`, with the real default
+living in the agent script's fallback (`PI_MODEL="${PI_MODEL:-...}"`). This keeps
+the shared `config` uncluttered for projects that use a different agent, while the
+commented line documents the key and makes overriding a one-line edit. Each agent
+script owns reading its own keys — no central registry or per-agent config files.
+(If a future agent needs several settings, or 3+ agents each carry their own keys,
+revisit with a per-agent config section or file; the flat convention is sufficient
+until then.)
 
 ### Optional Functions
 
@@ -182,10 +225,13 @@ To add support for a new agent:
 
 1. Create `agents/{name}.sh`
 2. Set `AGENT_CLI` to the CLI command name
-3. Implement `agent_invoke`, `agent_extract_response`, and `agent_format_display`
-4. Optionally implement `agent_pre_iteration` and `agent_post_iteration`
-5. Set `AGENT="{name}"` in config
-6. Test with `ralph plan`
+3. Set `AGENT_INSTALL` to the command that installs the CLI (for sandbox builds)
+4. Set `AGENT_ENV_KEYS` to the agent's API-credential env var(s), or `""` if the
+   agent authenticates out-of-band (so the sandbox forwards the right key)
+5. Implement `agent_invoke`, `agent_extract_response`, and `agent_format_display`
+6. Optionally implement `agent_pre_iteration` and `agent_post_iteration`
+7. Set `AGENT="{name}"` in config
+8. Test with `ralph plan`
 
 The agent CLI must:
 - Accept a prompt via stdin
@@ -258,3 +304,17 @@ agent_post_iteration() {
     fi
 }
 ```
+
+## Switching Agents on an Existing Sandbox
+
+The sandbox base image and docker-compose.yml are built against the agent
+configured at `sandbox setup` time. To switch agents on an existing sandbox:
+
+1. Change `AGENT` in config
+2. Run `ralph sandbox setup --render-only --force` — this rebuilds the base
+   image with the new agent's CLI and re-renders docker-compose.yml with the
+   new agent's env keys, without re-analyzing the project.
+
+Note: this is a workaround for the current single-agent architecture. Multi-agent
+support (installing all CLIs and forwarding all keys at build time, so switching
+agents requires no rebuild or re-render) is tracked separately.

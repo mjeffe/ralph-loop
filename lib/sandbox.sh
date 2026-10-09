@@ -336,6 +336,51 @@ sandbox_validate() {
     fi
 }
 
+# Build the ralph-sandbox-base image. The agent CLI baked into the base image is
+# determined by the configured agent's AGENT_INSTALL command (from
+# agents/${AGENT}.sh), injected as a Docker build arg. This keeps the base image
+# agent-agnostic: switching AGENT and rebuilding installs the matching CLI.
+# Falls back to the Dockerfile.base default (Amp) if no AGENT_INSTALL is defined.
+sandbox_build_base() {
+    local sandbox_dir="$RALPH_DIR/sandbox"
+
+    # Copy managed build-context files (Dockerfile.base, wait-for-db, preferences).
+    cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
+    cp "$RALPH_DIR/prompts/templates/wait-for-db" "$sandbox_dir/wait-for-db"
+    cp "$RALPH_DIR/sandbox-preferences.sh" "$sandbox_dir/sandbox-preferences.sh"
+
+    # Resolve the agent's install command. sandbox_setup sources the agent script
+    # already; sandbox_up does not, so source it here when AGENT_INSTALL is unset.
+    if [[ -z "${AGENT_INSTALL:-}" && -f "$RALPH_DIR/agents/${AGENT}.sh" ]]; then
+        # shellcheck source=/dev/null
+        source "$RALPH_DIR/agents/${AGENT}.sh"
+    fi
+
+    local build_args=()
+    if [[ -n "${AGENT_INSTALL:-}" ]]; then
+        build_args+=(--build-arg "AGENT_INSTALL=$AGENT_INSTALL")
+    fi
+
+    docker build -t ralph-sandbox-base \
+        "${build_args[@]+"${build_args[@]}"}" \
+        -f "$sandbox_dir/Dockerfile.base" \
+        "$sandbox_dir/"
+}
+
+# Resolve the configured agent's credential env var(s) (AGENT_ENV_KEYS from
+# agents/${AGENT}.sh) and echo them space-separated. Ralph forwards these into
+# the sandbox so the agent can authenticate inside the container. sandbox_setup
+# sources the agent script already; sandbox_up does not, so source it here when
+# AGENT_ENV_KEYS is unset. Echoes nothing when the agent declares no key var
+# (e.g. cline, which is configured via `cline auth`).
+sandbox_agent_env_keys() {
+    if [[ -z "${AGENT_ENV_KEYS:-}" && -f "$RALPH_DIR/agents/${AGENT}.sh" ]]; then
+        # shellcheck source=/dev/null
+        source "$RALPH_DIR/agents/${AGENT}.sh"
+    fi
+    echo "${AGENT_ENV_KEYS:-}"
+}
+
 sandbox_setup() {
     local sandbox_dir="$RALPH_DIR/sandbox"
     local force=0
@@ -399,16 +444,10 @@ sandbox_setup() {
 
     mkdir -p "$sandbox_dir"
 
-    # Copy base Dockerfile, wait-for-db, and sandbox-preferences into build context
-    cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
-    cp "$RALPH_DIR/prompts/templates/wait-for-db" "$sandbox_dir/wait-for-db"
-    cp "$RALPH_DIR/sandbox-preferences.sh" "$sandbox_dir/sandbox-preferences.sh"
-
-    # Build base image (deterministic, no LLM involved)
+    # Build base image (deterministic, no LLM involved). sandbox_build_base copies
+    # the build-context files and injects the agent's AGENT_INSTALL command.
     echo "Building sandbox base image..."
-    docker build -t ralph-sandbox-base \
-        -f "$sandbox_dir/Dockerfile.base" \
-        "$sandbox_dir/"
+    sandbox_build_base
 
     if [[ "$render_only" -eq 0 ]]; then
         # Detect stack and resolve playbook
@@ -446,8 +485,11 @@ sandbox_setup() {
         exit 1
     fi
 
-    # Pass 2: Generate files from profile
+    # Pass 2: Generate files from profile. Export the agent's credential env
+    # var(s) so the render prompt forwards the right key into docker-compose.yml
+    # and .env.example (the agent script is already sourced above).
     echo "Generating sandbox files..."
+    export AGENT_ENV_KEYS="${AGENT_ENV_KEYS:-}"
     local render_prompt
     render_prompt=$(mktemp)
     prepare_prompt "$RALPH_DIR/prompts/sandbox-render.md" "$render_prompt"
@@ -515,7 +557,7 @@ NOTES
         echo ""
         echo "Next steps:"
         echo "  1. cp $sandbox_dir/.env.example $sandbox_dir/.env"
-        echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN and AMP_API_KEY"
+        echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN${AGENT_ENV_KEYS:+ and $AGENT_ENV_KEYS}"
         echo "  3. Run 'ralph sandbox up' to start the sandbox"
     fi
     echo ""
@@ -533,18 +575,18 @@ sandbox_up() {
 
     local env_file="$RALPH_DIR/sandbox/.env"
     if [[ ! -f "$env_file" ]]; then
+        local agent_keys
+        agent_keys=$(sandbox_agent_env_keys)
         echo "Warning: $env_file not found." >&2
-        echo "Copy .env.example to .env and set GITHUB_TOKEN and AMP_API_KEY:" >&2
+        echo "Copy .env.example to .env and set GITHUB_TOKEN${agent_keys:+ and $agent_keys}:" >&2
         echo "  cp $RALPH_DIR/sandbox/.env.example $env_file" >&2
         exit 1
     fi
 
-    # Auto-refresh base image, wait-for-db, and sandbox-preferences from managed sources.
-    # Docker layer cache makes this instant when nothing has changed.
-    cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$RALPH_DIR/sandbox/Dockerfile.base"
-    cp "$RALPH_DIR/prompts/templates/wait-for-db" "$RALPH_DIR/sandbox/wait-for-db"
-    cp "$RALPH_DIR/sandbox-preferences.sh" "$RALPH_DIR/sandbox/sandbox-preferences.sh"
-    docker build -t ralph-sandbox-base -f "$RALPH_DIR/sandbox/Dockerfile.base" "$RALPH_DIR/sandbox/"
+    # Auto-refresh base image, wait-for-db, and sandbox-preferences from managed
+    # sources, injecting the configured agent's AGENT_INSTALL command. Docker
+    # layer cache makes this instant when nothing has changed.
+    sandbox_build_base
 
     docker compose -f "$compose_file" up -d --build "$@"
     echo ""

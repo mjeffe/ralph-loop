@@ -135,15 +135,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini supervisor \
     && rm -rf /var/lib/apt/lists/*
 
-# Node.js (for Amp CLI)
+# Node.js — required by the agent CLIs (nodesource LTS; satisfies pi's Node >= 22.19.0)
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Amp CLI
-# TODO: Make agent-configurable. Consider adding agent_install() to the
-# agents/*.sh script interface so each agent defines its own install command.
-RUN npm install -g @sourcegraph/amp
+# Agent CLI — install command injected per agent via the AGENT_INSTALL build arg
+# (sourced from agents/${AGENT}.sh by ralph). Default installs Amp so the base
+# image still builds standalone.
+ARG AGENT_INSTALL="npm install -g @sourcegraph/amp"
+RUN ${AGENT_INSTALL}
 
 # Ralph dependencies from dependencies file are covered above (git, curl,
 # jq, gettext-base). If dependencies file grows, this section must be
@@ -179,14 +180,31 @@ as its `FROM` layer.
 ### Build Sequence
 
 The base image is built during `ralph sandbox setup` (before the agent runs)
-and auto-refreshed on every `ralph sandbox up`:
+and auto-refreshed on every `ralph sandbox up`. Both paths call the shared
+`sandbox_build_base()` helper (in `lib/sandbox.sh`):
 
 ```bash
-cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
+sandbox_build_base() {
+    local sandbox_dir="$RALPH_DIR/sandbox"
 
-docker build -t ralph-sandbox-base \
-    -f "$sandbox_dir/Dockerfile.base" \
-    "$sandbox_dir/"
+    cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
+    cp "$RALPH_DIR/prompts/templates/wait-for-db" "$sandbox_dir/wait-for-db"
+    cp "$RALPH_DIR/sandbox-preferences.sh" "$sandbox_dir/sandbox-preferences.sh"
+
+    # agents/${AGENT}.sh defines AGENT_INSTALL. sandbox_setup sources the agent
+    # script already; sandbox_up does not, so source it here when unset.
+    if [[ -z "${AGENT_INSTALL:-}" && -f "$RALPH_DIR/agents/${AGENT}.sh" ]]; then
+        source "$RALPH_DIR/agents/${AGENT}.sh"
+    fi
+
+    local build_args=()
+    [[ -n "${AGENT_INSTALL:-}" ]] && build_args+=(--build-arg "AGENT_INSTALL=$AGENT_INSTALL")
+
+    docker build -t ralph-sandbox-base \
+        "${build_args[@]+"${build_args[@]}"}" \
+        -f "$sandbox_dir/Dockerfile.base" \
+        "$sandbox_dir/"
+}
 ```
 
 The `Dockerfile.base` is copied into the sandbox directory so both the base
@@ -194,9 +212,29 @@ image build and the project Dockerfile build share the same build context
 (`.ralph/sandbox/`). This keeps the Docker build context entirely within
 ralph's directory and separate from any parent project Docker context.
 
+The agent CLI installed into the base image is **agent-configurable**: each
+`agents/*.sh` script defines an `AGENT_INSTALL` command (e.g.
+`npm install -g @sourcegraph/amp`, `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`)
+which is injected as the `AGENT_INSTALL` Docker build arg. Both build paths use
+the helper so switching `AGENT` and rebuilding installs the matching CLI;
+without this, `sandbox up` would silently rebuild the base back to the
+Dockerfile default.
+
+Agent **authentication** is configurable the same way installation is. Installing
+a non-Amp CLI is not enough — it must also authenticate inside the container. Each
+`agents/*.sh` declares `AGENT_ENV_KEYS`, the API-credential env var(s) the agent
+needs (e.g. `AMP_API_KEY`, `OPENROUTER_API_KEY`, or empty for agents configured
+out-of-band like cline). `sandbox setup` exports `AGENT_ENV_KEYS` before rendering
+so the generated `docker-compose.yml` forwards (pass-through) those vars into the
+container and `.env.example` documents them; `sandbox_agent_env_keys()` resolves
+the value (sourcing the agent script when needed) for the setup/up next-steps
+messages. Without this, the sandbox would only ever forward `AMP_API_KEY` and a
+non-Amp agent could not authenticate.
+
 Auto-refreshing on every `ralph sandbox up` ensures that `ralph update`
 changes to the base image take effect without manual intervention. Docker
-layer cache makes the rebuild instant when the Dockerfile is unchanged.
+layer cache makes the rebuild instant when neither the Dockerfile nor the
+`AGENT_INSTALL` arg has changed.
 
 The generated project Dockerfile references it:
 
@@ -737,6 +775,8 @@ services:
       - SANDBOX=1
       - GIT_REPO
       - GIT_BRANCH
+      # Agent credential var(s) — one pass-through line per var in AGENT_ENV_KEYS
+      # (e.g. AMP_API_KEY for amp); omitted when AGENT_ENV_KEYS is empty.
       - AMP_API_KEY
       # Credential vars based on profile.git_provider:
       # GitHub: GITHUB_TOKEN
@@ -792,8 +832,9 @@ volumes:
 - **Environment uses list syntax**, never map syntax. Quote any entry whose
   value contains a colon. For secret vars that come from `env_file` or the
   host environment, use **pass-through syntax** (bare name, no `=`):
-  `- GIT_REPO`, `- AMP_API_KEY`, `- GITHUB_TOKEN`. For vars with literal
-  values, use `- KEY=value` syntax: `- SANDBOX=1`.
+  `- GIT_REPO`, the agent credential var(s) from `AGENT_ENV_KEYS`
+  (e.g. `- AMP_API_KEY`), `- GITHUB_TOKEN`. For vars with literal values, use
+  `- KEY=value` syntax: `- SANDBOX=1`.
 - **Only infrastructure vars** — do NOT include app-config vars (`DB_*`,
   `MAIL_*`, `CACHE_STORE`, etc.) which would shadow the framework's dotenv
   loader.
@@ -845,7 +886,8 @@ GITHUB_TOKEN=
 # GIT_CRED_USER=
 # GIT_CRED_PASS=
 
-# Amp API key (https://ampcode.com)
+# Agent API credentials — one `VAR=` line per var in the agent's AGENT_ENV_KEYS
+# (e.g. AMP_API_KEY for amp); omitted when AGENT_ENV_KEYS is empty.
 AMP_API_KEY=
 
 # --- Resource Limits ---
@@ -1257,16 +1299,10 @@ sandbox_setup() {
 
     mkdir -p "$sandbox_dir"
 
-    # Copy base Dockerfile, wait-for-db, and sandbox-preferences into build context
-    cp "$RALPH_DIR/prompts/templates/Dockerfile.base" "$sandbox_dir/Dockerfile.base"
-    cp "$RALPH_DIR/prompts/templates/wait-for-db" "$sandbox_dir/wait-for-db"
-    cp "$RALPH_DIR/sandbox-preferences.sh" "$sandbox_dir/sandbox-preferences.sh"
-
-    # Build base image (deterministic, no LLM involved)
+    # Build base image (deterministic, no LLM involved). sandbox_build_base copies
+    # the build-context files and injects the agent's AGENT_INSTALL command.
     echo "Building sandbox base image..."
-    docker build -t ralph-sandbox-base \
-        -f "$sandbox_dir/Dockerfile.base" \
-        "$sandbox_dir/"
+    sandbox_build_base
 
     if [[ "$render_only" -eq 0 ]]; then
         # Detect stack and resolve playbook
@@ -1355,7 +1391,7 @@ sandbox_setup() {
         echo ""
         echo "Next steps:"
         echo "  1. cp $sandbox_dir/.env.example $sandbox_dir/.env"
-        echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN and AMP_API_KEY"
+        echo "  2. Edit $sandbox_dir/.env and set GITHUB_TOKEN${AGENT_ENV_KEYS:+ and $AGENT_ENV_KEYS}"
         echo "  3. Run 'ralph sandbox up' to start the sandbox"
     fi
 }

@@ -618,3 +618,57 @@ DOCK
 
     rm -rf "$sdir"
 }
+
+test_sandbox_agent_configurable_base_install() {
+    echo "--- Base image: agent-configurable AGENT_INSTALL ---"
+
+    local dockerfile="$RALPH_DIR/prompts/templates/Dockerfile.base"
+
+    # Dockerfile.base declares the build arg with the Amp default and uses it
+    assert_eq "Dockerfile.base declares ARG AGENT_INSTALL" "1" \
+        "$(grep -qE '^ARG AGENT_INSTALL=' "$dockerfile" && echo 1 || echo 0)"
+    assert_eq "Dockerfile.base default installs amp" "1" \
+        "$(grep -qE '^ARG AGENT_INSTALL=.*@sourcegraph/amp' "$dockerfile" && echo 1 || echo 0)"
+    assert_eq "Dockerfile.base RUNs the arg" "1" \
+        "$(grep -qE '^RUN \$\{AGENT_INSTALL\}' "$dockerfile" && echo 1 || echo 0)"
+
+    # sandbox_build_base helper exists and injects the build arg
+    assert_eq "lib/sandbox.sh defines sandbox_build_base" "1" \
+        "$(grep -qE '^sandbox_build_base\(\)' "$RALPH_DIR/lib/sandbox.sh" && echo 1 || echo 0)"
+    assert_eq "sandbox_build_base passes AGENT_INSTALL build arg" "1" \
+        "$(grep -qE -- '--build-arg "AGENT_INSTALL=\$AGENT_INSTALL"' "$RALPH_DIR/lib/sandbox.sh" && echo 1 || echo 0)"
+
+    # Both build paths (setup, up) route through the helper
+    assert_eq "setup and up call sandbox_build_base" "2" \
+        "$(grep -cE '^[[:space:]]*sandbox_build_base$' "$RALPH_DIR/lib/sandbox.sh")"
+    # The only base-image docker build is the one inside the helper
+    assert_eq "single ralph-sandbox-base docker build (in helper)" "1" \
+        "$(grep -cE 'docker build -t ralph-sandbox-base' "$RALPH_DIR/lib/sandbox.sh")"
+}
+
+test_sandbox_agent_configurable_auth() {
+    echo "--- Sandbox: agent-configurable credential forwarding (AGENT_ENV_KEYS) ---"
+
+    local sb="$RALPH_DIR/lib/sandbox.sh"
+    local render="$RALPH_DIR/prompts/sandbox-render.md"
+
+    # Helper to resolve the agent's credential env var(s) exists
+    assert_eq "lib/sandbox.sh defines sandbox_agent_env_keys" "1" \
+        "$(grep -qE '^sandbox_agent_env_keys\(\)' "$sb" && echo 1 || echo 0)"
+
+    # setup exports AGENT_ENV_KEYS so the render prompt can substitute it
+    assert_eq "sandbox_setup exports AGENT_ENV_KEYS for render" "1" \
+        "$(grep -qE 'export AGENT_ENV_KEYS=' "$sb" && echo 1 || echo 0)"
+
+    # Render prompt references AGENT_ENV_KEYS (not a hardcoded AMP_API_KEY line)
+    assert_eq "render prompt references AGENT_ENV_KEYS" "1" \
+        "$(grep -qF 'AGENT_ENV_KEYS' "$render" && echo 1 || echo 0)"
+    assert_eq "render prompt has no bare hardcoded AMP_API_KEY env line" "0" \
+        "$(grep -cE '^\s+- AMP_API_KEY\s*$' "$render")"
+    assert_eq "render .env.example uses AGENT_ENV_KEYS substitution" "1" \
+        "$(grep -qF '${AGENT_ENV_KEYS}=' "$render" && echo 1 || echo 0)"
+
+    # Next-steps / warning messages no longer hardcode AMP_API_KEY
+    assert_eq "sandbox.sh messages do not hardcode AMP_API_KEY" "0" \
+        "$(grep -cF 'AMP_API_KEY' "$sb")"
+}

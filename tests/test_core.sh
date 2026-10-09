@@ -21,6 +21,12 @@ test_agent_script_loading() {
     output=$(bash -c "source '$RALPH_DIR/agents/amp.sh' && echo \$AGENT_CLI")
     assert_eq "AGENT_CLI is amp" "amp" "$output"
 
+    output=$(bash -c "source '$RALPH_DIR/agents/amp.sh' && echo \$AGENT_INSTALL")
+    assert_eq "amp AGENT_INSTALL is set" "npm install -g @sourcegraph/amp" "$output"
+
+    output=$(bash -c "source '$RALPH_DIR/agents/amp.sh' && echo \$AGENT_ENV_KEYS")
+    assert_eq "amp AGENT_ENV_KEYS is AMP_API_KEY" "AMP_API_KEY" "$output"
+
     output=$(bash -c "source '$RALPH_DIR/agents/amp.sh' && type -t agent_invoke")
     assert_eq "agent_invoke is defined" "function" "$output"
 
@@ -102,6 +108,12 @@ test_claude_agent_script() {
     output=$(bash -c "source '$RALPH_DIR/agents/claude.sh' && echo \$AGENT_CLI")
     assert_eq "claude AGENT_CLI is claude" "claude" "$output"
 
+    output=$(bash -c "source '$RALPH_DIR/agents/claude.sh' && echo \$AGENT_INSTALL")
+    assert_eq "claude AGENT_INSTALL is set" "npm install -g @anthropic-ai/claude-code" "$output"
+
+    output=$(bash -c "source '$RALPH_DIR/agents/claude.sh' && echo \$AGENT_ENV_KEYS")
+    assert_eq "claude AGENT_ENV_KEYS is ANTHROPIC_API_KEY" "ANTHROPIC_API_KEY" "$output"
+
     output=$(bash -c "source '$RALPH_DIR/agents/claude.sh' && type -t agent_invoke")
     assert_eq "claude agent_invoke is defined" "function" "$output"
 
@@ -112,12 +124,63 @@ test_claude_agent_script() {
     assert_eq "claude agent_format_display is defined" "function" "$output"
 }
 
+test_pi_agent_script() {
+    echo "--- Pi agent script ---"
+    local output
+    output=$(bash -c "source '$RALPH_DIR/agents/pi.sh' && echo \$AGENT_CLI")
+    assert_eq "pi AGENT_CLI is pi" "pi" "$output"
+
+    output=$(bash -c "source '$RALPH_DIR/agents/pi.sh' && echo \$AGENT_INSTALL")
+    assert_eq "pi AGENT_INSTALL is set" "curl -fsSL https://raw.githubusercontent.com/mjeffe/nix-profile/master/coding-agents/pi/install.sh | bash" "$output"
+
+    output=$(bash -c "source '$RALPH_DIR/agents/pi.sh' && type -t agent_invoke")
+    assert_eq "pi agent_invoke is defined" "function" "$output"
+
+    output=$(bash -c "source '$RALPH_DIR/agents/pi.sh' && type -t agent_extract_response")
+    assert_eq "pi agent_extract_response is defined" "function" "$output"
+
+    output=$(bash -c "source '$RALPH_DIR/agents/pi.sh' && type -t agent_format_display")
+    assert_eq "pi agent_format_display is defined" "function" "$output"
+
+    output=$(bash -c "source '$RALPH_DIR/agents/pi.sh' && type -t agent_post_iteration")
+    assert_eq "pi agent_post_iteration is defined" "function" "$output"
+
+    # PI_MODEL falls back to a built-in default when config does not set it
+    output=$(bash -c "unset PI_MODEL; source '$RALPH_DIR/agents/pi.sh' && echo \$PI_MODEL")
+    assert_eq "pi PI_MODEL has a default" "openrouter/anthropic/claude-3.5-haiku" "$output"
+
+    # config-provided PI_MODEL is honored (config is sourced before the agent script)
+    output=$(bash -c "PI_MODEL='openrouter/test/model'; source '$RALPH_DIR/agents/pi.sh' && echo \$PI_MODEL")
+    assert_eq "pi PI_MODEL respects config override" "openrouter/test/model" "$output"
+
+    # AGENT_ENV_KEYS is derived from the model provider (default model is openrouter/*)
+    output=$(bash -c "unset PI_MODEL; source '$RALPH_DIR/agents/pi.sh' && echo \$AGENT_ENV_KEYS")
+    assert_eq "pi AGENT_ENV_KEYS defaults to OPENROUTER_API_KEY" "OPENROUTER_API_KEY" "$output"
+
+    # A non-openrouter provider yields the matching <PROVIDER>_API_KEY var
+    output=$(bash -c "PI_MODEL='anthropic/claude-sonnet-4'; source '$RALPH_DIR/agents/pi.sh' && echo \$AGENT_ENV_KEYS")
+    assert_eq "pi AGENT_ENV_KEYS derives from provider" "ANTHROPIC_API_KEY" "$output"
+
+    # Pre-flight: agent_invoke fails clearly when the derived key var is missing
+    local rc=0
+    bash -c "unset OPENROUTER_API_KEY; source '$RALPH_DIR/agents/pi.sh' && agent_invoke /dev/null" 2>/dev/null || rc=$?
+    assert_eq "pi agent_invoke exits 1 without OPENROUTER_API_KEY" "1" "$rc"
+}
+
 test_stub_agent_scripts() {
     echo "--- Stub agent scripts (cline, codex) ---"
     for agent in cline codex; do
         local output
         output=$(bash -c "source '$RALPH_DIR/agents/${agent}.sh' && echo \$AGENT_CLI")
         assert_eq "${agent} AGENT_CLI is ${agent}" "$agent" "$output"
+
+        output=$(bash -c "source '$RALPH_DIR/agents/${agent}.sh' && [[ -n \$AGENT_INSTALL ]] && echo set")
+        assert_eq "${agent} AGENT_INSTALL is set" "set" "$output"
+
+        # AGENT_ENV_KEYS must be declared (codex sets OPENAI_API_KEY; cline is
+        # intentionally empty — configured via `cline auth`)
+        output=$(bash -c "source '$RALPH_DIR/agents/${agent}.sh' && echo \${AGENT_ENV_KEYS-UNSET}")
+        assert_ne "${agent} AGENT_ENV_KEYS is declared" "UNSET" "$output"
 
         local rc=0
         bash -c "source '$RALPH_DIR/agents/${agent}.sh' && agent_invoke /dev/null" 2>/dev/null || rc=$?

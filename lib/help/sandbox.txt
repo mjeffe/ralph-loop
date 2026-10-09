@@ -25,7 +25,8 @@ FIRST-TIME SETUP
 
        cp .ralph/sandbox/.env.example .ralph/sandbox/.env
 
-     Edit .ralph/sandbox/.env and set GITHUB_TOKEN and AMP_API_KEY.
+     Edit .ralph/sandbox/.env and set GITHUB_TOKEN and your agent's API key
+     (e.g. AMP_API_KEY for amp; .env.example lists the var(s) for your agent).
 
   3. Start the sandbox:
 
@@ -69,8 +70,9 @@ FIXING WRONG DETECTIONS (--render-only)
 
     ralph sandbox setup --render-only --force
 
-  Also useful after updating prompt templates — regenerate sandbox files
-  from the same profile without re-analyzing the project.
+  Also useful after updating prompt templates or switching the configured
+  agent (AGENT in config) — regenerate sandbox files from the same profile
+  without re-analyzing the project.
 
 CUSTOMIZING THE SANDBOX (sandbox-preferences.sh)
 -------------------------------------------------
