@@ -3,6 +3,13 @@
 ## Status
 Proposed — not yet committed.
 
+## Prerequisites
+
+This proposal builds on the `AGENT_INSTALL` and `AGENT_ENV_KEYS` variables introduced
+on every `agents/*.sh` script (committed, see `specs/agent-scripts.md`). Those variables
+are currently consumed per-agent at sandbox build time; this proposal aggregates them
+across all agents.
+
 ## Summary
 
 Install all supported agent CLIs in the base image and forward all possible API keys in
