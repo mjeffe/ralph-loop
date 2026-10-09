@@ -4,6 +4,9 @@
 # Updates an existing .ralph/ installation to the latest upstream version
 # while preserving user customizations.
 #
+# TECH-DEBT: MANAGED_FILES and SOURCE_PATHS are duplicated in install.sh.
+# Keep them in sync manually. See specs/tech-debt.md.
+#
 # This script is fetched and executed by `ralph update`:
 #   curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/update.sh | bash
 

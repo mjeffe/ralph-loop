@@ -3,6 +3,9 @@
 #
 # Installs Ralph into the current directory (which must be a git repository).
 #
+# TECH-DEBT: MANAGED_FILES and SOURCE_PATHS are duplicated in update.sh.
+# Keep them in sync manually. See specs/tech-debt.md.
+#
 # Usage:
 #   curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | bash
 #   # or, from within the ralph-loop repo:

@@ -23,6 +23,10 @@ thoughs, reminders, ideas, things to watch for, etc.
   we would do to create a production version. What needs to be cleaned up, what
   would be a more appropriate programming language than bash, what should be
   modularized, etc.
+  → DONE: Analysis captured in specs/tech-debt.md. Summary: bash is adequate for
+    ~85% of the codebase. lib/plan-filter.sh is the single component that has
+    outgrown bash — extract to Python as a drop-in replacement when it next
+    needs non-trivial changes. Full migration target is Python, not Rust.
 - Make a workdir subdirectory of `.ralph/` so work files such as `implementation_plan.md`,
   `alignment_ledger.md`, `last_agent_output`, etc., do not clutter ralph's root dir.
 - Discuss pros and cons of converting the sandbox to multi-service rather than a single monolitic container.

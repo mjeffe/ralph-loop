@@ -2,6 +2,10 @@
 # Plan filter — the single parser for implementation_plan.md. Extracts plan slices for build
 # prompt injection, reads header fields, and validates the structure ralph relies on.
 #
+# TECH-DEBT: This is a custom Markdown parser in bash regex. It works but is the
+# highest-risk code in the project to modify. If plan format evolution requires
+# non-trivial changes here, extract to Python first. See specs/tech-debt.md.
+#
 # Usage:
 #   lib/plan-filter.sh header   <plan_file>
 #   lib/plan-filter.sh overview <plan_file>
