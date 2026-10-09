@@ -431,11 +431,10 @@ case "$MODE" in
             exit 2
         fi
 
-        local plan_file="$RALPH_DIR/implementation_plan.md"
-        local filter="$RALPH_DIR/lib/plan-filter.sh"
+        plan_file="$RALPH_DIR/implementation_plan.md"
+        filter="$RALPH_DIR/lib/plan-filter.sh"
 
         # Extract plan type
-        local plan_type_check
         plan_type_check=$(grep -m1 '^Plan Type:' "$plan_file" 2>/dev/null \
             | sed 's/^Plan Type:[[:space:]]*//' || true)
 
@@ -449,7 +448,6 @@ case "$MODE" in
         # Generate smart task overview
         TASK_OVERVIEW=""
         if [[ -f "$filter" ]]; then
-            local overview
             overview=$(bash "$filter" overview "$plan_file" 2>/dev/null || true)
             if [[ -n "$overview" ]]; then
                 TASK_OVERVIEW="$overview"
