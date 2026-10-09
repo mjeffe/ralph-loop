@@ -20,6 +20,7 @@
 # usage carries token counts and cost.total. We key parsing off message_end so we
 # read complete blocks rather than reassembling streamed deltas.
 
+# shellcheck disable=SC2034  # AGENT_INSTALL, AGENT_ENV_KEYS: read by ralph after sourcing
 AGENT_CLI="pi"
 # Command to install the agent CLI in the sandbox base image (see Dockerfile.base
 # AGENT_INSTALL build arg, injected by sandbox_build_base in lib/sandbox.sh).

@@ -5,6 +5,7 @@
 # When stdin is piped, Cline automatically enters headless mode.
 # JSON output format: {"type": "ask"|"say", "text": "...", "ts": <ms>, "reasoning"?: "...", "partial"?: bool}
 
+# shellcheck disable=SC2034  # AGENT_INSTALL, AGENT_ENV_KEYS: read by ralph after sourcing
 AGENT_CLI="cline"
 # Command to install the agent CLI in the sandbox base image (see Dockerfile.base
 # AGENT_INSTALL build arg, injected by sandbox_build_base in lib/sandbox.sh).

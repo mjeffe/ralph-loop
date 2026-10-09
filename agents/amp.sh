@@ -1,6 +1,7 @@
 #!/bin/bash
 # Agent script for Amp (https://ampcode.com)
 
+# shellcheck disable=SC2034  # AGENT_INSTALL, AGENT_ENV_KEYS: read by ralph after sourcing
 AGENT_CLI="amp"
 # Command to install the agent CLI in the sandbox base image (see Dockerfile.base
 # AGENT_INSTALL build arg, injected by sandbox_build_base in lib/sandbox.sh).
