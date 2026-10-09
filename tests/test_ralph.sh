@@ -1,7 +1,7 @@
 #!/bin/bash
 # Ralph unit tests — deterministic, no agent invocation, zero cost.
-# Tests are structural (grep/sed against source) or isolated function exercises —
-# they never run install.sh/update.sh/ralph end-to-end, never call Docker, and never invoke an LLM agent.
+# Tests are structural (grep/sed against source), isolated function exercises, or loop tests that
+# run the real ralph loop with a scripted stub agent. They never call Docker or invoke a real LLM agent.
 #
 # Usage:
 #   ./tests/test_ralph.sh              Run all tests
@@ -28,6 +28,7 @@ source "$SCRIPT_DIR/test_core.sh"
 source "$SCRIPT_DIR/test_install_update.sh"
 source "$SCRIPT_DIR/test_sandbox.sh"
 source "$SCRIPT_DIR/test_plan_filter.sh"
+source "$SCRIPT_DIR/test_loop.sh"
 
 # ---------------------------------------------------------------------------
 # Test groups
@@ -104,7 +105,6 @@ run_core_tests() {
     test_process_planning_spec_documents_destructive_safety
     test_managed_files_in_sync
     test_run_iteration_has_empty_response_check
-    test_refresh_plan_context_rereads_plan
     test_adhoc_prompts_single_exit_signal
 }
 
@@ -171,6 +171,19 @@ run_sandbox_tests() {
     test_sandbox_validate_runtime_manager_refs
 }
 
+run_loop_tests() {
+    test_loop_process_build_progresses
+    test_loop_process_build_no_progress
+    test_loop_process_build_only_blocked
+    test_loop_gap_build_complete_signal
+    test_loop_build_replan_signal
+    test_loop_retries_empty_response
+    test_loop_retries_exhausted
+    test_loop_max_iterations
+    test_loop_plan_mode_runs
+    test_loop_prompt_mode_substitutes_variables
+}
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -190,6 +203,7 @@ main() {
         run_install_update_tests
         run_plan_filter_tests
         run_sandbox_tests
+        run_loop_tests
     else
         # Run only requested groups
         for group in "$@"; do
@@ -200,9 +214,10 @@ main() {
                 install_update) run_install_update_tests ;;
                 plan_filter)    run_plan_filter_tests ;;
                 sandbox)        run_sandbox_tests ;;
+                loop)           run_loop_tests ;;
                 *)
                     echo "Unknown test group: $group" >&2
-                    echo "Available groups: cli, signals, core, install_update, plan_filter, sandbox" >&2
+                    echo "Available groups: cli, signals, core, install_update, plan_filter, sandbox, loop" >&2
                     exit 1
                     ;;
             esac

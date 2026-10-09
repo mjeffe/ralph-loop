@@ -169,9 +169,11 @@ your-project/
 ./tests/test_ralph.sh cli core           # Run multiple groups
 ```
 
-Available groups: `cli`, `signals`, `core`, `install_update`, `sandbox`.
+Available groups: `cli`, `signals`, `core`, `install_update`, `plan_filter`, `sandbox`, `loop`.
 
-All tests are deterministic, zero-cost (no agent invocation), and run in under 10 seconds. A pre-push git hook runs the full suite automatically.
+All tests are deterministic, zero-cost (no real agent invocation), and run in under 10 seconds. The
+`loop` group runs the real `ralph` loop in a throwaway project with a scripted stub agent
+(`tests/stub_agent.sh`) to check iterations, signals, retries, exit codes, and rendered prompts. A pre-push git hook runs the full suite automatically.
 
 ## References
 

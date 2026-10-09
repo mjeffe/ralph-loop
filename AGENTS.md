@@ -17,8 +17,11 @@ Run the test suite:
 ./tests/test_ralph.sh
 ```
 
-Tests are structural (grep/sed against source) or isolated function exercises — they never
-run install.sh/update.sh/ralph end-to-end, never call Docker, and never invoke an LLM agent.
+Tests are structural (grep/sed against source), isolated function exercises, or loop tests
+(`tests/test_loop.sh`) that run the real `ralph` loop in a throwaway project with the scripted stub
+agent (`tests/stub_agent.sh`). Tests never call Docker and never invoke a real LLM agent.
+When changing loop behavior (iterations, signals, retries, exit codes, prompt rendering), add or
+update a loop test scenario.
 
 Running ralph itself can be expensive and time consuming. If you need to run it for testing
 purposes, ONLY run it after temporarily inserting debug statements or bypasses to

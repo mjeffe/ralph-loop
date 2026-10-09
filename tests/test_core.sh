@@ -377,47 +377,6 @@ test_run_iteration_has_empty_response_check() {
     assert_contains "ralph logs empty response warning" "Agent produced no response" "$ralph_src"
 }
 
-test_refresh_plan_context_rereads_plan() {
-    echo "--- refresh_plan_context re-reads plan each call (#35) ---"
-    source <(sed -n '/^refresh_plan_context()/,/^}/p' "$RALPH_DIR/ralph")
-    local saved_ralph_dir="$RALPH_DIR" rc
-    mkdir -p "$TMP_DIR/refresh/lib"
-    cp "$RALPH_DIR/lib/plan-filter.sh" "$TMP_DIR/refresh/lib/"
-    local plan="$TMP_DIR/refresh/implementation_plan.md"
-    cat > "$plan" << 'EOF'
-# Plan
-
-Plan Type: process
-
-## Phase 1
-
-### Task 1 — First
-**Status:** planned
-
-### Task 2 — Second
-**Status:** planned
-**Depends on:** Task 1
-EOF
-    RALPH_DIR="$TMP_DIR/refresh"
-
-    rc=0; refresh_plan_context || rc=$?
-    assert_eq "selects first task" "0:### Task 1 — First" "$rc:${SELECTED_TASK%%$'\n'*}"
-
-    sed -i '0,/planned/s//complete/' "$plan"
-    rc=0; refresh_plan_context || rc=$?
-    assert_eq "selects next task after plan update" "0:### Task 2 — Second" "$rc:${SELECTED_TASK%%$'\n'*}"
-
-    sed -i 's/planned/blocked/' "$plan"
-    rc=0; refresh_plan_context || rc=$?
-    assert_eq "only blocked tasks remain returns 3" "3" "$rc"
-
-    sed -i 's/blocked/complete/' "$plan"
-    rc=0; refresh_plan_context || rc=$?
-    assert_eq "all tasks complete returns 2" "2" "$rc"
-
-    RALPH_DIR="$saved_ralph_dir"
-}
-
 extract_managed_files() {
     sed -n '/^MANAGED_FILES=(/,/^)/p' "$1" | grep -v '^MANAGED_FILES=\|^)' | tr -d ' ' | sort
 }
