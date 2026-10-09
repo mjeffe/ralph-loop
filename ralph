@@ -459,7 +459,6 @@ case "$MODE" in
         SELECTED_TASK=""
         ADJACENT_CONTEXT=""
         if [[ "$plan_type_check" == "process" && -f "$filter" ]]; then
-            local select_output
             select_output=$(bash "$filter" select "$plan_file" 2>/dev/null || true)
             if [[ -n "$select_output" && "$select_output" != "NO_ELIGIBLE_TASK" ]]; then
                 SELECTED_TASK=$(echo "$select_output" | sed -n '/^---SELECTED_TASK---$/,/^---END_SELECTED_TASK---$/{ /^---.*---$/d; p; }')
