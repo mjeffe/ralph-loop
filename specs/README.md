@@ -25,3 +25,11 @@ Specs are the source of truth for desired behavior. When adding or removing a sp
 | [known-issues.md](known-issues.md) | User-facing bugs without workarounds that users should know about before they bite |
 | [open-questions.md](open-questions.md) | Unresolved questions, speculative ideas, and design tensions needing more thought |
 | [proposals/](proposals/) | Design proposals (spec pre-drafts) — provisional, not yet committed to |
+
+## Process Specs
+
+Process specs describe ordered, phased work — migrations, rewrites, staged rollouts. They drive `ralph plan --process`. See `specs/process-planning.md` for the planning mechanics.
+
+| Spec | Description |
+|------|-------------|
+| [process/output-pipeline-python.md](process/output-pipeline-python.md) | Extract agent output pipeline to Python (Phase 1 of tech-debt item 3 remediation) |
