@@ -30,17 +30,33 @@ test_agent_script_loading() {
     output=$(bash -c "source '$RALPH_DIR/agents/amp.sh' && type -t agent_invoke")
     assert_eq "agent_invoke is defined" "function" "$output"
 
-    output=$(bash -c "source '$RALPH_DIR/agents/amp.sh' && type -t agent_extract_response")
-    assert_eq "agent_extract_response is defined" "function" "$output"
+}
 
-    output=$(bash -c "source '$RALPH_DIR/agents/amp.sh' && type -t agent_format_display")
-    assert_eq "agent_format_display is defined" "function" "$output"
+test_agent_scripts_output_contract() {
+    echo "--- Agent scripts: AGENT_OUTPUT_FORMAT and stock hooks ---"
+    local formats script name output
+    formats=$(cd "$RALPH_DIR/lib" && python3 -c 'import format_output; print(" ".join(format_output.FORMATS))')
+    for script in "$RALPH_DIR"/agents/*.sh; do
+        name=$(basename "$script")
+        output=$(bash -c "source '$script' && echo \${AGENT_OUTPUT_FORMAT-UNSET}")
+        if [[ "$name" == "cline.sh" || "$name" == "codex.sh" ]]; then
+            assert_eq "$name leaves AGENT_OUTPUT_FORMAT unset (no parser yet)" "UNSET" "$output"
+        else
+            assert_contains "$name AGENT_OUTPUT_FORMAT is a registered format" " $output " " $formats "
+        fi
+        output=$(bash -c "source '$script' && type -t agent_pre_iteration && type -t agent_post_iteration")
+        assert_eq "$name defines both hooks" "function"$'\n'"function" "$output"
+    done
+}
 
-    output=$(bash -c "source '$RALPH_DIR/agents/amp.sh' && type -t agent_pre_iteration")
-    assert_eq "agent_pre_iteration is defined" "function" "$output"
-
-    output=$(bash -c "source '$RALPH_DIR/agents/amp.sh' && type -t agent_post_iteration")
-    assert_eq "agent_post_iteration is defined" "function" "$output"
+test_agent_without_output_format_rejected() {
+    echo "--- ralph refuses an agent without AGENT_OUTPUT_FORMAT ---"
+    loop_setup noformat noop
+    sed -i 's/^AGENT=.*/AGENT="cline"/' "$LOOP_DIR/project/.ralph/config"
+    loop_run plan 1
+    assert_eq "exits 1" "1" "$LOOP_RC"
+    assert_contains "names the agent script" "agents/cline.sh does not set AGENT_OUTPUT_FORMAT" "$LOOP_OUTPUT"
+    assert_contains "says the parser is not implemented" "output parser is not implemented yet" "$LOOP_OUTPUT"
 }
 
 test_template_substitution() {
@@ -117,11 +133,6 @@ test_claude_agent_script() {
     output=$(bash -c "source '$RALPH_DIR/agents/claude.sh' && type -t agent_invoke")
     assert_eq "claude agent_invoke is defined" "function" "$output"
 
-    output=$(bash -c "source '$RALPH_DIR/agents/claude.sh' && type -t agent_extract_response")
-    assert_eq "claude agent_extract_response is defined" "function" "$output"
-
-    output=$(bash -c "source '$RALPH_DIR/agents/claude.sh' && type -t agent_format_display")
-    assert_eq "claude agent_format_display is defined" "function" "$output"
 }
 
 test_pi_agent_script() {
@@ -136,14 +147,6 @@ test_pi_agent_script() {
     output=$(bash -c "source '$RALPH_DIR/agents/pi.sh' && type -t agent_invoke")
     assert_eq "pi agent_invoke is defined" "function" "$output"
 
-    output=$(bash -c "source '$RALPH_DIR/agents/pi.sh' && type -t agent_extract_response")
-    assert_eq "pi agent_extract_response is defined" "function" "$output"
-
-    output=$(bash -c "source '$RALPH_DIR/agents/pi.sh' && type -t agent_format_display")
-    assert_eq "pi agent_format_display is defined" "function" "$output"
-
-    output=$(bash -c "source '$RALPH_DIR/agents/pi.sh' && type -t agent_post_iteration")
-    assert_eq "pi agent_post_iteration is defined" "function" "$output"
 
     # PI_MODEL falls back to a built-in default when config does not set it
     output=$(bash -c "unset PI_MODEL; source '$RALPH_DIR/agents/pi.sh' && echo \$PI_MODEL")
@@ -161,10 +164,22 @@ test_pi_agent_script() {
     output=$(bash -c "PI_MODEL='anthropic/claude-sonnet-4'; source '$RALPH_DIR/agents/pi.sh' && echo \$AGENT_ENV_KEYS")
     assert_eq "pi AGENT_ENV_KEYS derives from provider" "ANTHROPIC_API_KEY" "$output"
 
-    # Pre-flight: agent_invoke fails clearly when the derived key var is missing
+    # Pre-flight: without the key var, agent_invoke defers to `pi auth check` (auth.json, OAuth).
+    # fake_pi stands in for the CLI: `auth check` exits AUTH_RC, anything else prints "ran".
+    local fake='fake_pi() { [[ $1 == auth ]] && return $AUTH_RC; echo ran; }'
     local rc=0
-    bash -c "unset OPENROUTER_API_KEY; source '$RALPH_DIR/agents/pi.sh' && agent_invoke /dev/null" 2>/dev/null || rc=$?
-    assert_eq "pi agent_invoke exits 1 without OPENROUTER_API_KEY" "1" "$rc"
+    output=$(bash -c "unset OPENROUTER_API_KEY; source '$RALPH_DIR/agents/pi.sh'; $fake; AGENT_CLI=fake_pi
+        AUTH_RC=1 agent_invoke /dev/null" 2>/dev/null) || rc=$?
+    assert_eq "pi agent_invoke exits 1 with no key var and pi auth not ready" "1" "$rc"
+    assert_eq "pi agent_invoke does not run pi when auth is missing" "" "$output"
+
+    output=$(bash -c "unset OPENROUTER_API_KEY; source '$RALPH_DIR/agents/pi.sh'; $fake; AGENT_CLI=fake_pi
+        AUTH_RC=0 agent_invoke /dev/null" 2>/dev/null)
+    assert_eq "pi agent_invoke runs when pi auth check is ready (e.g. auth.json)" "ran" "$output"
+
+    output=$(bash -c "OPENROUTER_API_KEY=x; source '$RALPH_DIR/agents/pi.sh'; $fake; AGENT_CLI=fake_pi
+        AUTH_RC=1 agent_invoke /dev/null" 2>/dev/null)
+    assert_eq "pi agent_invoke runs when the key var is set" "ran" "$output"
 }
 
 test_stub_agent_scripts() {
@@ -436,7 +451,7 @@ test_run_iteration_has_empty_response_check() {
     echo "--- run_iteration has empty response detection ---"
     local ralph_src
     ralph_src=$(cat "$RALPH_DIR/ralph")
-    assert_contains "ralph checks for empty response" "agent_extract_response" "$ralph_src"
+    assert_contains "ralph checks for empty response" 'response_chars" == "0"' "$ralph_src"
     assert_contains "ralph logs empty response warning" "Agent produced no response" "$ralph_src"
 }
 

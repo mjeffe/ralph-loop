@@ -12,7 +12,8 @@ Specs are the source of truth for desired behavior. When adding or removing a sp
 | [build-mode.md](build-mode.md) | Build mode behavior, task selection, and iteration outcomes |
 | [spec-lifecycle.md](spec-lifecycle.md) | How to write, maintain, and evolve specs |
 | [installer.md](installer.md) | Installation process, file templates, and post-install configuration |
-| [agent-scripts.md](agent-scripts.md) | Agent script contract, required/optional functions, and adding new agents |
+| [agent-scripts.md](agent-scripts.md) | Agent script contract (`AGENT_OUTPUT_FORMAT`, `agent_invoke`, stock hooks), supported agents, and adding new agents |
+| [output-pipeline.md](output-pipeline.md) | Agent output processor `lib/format_output.py`: CLI, summary JSON, screen/log display, signal constraint, and stream formats |
 | [updater.md](updater.md) | Update mechanism, manifest tracking, and preserving user customizations |
 | [sandbox-cli.md](sandbox-cli.md) | Sandbox lifecycle commands (`up`, `down`, `reset`, `shell`, `status`, `setup`) — implement first |
 | [sandbox-setup-prompt.md](sandbox-setup-prompt.md) | Multi-container, multi-pass prompt pipeline: project analysis, file generation, validation, repair, and migration — implement after sandbox-cli |
@@ -25,3 +26,9 @@ Specs are the source of truth for desired behavior. When adding or removing a sp
 | [known-issues.md](known-issues.md) | User-facing bugs without workarounds that users should know about before they bite |
 | [open-questions.md](open-questions.md) | Unresolved questions, speculative ideas, and design tensions needing more thought |
 | [proposals/](proposals/) | Design proposals (spec pre-drafts) — provisional, not yet committed to |
+
+## Process Specs
+
+Process specs describe ordered, phased work — migrations, rewrites, staged rollouts. They drive `ralph plan --process`. See `specs/process-planning.md` for the planning mechanics.
+
+No process specs are active. Completed process specs are kept in [archive/](archive/).

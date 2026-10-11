@@ -1,0 +1,12 @@
+{"type":"session","version":3,"id":"01a127c8-e9c0-711b-a007-3eecdd2ce061","timestamp":"2026-10-10T21:47:20.897Z","cwd":"/work/pi-sample"}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"system","content":"","sections":{"trimmed":"for fixture"},"timestamp":1791668841108,"toolsAdded":["[trimmed for fixture]"]}}
+{"type":"message_end","message":{"role":"system","content":"","sections":{"trimmed":"for fixture"},"timestamp":1791668841108,"toolsAdded":["[trimmed for fixture]"]}}
+{"type":"message_start","message":{"role":"user","content":[{"type":"text","text":"say hi"}],"timestamp":1791668841107}}
+{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"say hi"}],"timestamp":1791668841107}}
+{"type":"message_start","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"openrouter","model":"does-not/exist-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1791668841135,"errorMessage":"400: {\"message\":\"does-not/exist-model is not a valid model ID\",\"code\":400}","durationMs":463,"thinkingLevel":"high"}}
+{"type":"message_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"openrouter","model":"does-not/exist-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1791668841135,"errorMessage":"400: {\"message\":\"does-not/exist-model is not a valid model ID\",\"code\":400}","durationMs":463,"thinkingLevel":"high"}}
+{"type":"turn_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"openrouter","model":"does-not/exist-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1791668841135,"errorMessage":"400: {\"message\":\"does-not/exist-model is not a valid model ID\",\"code\":400}","durationMs":463,"thinkingLevel":"high"},"toolResults":[]}
+{"type":"agent_end","messages":["[trimmed for fixture]"],"willRetry":false}
+{"type":"agent_settled","aborted":false}

@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # System essentials
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl git jq gettext-base sudo \
+    ca-certificates curl git jq gettext-base python3 sudo \
     tini supervisor \
     && rm -rf /var/lib/apt/lists/*
 
@@ -22,7 +22,7 @@ ARG AGENT_INSTALL="npm install -g @sourcegraph/amp"
 RUN ${AGENT_INSTALL}
 
 # Ralph dependencies from dependencies file are covered above (git, curl,
-# jq, gettext-base). If dependencies file grows, this section must be
+# jq, gettext-base, python3). If dependencies file grows, this section must be
 # updated to match.
 
 # Handle UID 1000 conflict (ubuntu user in base image)

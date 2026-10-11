@@ -170,6 +170,19 @@ fi
 # ---------------------------------------------------------------------------
 # Prerequisite validation
 # ---------------------------------------------------------------------------
+# Exits unless lib/format_output.py can parse the agent's output (also used by sandbox setup).
+require_output_format() {
+    if [[ -z "${AGENT_OUTPUT_FORMAT:-}" ]]; then
+        echo "Error: agents/${AGENT}.sh does not set AGENT_OUTPUT_FORMAT: its output parser is not" \
+            "implemented yet (see specs/tech-debt.md item 7 in the ralph-loop repo)." >&2
+        exit 1
+    fi
+    if ! command -v python3 &>/dev/null; then
+        echo "Error: python3 not found in PATH (required by lib/format_output.py)" >&2
+        exit 1
+    fi
+}
+
 validate_prerequisites() {
     [[ "$MODE" == "sandbox" || "$MODE" == "help" ]] && return
 
@@ -179,6 +192,8 @@ validate_prerequisites() {
     fi
 
     [[ "$MODE" == "update" ]] && return
+
+    require_output_format
 
     if ! command -v "$AGENT_CLI" &>/dev/null; then
         echo "Error: agent CLI not found in PATH: $AGENT_CLI" >&2
@@ -289,15 +304,11 @@ log_replan_hint() {
 }
 
 # ---------------------------------------------------------------------------
-# Signal detection
+# Iteration summary (written by lib/format_output.py)
 # ---------------------------------------------------------------------------
-check_signals() {
-    local output_file="$1"
-    local response
-    response=$(agent_extract_response "$output_file")
-    if echo "$response" | grep -qF '<promise>COMPLETE</promise>'; then return 2; fi
-    if echo "$response" | grep -qF '<promise>REPLAN</promise>'; then return 3; fi
-    return 0
+# Prints one field of the format_output summary JSON; empty for null or a missing file.
+summary_field() {
+    jq -r --arg k "$2" '.[$k] | if . == null then "" else tostring end' "$1" 2>/dev/null || true
 }
 
 # ---------------------------------------------------------------------------
@@ -328,20 +339,31 @@ run_iteration() {
 
         type agent_pre_iteration &>/dev/null && agent_pre_iteration
 
-        local agent_rc=0
+        local summary_file agent_rc=0
+        summary_file=$(mktemp)
         agent_invoke "$tmp_prompt" \
             | tee "$RALPH_DIR/last_agent_output" \
-            | agent_format_display \
-            | tee -a "$SESSION_LOG" \
+            | python3 "$RALPH_DIR/lib/format_output.py" --format "$AGENT_OUTPUT_FORMAT" \
+                --summary "$summary_file" --log "$SESSION_LOG" \
             || agent_rc=$?
 
         rm -f "$tmp_prompt"
 
-        # Detect empty response (budget exhaustion, auth failure, transient error)
+        local signal response_chars cost
+        signal=$(summary_field "$summary_file" signal)
+        response_chars=$(summary_field "$summary_file" response_chars)
+        cost=$(summary_field "$summary_file" cost)
+        _ITER_CONTEXT_USED=$(summary_field "$summary_file" context_used)
+        _ITER_CONTEXT_MAX=$(summary_field "$summary_file" context_max)
+        _ITER_CONTEXT_PCT=$(summary_field "$summary_file" context_pct)
+
+        # A missing signal is normal. No response (budget exhaustion, auth failure, transient error,
+        # or a crashed processor that wrote no summary) and a reported agent error are failures.
         if [[ $agent_rc -eq 0 ]]; then
-            local response
-            response=$(agent_extract_response "$RALPH_DIR/last_agent_output")
-            if [[ -z "$response" ]]; then
+            if [[ "$(summary_field "$summary_file" is_error)" == "true" ]]; then
+                log "Agent reported an error: $(summary_field "$summary_file" error)"
+                agent_rc=1
+            elif [[ -z "$response_chars" || "$response_chars" == "0" ]]; then
                 log "⚠ Agent produced no response — possible budget exhaustion or transient failure"
                 agent_rc=1
             fi
@@ -351,7 +373,22 @@ run_iteration() {
         local duration=$(( $(date +%s) - iter_start ))
         log "ITERATION ${iteration} DONE in ${duration}s ----"
 
+        if [[ -n "$_ITER_CONTEXT_USED" && -n "$_ITER_CONTEXT_MAX" ]]; then
+            log "Context: ${_ITER_CONTEXT_USED}/${_ITER_CONTEXT_MAX} tokens (${_ITER_CONTEXT_PCT}%)"
+        elif [[ -n "$_ITER_CONTEXT_USED" ]]; then
+            log "Context: ${_ITER_CONTEXT_USED} tokens"
+        fi
+        [[ -n "$cost" ]] && log "Iteration Cost: \$$(printf '%.4f' "$cost")"
+
+        # Hooks may log out-of-band data (e.g. amp balance) and may override _ITER_CONTEXT_*.
+        # shellcheck disable=SC2034  # read by agent_post_iteration
+        RALPH_ITER_SUMMARY="$summary_file"
         type agent_post_iteration &>/dev/null && agent_post_iteration
+        rm -f "$summary_file"
+
+        if [[ -n "$_ITER_CONTEXT_PCT" && "$_ITER_CONTEXT_PCT" -ge "${CONTEXT_WARN_PCT:-80}" ]]; then
+            log "⚠ Context usage high — agent quality may degrade"
+        fi
         log "================================================================================"
 
         if [[ $agent_rc -ne 0 ]]; then
@@ -363,9 +400,11 @@ run_iteration() {
             return 1
         fi
 
-        local signal_rc=0
-        check_signals "$RALPH_DIR/last_agent_output" || signal_rc=$?
-        return $signal_rc
+        case "$signal" in
+            COMPLETE) return 2 ;;
+            REPLAN) return 3 ;;
+            *) return 0 ;;
+        esac
     done
 
     return 1

@@ -2,10 +2,12 @@
 
 ## Overview
 
-Agent scripts encapsulate all agent-specific logic — CLI invocation, output parsing, display
-formatting, and optional cost tracking — behind a small set of known functions. This keeps the
-ralph controller agent-agnostic and makes adding or swapping agents a matter of writing one
-shell script.
+Agent scripts encapsulate agent-specific logic (CLI invocation, credentials, the stream
+schema of the CLI's output, and out-of-band usage tracking) behind a few known variables and
+functions. Output parsing is shared: `lib/format_output.py` (see `output-pipeline.md`)
+parses every supported stream schema, and each agent script only names the schema its CLI
+emits. This keeps the ralph controller agent-agnostic and makes adding or swapping agents a
+matter of writing one short shell script.
 
 ## Location and Naming
 
@@ -35,83 +37,43 @@ source "$RALPH_DIR/agents/${AGENT}.sh"
 
 If the script does not exist, ralph exits with an error.
 
-## Function Contract
+### Supported Agents
 
-### Required Functions
+| Script | `AGENT_OUTPUT_FORMAT` | Status |
+|---|---|---|
+| `amp.sh` | `stream-json` | supported |
+| `claude.sh` | `stream-json` | supported |
+| `pi.sh` | `pi-json` | supported |
+| `cline.sh` | unset | **not yet supported**: no parser for the cline 3.x `--json` stream (`tech-debt.md` item 7) |
+| `codex.sh` | unset | **not yet supported**: `agent_invoke` is a stub and there is no parser for `codex exec --json` (`tech-debt.md` item 7) |
 
-Agent scripts **must** define these functions:
+Ralph refuses to run an agent whose script leaves `AGENT_OUTPUT_FORMAT` unset, with an error
+naming the script and saying its output parser is not implemented yet.
 
-#### `agent_invoke <prompt_file>`
+## Contract
 
-Invokes the agent CLI with the given prompt file. Structured output (typically NDJSON) must be
-written to stdout. Ralph captures stdout for signal detection and display filtering.
-
-Agent stderr is **not redirected by ralph** — it flows directly to the user's terminal. This
-ensures that CLI errors (authentication failures, network errors, crashes) are immediately
-visible to the human operator. Agent scripts should not suppress stderr unless they have a
-specific reason to filter it (e.g., removing known cosmetic noise while preserving real errors).
-
-```bash
-agent_invoke() {
-    local prompt_file="$1"
-    cat "$prompt_file" | $AGENT_CLI $AGENT_ARGS
-}
-```
-
-#### `agent_extract_response <output_file>`
-
-Extracts the agent's response text from the raw output file. This is used for completion and
-replan signal detection. It must output only the agent's own response text (not echoed prompts
-or tool calls) to stdout.
-
-This function **must process the file line by line** rather than passing the entire file to jq.
-Agent output may contain malformed lines (stderr leakage, partial writes, etc.), and whole-file
-jq will abort on the first bad line, potentially missing the completion signal. Per-line
-processing skips bad lines and continues.
-
-```bash
-agent_extract_response() {
-    local output_file="$1"
-    while IFS= read -r line; do
-        echo "$line" | jq -r 'select(.type=="assistant") | .message.content[] | select(.type=="text") | .text' 2>/dev/null || true
-    done < "$output_file"
-}
-```
-
-#### `agent_format_display`
-
-A streaming filter that reads raw agent output from stdin and writes human-readable text to
-stdout. This runs as part of the output pipeline, so it **must process input line by line**
-using a `while read` loop rather than streaming jq on the full input.
-
-Per-line processing is required for two reasons:
-1. **Robustness** — a malformed line won't kill jq mid-stream, which would send SIGPIPE back
-   through the pipeline and terminate the agent process.
-2. **Buffering** — the `while read` loop is inherently line-buffered, ensuring output appears
-   on the terminal in real time without needing `jq --unbuffered` or `stdbuf`.
-
-```bash
-agent_format_display() {
-    while IFS= read -r line; do
-        echo "$line" | jq -r 'select(.type=="assistant") | .message.content[] |
-            if .type == "text" then .text
-            elif .type == "tool_use" then "[tool] " + .name
-            else empty end' 2>/dev/null || true
-    done
-}
-```
+An agent script **must** set `AGENT_CLI`, `AGENT_INSTALL`, `AGENT_ENV_KEYS`, and
+`AGENT_OUTPUT_FORMAT`, and define `agent_invoke`. Every shipped script also defines the two
+stock hooks, `agent_pre_iteration` and `agent_post_iteration`.
 
 ### Required Variables
-
-Agent scripts **must** set:
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
 | `AGENT_CLI` | The CLI command name | `amp` |
 | `AGENT_INSTALL` | Command to install the agent CLI in the sandbox base image | `npm install -g @sourcegraph/amp` |
 | `AGENT_ENV_KEYS` | API-credential env var(s) ralph forwards into the sandbox (space-separated; may be empty) | `AMP_API_KEY` |
+| `AGENT_OUTPUT_FORMAT` | Stream schema of `agent_invoke`'s stdout, passed to `lib/format_output.py --format` | `stream-json` |
 
 Ralph uses `AGENT_CLI` to validate that the agent is installed (via `command -v`).
+
+`AGENT_OUTPUT_FORMAT` names a format registered in `lib/format_output.py` (`FORMATS`):
+`stream-json` (amp, claude), `pi-json` (pi), or `text` (plain-text output, used by the test
+stub agent). The format describes a stream schema, not an agent, so a new agent whose CLI
+emits an existing schema needs no Python changes. Leaving it unset marks the agent as not
+yet supported: ralph exits before the agent CLI check (and `ralph sandbox setup` does the
+same). `text` is not a safe fallback for an agent that emits JSON or echoes its prompt,
+because every line would be scanned for signals.
 
 `AGENT_INSTALL` is injected as the `AGENT_INSTALL` Docker build arg when building
 the sandbox base image (see `sandbox_build_base()` in the sandbox spec). This
@@ -131,6 +93,72 @@ configurable. The value may be:
   `OPENROUTER_API_KEY`), or
 - empty when the agent authenticates out-of-band (cline, configured via
   `cline auth`); ralph then forwards no agent key.
+
+### Required Function: `agent_invoke <prompt_file>`
+
+Invokes the agent CLI with the given prompt file. The CLI's output, in the schema named by
+`AGENT_OUTPUT_FORMAT`, must be written to stdout. Ralph tees it to `last_agent_output` and
+pipes it through `lib/format_output.py`, which produces the screen display, the session log
+lines, and the summary (signal, response size, error state, context, cost).
+
+Agent stderr is **not redirected by ralph** — it flows directly to the user's terminal. This
+ensures that CLI errors (authentication failures, network errors, crashes) are immediately
+visible to the human operator. Agent scripts should not suppress stderr unless they have a
+specific reason to filter it (e.g., removing known cosmetic noise while preserving real errors).
+
+```bash
+agent_invoke() {
+    local prompt_file="$1"
+    cat "$prompt_file" | $AGENT_CLI $AGENT_ARGS
+}
+```
+
+### Stock Hooks
+
+Every shipped agent script defines both hooks, with a no-op body and the comment below
+when there is nothing to do, so the extension point is visible to anyone copying a script.
+Ralph calls them only if they exist (`type ... &>/dev/null &&`), so user-written agents
+without hooks still work.
+
+```bash
+# Hook: runs before each agent invocation. Capture out-of-band state here (e.g. account balance).
+agent_pre_iteration() { :; }
+
+# Hook: runs after each invocation, after ralph logs stream usage. $RALPH_ITER_SUMMARY is the
+# summary JSON and $RALPH_DIR/last_agent_output the raw stream. May log, and may set
+# _ITER_CONTEXT_USED/_ITER_CONTEXT_MAX/_ITER_CONTEXT_PCT to override stream values.
+agent_post_iteration() { :; }
+```
+
+#### `agent_pre_iteration`
+
+Called before each agent invocation (including retries). Use it to capture out-of-band state
+that the stream does not report, such as an account balance.
+
+#### `agent_post_iteration`
+
+Called after each agent invocation, regardless of success or failure, inside the iteration
+footer. By then ralph has already logged the `Context:` and `Iteration Cost:` lines from the
+stream (when available). The hook can use:
+
+- `$RALPH_ITER_SUMMARY`: path to the summary JSON written by `lib/format_output.py` (keys
+  `signal`, `response_chars`, `is_error`, `error`, `context_used`, `context_max`,
+  `context_pct`, `cost`, `malformed_lines`; see "Summary File" in `output-pipeline.md`).
+  Read it with `jq`. The file is deleted after the hook returns.
+- `$RALPH_DIR/last_agent_output`: the raw stream of this invocation.
+- `log`: ralph's logging function (terminal and session log).
+
+It may set `_ITER_CONTEXT_USED`, `_ITER_CONTEXT_MAX`, and `_ITER_CONTEXT_PCT` (integer
+percentage) to override the stream values, for example when the window is known from
+elsewhere. Ralph checks `CONTEXT_WARN_PCT` and aggregates session context after the hook, so
+overrides are honored. Do not re-log values ralph already logged from the stream.
+
+Shipped hooks:
+- `amp.sh`: amp's stream carries no cost, so the hooks compute it from the account balance
+  (the example below).
+- `pi.sh`: `agent_post_iteration` logs `Model: ${PI_MODEL}`; cost and tokens come from the
+  stream.
+- `claude.sh`, `cline.sh`, `codex.sh`: no-ops.
 
 ### Agent-Specific Configuration
 
@@ -153,72 +181,6 @@ script owns reading its own keys — no central registry or per-agent config fil
 revisit with a per-agent config section or file; the flat convention is sufficient
 until then.)
 
-### Optional Functions
-
-Agent scripts **may** define these functions. Ralph checks for their existence at runtime
-(via `type -t`) and calls them if present. If not defined, they are silently skipped.
-
-#### `agent_pre_iteration`
-
-Called before each agent invocation. Useful for capturing pre-iteration state such as account
-balance for cost tracking.
-
-```bash
-agent_pre_iteration() {
-    _BALANCE_BEFORE=$(amp usage 2>/dev/null | grep -o '\$[0-9.]*' | head -1 | tr -d '$')
-}
-```
-
-#### `agent_post_iteration`
-
-Called after each agent invocation (regardless of success or failure). Useful for computing
-and logging per-iteration cost and context window usage. The raw agent output is available
-in `$RALPH_DIR/last_agent_output` for extracting usage metadata (e.g., token counts from
-the agent's NDJSON stream).
-
-To enable session-level context aggregation, set `_ITER_CONTEXT_PCT` (integer percentage),
-`_ITER_CONTEXT_USED` (tokens used), and `_ITER_CONTEXT_MAX` (context window size). The loop
-reads these after each iteration to compute min/avg/max for the session summary.
-
-If context usage meets or exceeds `CONTEXT_WARN_PCT` (default: 80), log a warning.
-
-```bash
-agent_post_iteration() {
-    local balance_after
-    balance_after=$(amp usage 2>/dev/null | grep -o '\$[0-9.]*' | head -1 | tr -d '$')
-    if [[ -n "${_BALANCE_BEFORE:-}" && -n "$balance_after" ]]; then
-        local cost
-        cost=$(awk "BEGIN {printf \"%.2f\", $_BALANCE_BEFORE - $balance_after}" 2>/dev/null || true)
-        log "Iteration Cost: \$${cost}  Balance: \$${balance_after}"
-    fi
-
-    # Extract context window usage from the last assistant message's usage object
-    local usage_line
-    usage_line=$(grep -o '"usage":{[^}]*}' "$RALPH_DIR/last_agent_output" 2>/dev/null | tail -1)
-    if [[ -n "$usage_line" ]]; then
-        local input cache_create cache_read output_tok total max_tok pct
-        input=$(echo "$usage_line" | grep -o '"input_tokens":[0-9]*' | grep -o '[0-9]*')
-        cache_create=$(echo "$usage_line" | grep -o '"cache_creation_input_tokens":[0-9]*' | grep -o '[0-9]*')
-        cache_read=$(echo "$usage_line" | grep -o '"cache_read_input_tokens":[0-9]*' | grep -o '[0-9]*')
-        output_tok=$(echo "$usage_line" | grep -o '"output_tokens":[0-9]*' | grep -o '[0-9]*')
-        max_tok=$(echo "$usage_line" | grep -o '"max_tokens":[0-9]*' | grep -o '[0-9]*')
-        total=$(( ${input:-0} + ${cache_create:-0} + ${cache_read:-0} + ${output_tok:-0} ))
-        if [[ "${max_tok:-0}" -gt 0 ]]; then
-            pct=$(awk "BEGIN {printf \"%.0f\", ($total / $max_tok) * 100}" 2>/dev/null || true)
-            log "Context: ${total}/${max_tok} tokens (${pct}%)"
-            if [[ "${pct:-0}" -ge "${CONTEXT_WARN_PCT:-80}" ]]; then
-                log "⚠ Context usage high — agent quality may degrade"
-            fi
-            _ITER_CONTEXT_USED=$total
-            _ITER_CONTEXT_MAX=$max_tok
-            _ITER_CONTEXT_PCT=$pct
-        fi
-    fi
-}
-```
-
-Note: Optional hook functions may call `log` (defined by ralph) to write to the session log.
-
 ## Adding a New Agent
 
 To add support for a new agent:
@@ -228,10 +190,17 @@ To add support for a new agent:
 3. Set `AGENT_INSTALL` to the command that installs the CLI (for sandbox builds)
 4. Set `AGENT_ENV_KEYS` to the agent's API-credential env var(s), or `""` if the
    agent authenticates out-of-band (so the sandbox forwards the right key)
-5. Implement `agent_invoke`, `agent_extract_response`, and `agent_format_display`
-6. Optionally implement `agent_pre_iteration` and `agent_post_iteration`
-7. Set `AGENT="{name}"` in config
-8. Test with `ralph plan`
+5. Implement `agent_invoke`
+6. Set `AGENT_OUTPUT_FORMAT`:
+   - If the CLI emits a schema `lib/format_output.py` already parses (e.g. Claude Code's
+     `stream-json`), reuse that format.
+   - Otherwise capture a real stream with the script's arguments, save it as
+     `tests/fixtures/format_output/<name>.ndjson`, and add a `Processor` subclass to
+     `lib/format_output.py` with fixture tests (see "Adding a Format" in
+     `output-pipeline.md`). Signals must come only from assistant-authored response text.
+7. Define the two stock hooks (no-ops unless the agent has out-of-band usage to track)
+8. Set `AGENT="{name}"` in config
+9. Test with `ralph plan`
 
 The agent CLI must:
 - Accept a prompt via stdin
@@ -242,36 +211,25 @@ The agent CLI must:
 
 ```bash
 AGENT_CLI="amp"
+AGENT_INSTALL="npm install -g @sourcegraph/amp"
+AGENT_ENV_KEYS="AMP_API_KEY"
 AGENT_ARGS="-x --dangerously-allow-all --stream-json-thinking"
+# Stream schema of agent_invoke's stdout, parsed by lib/format_output.py --format.
+AGENT_OUTPUT_FORMAT="stream-json"
 
 agent_invoke() {
     local prompt_file="$1"
     cat "$prompt_file" | $AGENT_CLI $AGENT_ARGS
 }
 
-agent_extract_response() {
-    local output_file="$1"
-    while IFS= read -r line; do
-        echo "$line" | jq -r 'select(.type=="assistant") | .message.content[] | select(.type=="text") | .text' 2>/dev/null || true
-    done < "$output_file"
-}
-
-agent_format_display() {
-    while IFS= read -r line; do
-        echo "$line" | jq -r 'select(.type=="assistant") | .message.content[] |
-            if .type == "thinking" then "[thinking] " + .thinking
-            elif .type == "text" then .text
-            elif .type == "tool_use" then "[tool] " + .name + ": " +
-                ((.input | (.path // .cmd // .filePattern // .pattern // .query // .url //
-                .description // .prompt // (tostring)) | tostring | .[0:200]))
-            else empty end' 2>/dev/null || true
-    done
-}
-
+# Hook: runs before each agent invocation. Captures the account balance so the post hook can
+# compute the iteration cost.
 agent_pre_iteration() {
     _BALANCE_BEFORE=$(amp usage 2>/dev/null | grep -o '\$[0-9.]*' | head -1 | tr -d '$')
 }
 
+# Hook: runs after each invocation, after ralph logs stream usage (context). amp's stream
+# carries no cost, so log the balance delta instead.
 agent_post_iteration() {
     local balance_after
     balance_after=$(amp usage 2>/dev/null | grep -o '\$[0-9.]*' | head -1 | tr -d '$')
@@ -279,28 +237,6 @@ agent_post_iteration() {
         local cost
         cost=$(awk "BEGIN {printf \"%.2f\", $_BALANCE_BEFORE - $balance_after}" 2>/dev/null || true)
         log "Iteration Cost: \$${cost}  Balance: \$${balance_after}"
-    fi
-
-    local usage_line
-    usage_line=$(grep -o '"usage":{[^}]*}' "$RALPH_DIR/last_agent_output" 2>/dev/null | tail -1)
-    if [[ -n "$usage_line" ]]; then
-        local input cache_create cache_read output_tok total max_tok pct
-        input=$(echo "$usage_line" | grep -o '"input_tokens":[0-9]*' | grep -o '[0-9]*')
-        cache_create=$(echo "$usage_line" | grep -o '"cache_creation_input_tokens":[0-9]*' | grep -o '[0-9]*')
-        cache_read=$(echo "$usage_line" | grep -o '"cache_read_input_tokens":[0-9]*' | grep -o '[0-9]*')
-        output_tok=$(echo "$usage_line" | grep -o '"output_tokens":[0-9]*' | grep -o '[0-9]*')
-        max_tok=$(echo "$usage_line" | grep -o '"max_tokens":[0-9]*' | grep -o '[0-9]*')
-        total=$(( ${input:-0} + ${cache_create:-0} + ${cache_read:-0} + ${output_tok:-0} ))
-        if [[ "${max_tok:-0}" -gt 0 ]]; then
-            pct=$(awk "BEGIN {printf \"%.0f\", ($total / $max_tok) * 100}" 2>/dev/null || true)
-            log "Context: ${total}/${max_tok} tokens (${pct}%)"
-            if [[ "${pct:-0}" -ge "${CONTEXT_WARN_PCT:-80}" ]]; then
-                log "⚠ Context usage high — agent quality may degrade"
-            fi
-            _ITER_CONTEXT_USED=$total
-            _ITER_CONTEXT_MAX=$max_tok
-            _ITER_CONTEXT_PCT=$pct
-        fi
     fi
 }
 ```
