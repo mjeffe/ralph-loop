@@ -257,9 +257,50 @@ class StreamJsonProcessor(Processor):
             self.context_max = max(windows)
 
 
+class PiJsonProcessor(Processor):
+    """pi `--mode json` event stream: only `message_end` events are used."""
+
+    name = "pi-json"
+
+    def handle(self, obj: dict) -> None:
+        if obj.get("type") != "message_end":
+            return
+        message = obj.get("message") or {}
+        role = message.get("role")
+        if role == "assistant":
+            self.handle_assistant(message)
+        elif role == "toolResult":
+            self.tool_result(message.get("content"), message.get("isError") is True,
+                             message.get("toolCallId"), message.get("toolName"))
+
+    def handle_assistant(self, message: dict) -> None:
+        for block in message.get("content") or []:
+            if not isinstance(block, dict):
+                continue
+            block_type = block.get("type")
+            if block_type == "thinking":
+                self.thinking(block.get("thinking") or "")
+            elif block_type == "text":
+                self.text(block.get("text") or "")
+            elif block_type == "toolCall":
+                self.tool(block.get("name"), block.get("arguments"), block.get("id"))
+        if message.get("stopReason") == "error":
+            self.is_error = True
+            self.error_message = str(message.get("errorMessage") or "unknown error")
+            self.error(self.error_message)
+        elif self.is_error is None:
+            self.is_error = False
+        usage = message.get("usage")
+        if isinstance(usage, dict):
+            cost = (usage.get("cost") or {}).get("total") or 0
+            self.cost = (self.cost or 0) + cost
+            self.context_used = usage.get("totalTokens") or 0
+
+
 FORMATS = {
     "text": TextProcessor,
     "stream-json": StreamJsonProcessor,
+    "pi-json": PiJsonProcessor,
 }
 
 

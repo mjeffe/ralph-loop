@@ -318,8 +318,17 @@ Source: `specs/process/output-pipeline-python.md` - Phase 3, plus "Formats / pi-
 Depends on: Phase 1. Independent of Phase 2 (may be built before or after it).
 
 ### Task 4: Implement `pi-json` format with pi fixture tests (Phase 3)
-**Status:** planned
+**Status:** complete
 **Depends on:** Task 2
+
+Notes (complete): Added `PiJsonProcessor` (registered as `pi-json`) to
+`lib/format_output.py`; it reuses the base emit helpers unchanged. Added
+`TestPiJsonFixtures` (summary, display, false-positive guard built in-test by dropping the
+last assistant `message_end` line, and the `pi-error.ndjson` case). `--help` now lists
+exactly `pi-json`, `stream-json`, `text`. `./tests/test_ralph.sh` -> 368 passed, 0 failed.
+Assumption / Spec gap: an assistant `usage` object without `cost.total` or `totalTokens`
+counts as 0 (so `pi-error.ndjson` yields `cost: 0`, `context_used: 0`); both stay `null`
+only when no assistant `usage` was seen, as the spec states.
 
 Add the `pi-json` subclass and its tests.
 

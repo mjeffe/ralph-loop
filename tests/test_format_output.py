@@ -326,5 +326,60 @@ class TestStreamJsonShapes(FormatOutputTestCase):
         self.assertEqual(self.read_summary()["malformed_lines"], 1)
 
 
+class TestPiJsonFixtures(FormatOutputTestCase):
+    PROMPT_LINE = "This is a test of your tool output"
+    TOOL_ERROR = "[tool error] bash: ls: cannot access 'does-not-exist': No such file or directory (+1 more lines)"
+
+    def run_pi(self, stdin):
+        result = self.run_cli(stdin, fmt="pi-json", log=self.log_path)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout.decode(), self.read_log()
+
+    def test_summary(self):
+        self.run_pi(read_fixture("pi.ndjson"))
+        summary = self.read_summary()
+        self.assertEqual(summary["format"], "pi-json")
+        self.assertEqual(summary["signal"], "COMPLETE")
+        self.assertIs(summary["is_error"], False)
+        self.assertIsNone(summary["error"])
+        self.assertEqual(summary["context_used"], 4241)
+        self.assertIsNone(summary["context_max"])
+        self.assertIsNone(summary["context_pct"])
+        self.assertAlmostEqual(summary["cost"], 0.00517305132, places=10)
+        self.assertEqual(summary["malformed_lines"], 0)
+
+    def test_display(self):
+        screen, log = self.run_pi(read_fixture("pi.ndjson"))
+        for expected in ("[thinking] The user wants me to follow three steps", "[tool] read: notes.txt",
+                         "[tool] bash: ls does-not-exist", self.TOOL_ERROR):
+            self.assertIn(expected, screen)
+            self.assertIn(expected, log)
+        self.assertNotIn("[tool result] ", screen)
+        self.assertNotIn("    Command exited with code 2", screen)
+        self.assertIn("[tool result] read: hello from notes.txt (+1 more lines)\n", log)
+        self.assertIn(self.TOOL_ERROR + "\n    Command exited with code 2\n", log)
+        self.assertNotIn(self.PROMPT_LINE, screen)
+        self.assertNotIn(self.PROMPT_LINE, log)
+
+    def test_signal_ignores_prompt_and_turn_end(self):
+        lines = read_fixture("pi.ndjson").splitlines()
+        objs = [json.loads(line) for line in lines]
+        ends = [i for i, obj in enumerate(objs)
+                if obj.get("type") == "message_end" and obj["message"].get("role") == "assistant"]
+        reduced = [line for i, line in enumerate(lines) if i != ends[-1]]
+        self.assertTrue(any(COMPLETE in line for line in reduced))
+        self.run_pi("\n".join(reduced) + "\n")
+        self.assertIsNone(self.read_summary()["signal"])
+
+    def test_error_fixture(self):
+        screen, _ = self.run_pi(read_fixture("pi-error.ndjson"))
+        summary = self.read_summary()
+        self.assertIs(summary["is_error"], True)
+        self.assertIn("not a valid model ID", summary["error"])
+        self.assertIsNone(summary["signal"])
+        self.assertEqual(summary["response_chars"], 0)
+        self.assertTrue([line for line in screen.splitlines() if line.startswith("[error] ")])
+
+
 if __name__ == "__main__":
     unittest.main()
