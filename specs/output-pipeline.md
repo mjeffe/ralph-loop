@@ -9,7 +9,7 @@ completion signal, response size, error state, context usage, and cost.
 It replaced the per-agent bash parsing in `agents/*.sh` (`agent_format_display`,
 `agent_extract_response`, and the grep-based usage parsing in `agent_post_iteration`), which
 parsed the same stream three times and drifted apart. The processor was built from the
-process spec `process/output-pipeline-python.md`.
+process spec `archive/output-pipeline-python.md`.
 
 ## Integration
 

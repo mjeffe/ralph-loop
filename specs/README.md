@@ -31,6 +31,4 @@ Specs are the source of truth for desired behavior. When adding or removing a sp
 
 Process specs describe ordered, phased work — migrations, rewrites, staged rollouts. They drive `ralph plan --process`. See `specs/process-planning.md` for the planning mechanics.
 
-| Spec | Description |
-|------|-------------|
-| [process/output-pipeline-python.md](process/output-pipeline-python.md) | Build lib/format_output.py, the single-pass Python agent output processor (tech-debt item 3); integration is a separate supervised step |
+No process specs are active. Completed process specs are kept in [archive/](archive/).

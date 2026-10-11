@@ -3,7 +3,7 @@
 
 Usage: python3 lib/format_output.py --format FORMAT --summary PATH [--log PATH] < agent.ndjson
 
-See specs/process/output-pipeline-python.md for the full contract.
+See specs/output-pipeline.md for the full contract.
 """
 from __future__ import annotations
 
