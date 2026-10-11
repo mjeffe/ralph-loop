@@ -199,8 +199,67 @@ class TextProcessor(Processor):
         self.text(line)
 
 
+class StreamJsonProcessor(Processor):
+    """Claude Code / amp `--output-format stream-json` events."""
+
+    name = "stream-json"
+
+    def handle(self, obj: dict) -> None:
+        kind = obj.get("type")
+        message = obj.get("message") or {}
+        if kind == "assistant":
+            self.handle_assistant(message, top_level=obj.get("parent_tool_use_id") is None)
+        elif kind == "user":
+            for block in message.get("content") or []:
+                if isinstance(block, dict) and block.get("type") == "tool_result":
+                    self.tool_result(block.get("content"), block.get("is_error") is True, block.get("tool_use_id"))
+        elif kind == "result":
+            self.handle_result(obj)
+
+    def handle_assistant(self, message: dict, top_level: bool) -> None:
+        for block in message.get("content") or []:
+            if not isinstance(block, dict):
+                continue
+            block_type = block.get("type")
+            if block_type == "thinking":
+                self.thinking(block.get("thinking") or "")
+            elif block_type == "text":
+                if top_level:
+                    self.text(block.get("text") or "")
+                elif block.get("text"):
+                    self.write(block["text"])
+            elif block_type == "tool_use":
+                self.tool(block.get("name"), block.get("input"), block.get("id"))
+        usage = message.get("usage")
+        if top_level and isinstance(usage, dict):
+            keys = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
+            self.context_used = sum(usage.get(key) or 0 for key in keys)
+            if usage.get("max_tokens"):
+                self.context_max = usage["max_tokens"]
+
+    def handle_result(self, obj: dict) -> None:
+        if isinstance(obj.get("is_error"), bool):
+            self.is_error = obj["is_error"]
+        if self.is_error:
+            errors = obj.get("errors")
+            if errors:
+                self.error_message = "; ".join(str(e) for e in errors)
+            else:
+                self.error_message = str(obj.get("error") or obj.get("subtype") or "unknown error")
+            self.error(self.error_message)
+        if obj.get("total_cost_usd") is not None:
+            self.cost = obj["total_cost_usd"]
+        windows = [
+            model.get("contextWindow") for model in (obj.get("modelUsage") or {}).values()
+            if isinstance(model, dict) and model.get("contextWindow")
+        ]
+        if windows and self.context_max is None:
+            self.context_max = max(windows)
+
+
 FORMATS = {
     "text": TextProcessor,
+    "stream-json": StreamJsonProcessor,
 }
 
 

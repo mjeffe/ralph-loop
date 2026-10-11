@@ -71,6 +71,8 @@ superseded by this process plan. Its outcomes still exist (`lib/help/*.txt`,
 - Display limits (200 chars; 20 / 5 / 15 lines) are module constants.
 - Repository style (AGENTS.md): ASCII only, no em dashes, 4-space indent, 120-char max
   lines, snake_case, conventional commit prefixes, no agent attribution.
+- `tests/test_format_output.py` has module-level `FIXTURES` / `read_fixture(name)` and
+  `ndjson(*objs)` helpers (added in Task 3); reuse them for fixture and inline-line tests.
 - The worktree has untracked `integrate-output-pipeline-prompt.md` and
   `pi-deepseek-guide.md`. Leave them alone and do not commit them.
 
@@ -225,8 +227,22 @@ and "Display conventions".
 Depends on: Phase 1. Independent of Phase 3.
 
 ### Task 3: Implement `stream-json` format with amp-fixture and claude-shape tests (Phase 2)
-**Status:** planned
+**Status:** complete
 **Depends on:** Task 2
+
+Notes (complete): Added `StreamJsonProcessor` (registered as `stream-json`) to
+`lib/format_output.py`; the base `tool_result` helper already matched the spec and was not
+changed. Subagent text (`parent_tool_use_id` set) is written via the plain writer so it is
+displayed but not counted or scanned. Added `TestStreamJsonAmpFixture` (summary, display,
+false-positive guard built in-test from fixture lines) and `TestStreamJsonShapes` (inline
+claude shapes, 30-line error detail block, cost/modelUsage context window, error result,
+subagent text, malformed line, plus unknown tool id -> `?` and no-result -> `is_error: null`).
+Verified: amp fixture summary matches the spec; mutating the handler to scan tool results
+makes the guard test fail (reverted); full suite 368 passed, 0 failed.
+Assumption / Spec gap: a `result` line without a boolean `is_error` leaves `is_error`
+unchanged (null); when `is_error` is true but `errors`, `error`, and `subtype` are all
+absent, `error` is `"unknown error"`. Only usage of top-level assistant messages updates
+context; `context_max` keeps the last seen `usage.max_tokens`.
 
 Add the `stream-json` subclass (amp, claude) and its tests.
 
