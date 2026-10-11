@@ -17,10 +17,10 @@
 # JSON event shape (see https://pi.dev/docs/latest/programmatic-usage/json-event-stream-mode):
 #   {"type":"message_end","message":{"role":"assistant","content":[...],"usage":{...}}}
 # Each assistant message's content[] holds text / thinking / toolCall blocks, and
-# usage carries token counts and cost.total. We key parsing off message_end so we
-# read complete blocks rather than reassembling streamed deltas.
+# usage carries token counts and cost.total. lib/format_output.py (pi-json) keys
+# parsing off message_end so it reads complete blocks rather than streamed deltas.
 
-# shellcheck disable=SC2034  # AGENT_INSTALL, AGENT_ENV_KEYS: read by ralph after sourcing
+# shellcheck disable=SC2034  # AGENT_INSTALL, AGENT_ENV_KEYS, AGENT_OUTPUT_FORMAT: read by ralph after sourcing
 AGENT_CLI="pi"
 # Command to install the agent CLI in the sandbox base image (see Dockerfile.base
 # AGENT_INSTALL build arg, injected by sandbox_build_base in lib/sandbox.sh).
@@ -49,6 +49,8 @@ PI_PROVIDER="${PI_MODEL%%/*}"
 AGENT_ENV_KEYS="$(printf '%s' "$PI_PROVIDER" | tr '[:lower:]-' '[:upper:]_')_API_KEY"
 
 AGENT_ARGS="--mode json --approve --no-session --model $PI_MODEL"
+# Stream schema of agent_invoke's stdout, parsed by lib/format_output.py --format.
+AGENT_OUTPUT_FORMAT="pi-json"
 
 # Invoke the agent CLI with a prompt file; must stream raw NDJSON to stdout.
 agent_invoke() {
@@ -66,55 +68,13 @@ agent_invoke() {
     cat "$prompt_file" | $AGENT_CLI $AGENT_ARGS
 }
 
-# Extract plain text response from saved output; used by check_signals() for loop
-# control. Processes line-by-line so malformed lines are skipped, not fatal.
-# Pi emits the final assistant text in message_end.message.content[] text blocks.
-agent_extract_response() {
-    local output_file="$1"
-    while IFS= read -r line; do
-        echo "$line" | jq -r 'select(.type=="message_end") | .message.content[] | select(.type=="text") | .text' 2>/dev/null || true
-    done < "$output_file"
-}
+# Hook: runs before each agent invocation. Capture out-of-band state here (e.g. account balance).
+agent_pre_iteration() { :; }
 
-# Filter stdin into human-readable live display; piped from agent_invoke in
-# run_iteration. Per-line processing keeps output line-buffered and robust.
-# Shows thinking, text, and tool calls from each completed assistant message.
-agent_format_display() {
-    while IFS= read -r line; do
-        echo "$line" | jq -r 'select(.type=="message_end") | .message.content[] |
-            if .type == "thinking" then "[thinking] " + .thinking
-            elif .type == "text" then .text
-            elif .type == "toolCall" then "[tool] " + .name + ": " +
-                ((.arguments | (.command // .cmd // .path // .file_path // .pattern //
-                .query // .url // .description // .prompt // (tostring)) | tostring | .[0:200]))
-            else empty end' 2>/dev/null || true
-    done
-}
-
-# Compute and log per-iteration cost and token usage from the raw NDJSON.
-# Pi reports usage per assistant message, so cost is summed across all
-# message_end events; the final message's totalTokens approximates the context
-# sent on the last turn. Pi's stream does not expose the model's max context
-# window, so a context-usage percentage (and CONTEXT_WARN_PCT warning) is not
-# available for this agent.
+# Hook: runs after each invocation, after ralph logs stream usage (cost and context tokens come
+# from the stream). $RALPH_ITER_SUMMARY is the summary JSON and $RALPH_DIR/last_agent_output the
+# raw stream. May log, and may set _ITER_CONTEXT_USED/_ITER_CONTEXT_MAX/_ITER_CONTEXT_PCT to
+# override stream values.
 agent_post_iteration() {
-    local out="$RALPH_DIR/last_agent_output"
-    [[ -f "$out" ]] || return 0
-
-    local summary
-    summary=$(
-        while IFS= read -r line; do
-            echo "$line" | jq -r 'select(.type=="message_end") |
-                [(.message.usage.cost.total // 0), (.message.usage.totalTokens // 0)] | @tsv' 2>/dev/null || true
-        done < "$out" | awk -F'\t' '
-            { cost += $1; tokens = $2 }
-            END { if (NR > 0) printf "%.4f %d", cost, tokens }'
-    )
-
-    if [[ -n "$summary" ]]; then
-        local cost tokens
-        cost=$(echo "$summary" | awk '{print $1}')
-        tokens=$(echo "$summary" | awk '{print $2}')
-        log "Iteration Cost: \$${cost}  Tokens: ${tokens}  Model: ${PI_MODEL}"
-    fi
+    log "Model: ${PI_MODEL}"
 }

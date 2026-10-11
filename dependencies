@@ -5,3 +5,4 @@ jq
 gettext-base
 curl
 git
+python3

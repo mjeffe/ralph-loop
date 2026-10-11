@@ -1,9 +1,10 @@
 #!/bin/bash
 # Agent script for OpenAI Codex CLI (https://github.com/openai/codex)
 #
-# Not yet implemented — Codex CLI output format needs investigation.
-# Each function below is a stub that errors out. To implement, replace with
-# real invocation/parsing logic following the interface defined in specs/agent-scripts.md.
+# Not yet supported: agent_invoke is a stub, and lib/format_output.py has no parser for the
+# `codex exec --json` stream, so AGENT_OUTPUT_FORMAT is deliberately unset and ralph refuses
+# to run this agent. See specs/tech-debt.md item 7 (researched schema, and how to add a
+# format from a real capture) and specs/agent-scripts.md.
 
 # shellcheck disable=SC2034  # read by ralph after sourcing
 AGENT_CLI="codex"
@@ -21,14 +22,10 @@ agent_invoke() {
     return 1
 }
 
-# Extract plain text response from saved output; used by check_signals() for loop control.
-agent_extract_response() {
-    echo "Error: Codex agent is not yet implemented." >&2
-    return 1
-}
+# Hook: runs before each agent invocation. Capture out-of-band state here (e.g. account balance).
+agent_pre_iteration() { :; }
 
-# Filter stdin into human-readable live display; piped from agent_invoke in run_iteration.
-agent_format_display() {
-    echo "Error: Codex agent is not yet implemented." >&2
-    return 1
-}
+# Hook: runs after each invocation, after ralph logs stream usage. $RALPH_ITER_SUMMARY is the
+# summary JSON and $RALPH_DIR/last_agent_output the raw stream. May log, and may set
+# _ITER_CONTEXT_USED/_ITER_CONTEXT_MAX/_ITER_CONTEXT_PCT to override stream values.
+agent_post_iteration() { :; }

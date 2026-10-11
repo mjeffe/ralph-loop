@@ -131,7 +131,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # System essentials
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl git jq gettext-base sudo \
+    ca-certificates curl git jq gettext-base python3 sudo \
     tini supervisor \
     && rm -rf /var/lib/apt/lists/*
 
@@ -147,7 +147,7 @@ ARG AGENT_INSTALL="npm install -g @sourcegraph/amp"
 RUN ${AGENT_INSTALL}
 
 # Ralph dependencies from dependencies file are covered above (git, curl,
-# jq, gettext-base). If dependencies file grows, this section must be
+# jq, gettext-base, python3). If dependencies file grows, this section must be
 # updated to match.
 
 # Handle UID 1000 conflict (ubuntu user in base image)
@@ -1237,6 +1237,11 @@ reuse the cached image and are fast.
 The function orchestrates the multi-pass pipeline:
 
 ```bash
+# Runs the agent on a prompt file and shows its formatted output (no session log or summary).
+sandbox_run_agent() {
+    agent_invoke "$1" | python3 "$RALPH_DIR/lib/format_output.py" --format "$AGENT_OUTPUT_FORMAT" --summary /dev/null
+}
+
 sandbox_setup() {
     local sandbox_dir="$RALPH_DIR/sandbox"
     local force=0
@@ -1257,6 +1262,9 @@ sandbox_setup() {
         exit 1
     fi
     source "$AGENT_SCRIPT"
+
+    # Agent must declare AGENT_OUTPUT_FORMAT, and python3 must exist (defined in ralph)
+    require_output_format
 
     if ! command -v "$AGENT_CLI" &>/dev/null; then
         echo "Error: agent CLI not found in PATH: $AGENT_CLI" >&2
@@ -1320,7 +1328,7 @@ sandbox_setup() {
         local analyze_prompt
         analyze_prompt=$(mktemp)
         prepare_prompt "$RALPH_DIR/prompts/sandbox-analyze.md" "$analyze_prompt"
-        agent_invoke "$analyze_prompt" | agent_format_display
+        sandbox_run_agent "$analyze_prompt"
         rm -f "$analyze_prompt"
 
         if [[ ! -f "$sandbox_dir/project-profile.json" ]]; then
@@ -1345,7 +1353,7 @@ sandbox_setup() {
     local render_prompt
     render_prompt=$(mktemp)
     prepare_prompt "$RALPH_DIR/prompts/sandbox-render.md" "$render_prompt"
-    agent_invoke "$render_prompt" | agent_format_display
+    sandbox_run_agent "$render_prompt"
     rm -f "$render_prompt"
 
     # Validate generated files
@@ -1363,7 +1371,7 @@ sandbox_setup() {
         local repair_prompt
         repair_prompt=$(mktemp)
         prepare_prompt "$RALPH_DIR/prompts/sandbox-repair.md" "$repair_prompt"
-        agent_invoke "$repair_prompt" | agent_format_display
+        sandbox_run_agent "$repair_prompt"
         rm -f "$repair_prompt"
 
         # Re-validate

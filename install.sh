@@ -44,6 +44,7 @@ MANAGED_FILES=(
     prompts/templates/wait-for-db
     prompts/playbooks/php-laravel.md
     lib/plan-filter.sh
+    lib/format_output.py
     lib/sandbox.sh
     lib/help/index.txt
     lib/help/overview.txt
@@ -85,6 +86,7 @@ declare -A SOURCE_PATHS=(
     [prompts/templates/wait-for-db]="prompts/templates/wait-for-db"
     [prompts/playbooks/php-laravel.md]="prompts/playbooks/php-laravel.md"
     [lib/plan-filter.sh]="lib/plan-filter.sh"
+    [lib/format_output.py]="lib/format_output.py"
     [lib/sandbox.sh]="lib/sandbox.sh"
     [lib/help/index.txt]="lib/help/index.txt"
     [lib/help/overview.txt]="lib/help/overview.txt"

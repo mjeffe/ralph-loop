@@ -49,87 +49,6 @@ that defines the arrays once. Both `install.sh` and `update.sh` source it.
 Alternatively, if item 1 is addressed first, consolidate install and update into a
 single Python script since the manifest shapes are natural to share.
 
-### 3. Agent Output Pipeline — Three-Pass Parsing in Bash — HIGH
-
-Each agent script (`agents/*.sh`) must implement 3-5 functions that parse the
-agent CLI's NDJSON output. The same data is parsed three separate times:
-
-1. `agent_format_display` — streams stdin through per-line jq for the terminal
-   and session log. Shows text, thinking, and tool-use blocks.
-2. `agent_extract_response` — re-reads `last_agent_output` from disk to scan
-   for COMPLETE/REPLAN signals.
-3. `agent_post_iteration` — greps `last_agent_output` with regex to extract
-   token counts and context window usage.
-
-Problems with the current approach:
-
-- **46% of content blocks never reach the log.** Tool results (what the agent
-  read or executed) and the final result message are invisible. The log shows
-  `[tool] Read: specs/foo.md` but not what was read, making session logs far
-  less useful for debugging.
-- **Three parsing passes that can drift apart.** If the jq filter in
-  `agent_format_display` is updated for a new content type but
-  `agent_extract_response` is not, signal detection silently misses things.
-- **Fragile grep-on-JSON for usage extraction.**
-  `grep -o '"usage":{[^}]*}'` assumes the usage object is flat and single-line.
-  A nested field (e.g., `"details":{"reasoning_tokens":5}`) breaks the regex
-  silently.
-- **Signal detection scope differs per agent.** amp/claude correctly scan only
-  assistant text (the `result` message duplicates the final assistant text, and the
-  echoed prompt and tool results contain the signal string). pi.sh does not filter
-  `message_end` by role, so it matches the echoed prompt's signal on every iteration.
-- **Per-agent implementation quality varies.** amp.sh got the full treatment
-  (tool inputs, thinking blocks, cost tracking). claude.sh is thinner (no tool
-  inputs, no cost). cline.sh has its own entirely different schema. codex.sh is
-  a stub. Each agent script carries its own completeness level.
-
-**Remediation:** Extract output processing to a shared Python module with
-per-agent block-type handlers. The stream reading, signal detection, file I/O,
-and error handling are implemented once. Agent-specific code is only the
-block-type dispatch (what content types exist and how to format them).
-
-A single-pass Python processor replaces all three functions:
-
-```python
-# Shared infrastructure (once)
-class OutputProcessor:
-    def process_stream(self, stream):
-        for line in stream:
-            obj = self.parse_line(line)
-            handler = getattr(self, f'handle_{obj["type"]}', None)
-            if handler: handler(obj)
-
-# Agent-specific (amp.py, ~30 lines)
-class AmpProcessor(OutputProcessor):
-    def handle_assistant(self, obj):
-        for block in obj['message']['content']:
-            if block['type'] == 'thinking':
-                self.emit(f"[thinking] {block['thinking']}")
-            elif block['type'] == 'text':
-                self.emit(block['text'])
-                self.check_signals(block['text'])
-            elif block['type'] == 'tool_use':
-                self.emit(f"[tool] {block['name']}: {self.tool_summary(block)}")
-```
-
-Claude and cline get the same quality of implementation as amp because the shared
-infrastructure handles the boilerplate. Codex becomes implementable in under an
-hour instead of "needs investigation." The session log gains tool results
-(opt-in, truncated) and the final result message. Signal detection checks all
-message types, not just assistant text blocks. Usage extraction uses
-`json.loads()` dictionary access instead of grep regex.
-
-Replaces the pipeline step in `run_iteration`:
-
-```bash
-agent_invoke "$tmp_prompt" \
-    | python3 "$RALPH_DIR/lib/format-output.py" --agent "$AGENT" \
-    | tee -a "$SESSION_LOG"
-```
-
-Stdlib only — no pip dependencies. Same drop-in model as the plan-filter
-extraction.
-
 ## Migration Triggers
 
 Do not undertake a full language migration unless one of these conditions is met:
@@ -196,9 +115,10 @@ Removes ~8 lines of conditional sourcing logic.
 
 ### 5. pi Agent: No Context-Window Warnings — LOW
 
-pi.sh does not set `_ITER_CONTEXT_PCT`, `_ITER_CONTEXT_USED`, or `_ITER_CONTEXT_MAX`
-because pi's NDJSON stream does not expose the model's max context window
-(`maxTokens` is not in pi's `usage` object). This means pi users lose:
+`lib/format_output.py` reports `context_max: null` (and therefore `context_pct: null`) for
+the `pi-json` format, because pi's NDJSON stream does not expose the model's max context
+window (`maxTokens` is not in pi's `usage` object). ralph logs `Context: N tokens` without a
+percentage, and `_ITER_CONTEXT_PCT` stays empty. This means pi users lose:
 
 - The "context usage high" warning in the terminal
 - Session-level context min/avg/max in the summary
@@ -208,23 +128,10 @@ amp/claude.
 
 **Remediation:** pi's model name is known from `PI_MODEL` or the stream metadata.
 A lookup table of model -> max context (or shelling out to `pi --list-models`)
-could provide the missing value. Alternatively, accept it as not worth the
+could provide the missing value, set from `agent_post_iteration` in `agents/pi.sh` via
+`_ITER_CONTEXT_MAX` / `_ITER_CONTEXT_PCT`. Alternatively, accept it as not worth the
 complexity — pi is positioned as the "cheap model on low-value iterations" agent
 where context warnings matter less.
-
-### 6. pi.sh Token/Cost Asymmetry Comment — TRIVIAL
-
-In `agents/pi.sh`, the `agent_post_iteration` awk block sums cost across all
-`message_end` events but captures `totalTokens` from only the last message:
-
-```awk
-{ cost += $1; tokens = $2 }
-```
-
-This is intentional (cost is cumulative; only the final turn's context size
-matters for context pressure), but the asymmetry could confuse a future maintainer.
-
-**Remediation:** Add a one-line comment in the awk block.
 
 ### 7. cline and codex: No Output Parser - LOW
 
@@ -276,7 +183,7 @@ not a context size, and the stream has no cost or window, so all usage fields st
 Source: `apps/cli/src/utils/events.ts`, `apps/cli/src/runtime/run-agent.ts`,
 `sdk/packages/shared/src/agents/types.ts` and `docs/cli/cli-reference.mdx` in
 https://github.com/cline/cline. The stream does not echo the prompt. This replaces the
-`ClineMessage` ask/say schema that `agents/cline.sh` currently assumes, which is the
+`ClineMessage` ask/say schema that `agents/cline.sh` used to parse, which is the
 VS Code extension's transcript format, not the CLI's.
 
 ```json

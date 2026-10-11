@@ -51,6 +51,10 @@ modes, ralph exits with an error: "--process is only valid with 'ralph plan'."
 1. Load configuration from `config` (relative to ralph script directory)
 2. Validate prerequisites:
    - Git repository exists
+   - The agent script sets `AGENT_OUTPUT_FORMAT` (otherwise: error naming the agent script
+     and saying its output parser is not implemented yet; this is how cline and codex are
+     reported as unsupported, see `tech-debt.md` item 7)
+   - `python3` is available (runs `lib/format_output.py`)
    - Agent CLI is available
    - Required directories exist
 3. Validate mode-specific prerequisites (e.g., implementation plan exists for build mode)
@@ -66,9 +70,9 @@ Each iteration follows this sequence:
 2. Write iteration header to log
 3. Substitute template variables into prompt
 4. Invoke agent with prompt
-5. Stream agent output to terminal and log simultaneously
-6. Check for completion signal
-7. Write iteration footer to log
+5. Stream formatted agent output to terminal and log simultaneously
+6. Read the processor's summary: failure checks, signal, context, cost
+7. Write iteration footer to log (including post-iteration hook output)
 8. Check exit conditions
 ```
 
@@ -101,21 +105,27 @@ corresponding script from `agents/${AGENT}.sh` at startup.
 The loop invokes the agent and routes output through a linear pipeline:
 
 ```bash
-agent_invoke "$prompt" \
+agent_invoke "$tmp_prompt" \
     | tee "$RALPH_DIR/last_agent_output" \
-    | agent_format_display \
-    | tee -a "$SESSION_LOG"
+    | python3 "$RALPH_DIR/lib/format_output.py" --format "$AGENT_OUTPUT_FORMAT" \
+        --summary "$summary_file" --log "$SESSION_LOG"
 ```
 
 This pattern:
 - Invokes the agent via `agent_invoke` (defined in the agent script), which pipes the prompt to the agent CLI via stdin
-- Captures the raw output to `last_agent_output` for post-iteration signal detection
-- Streams the output through `agent_format_display` (defined in the agent script), which converts the raw output to human-readable text in real time using per-line processing
-- Writes the filtered, human-readable output to both the terminal and the session log
+- Captures the raw output to `last_agent_output` (overwritten each iteration) as the debug
+  record and the source of test fixtures
+- Streams the output through `lib/format_output.py` (see `output-pipeline.md`) using the
+  stream schema the agent script declares in `AGENT_OUTPUT_FORMAT`. In one pass it writes the
+  screen display to stdout, appends the session log itself, and writes a summary JSON
+  (signal, response size, error state, context usage, cost) to a temp file that ralph reads
+  after the agent exits
 
-The session log contains exactly what the human sees on the terminal — filtered, readable output
-rather than raw NDJSON. The raw output is available in `last_agent_output` (overwritten each
-iteration) for signal detection and debugging.
+The screen shows thinking, assistant text, tool calls, and tool errors. The session log
+gets the same lines plus successful tool results (one line each) and the detail of failed
+tool results, so the log is a superset of the screen, not identical to it. ralph's own `log`
+lines (iteration headers and footers) are appended to the same file, before and after the
+processor runs. Full tool output is in neither: see "Screen vs. Log" in `output-pipeline.md`.
 
 #### Stderr Handling
 
@@ -123,35 +133,48 @@ Ralph does not redirect agent stderr. It flows directly to the user's terminal, 
 CLI errors (authentication failures, network errors, agent crashes) are immediately visible.
 Agent scripts control stderr handling in their `agent_invoke` function if needed. Since stderr
 is not part of the stdout pipeline, it cannot interfere with output capture or display filtering.
+The processor's own diagnostics also go to stderr and are not copied to the session log.
 
 #### Pipeline Robustness
 
-Both `agent_format_display` and `agent_extract_response` must process output line by line
-(using `while IFS= read -r line` loops) rather than passing the full stream or file to jq.
-This is critical because:
-- A malformed line in whole-file jq mode causes jq to abort, sending SIGPIPE back through the
-  pipeline and potentially terminating the agent mid-run
-- Per-line processing skips bad lines and continues, keeping the pipeline intact
-- The `while read` loop is inherently line-buffered, ensuring real-time terminal display
-
-See `specs/agent-scripts.md` for the full function contract and examples.
+`lib/format_output.py` guarantees (see "Robustness" in `output-pipeline.md`):
+- Malformed lines (stderr leakage, partial writes, invalid UTF-8) never stop processing: a
+  non-JSON line is shown raw and counted, and a line whose handling raises is skipped with
+  one stderr line
+- It flushes stdout and the log after every write, so the display and `tail -f` on the
+  session log stay live
+- If stdout breaks, it keeps reading stdin to EOF so the agent CLI is not killed by
+  SIGPIPE, keeps writing the log, and still writes the summary
+- The summary is written in a `finally` block, so it exists even after an unexpected
+  exception. If the processor crashes outright and writes no summary, ralph reads an empty
+  `response_chars` and treats the iteration as an empty response (retried)
 
 #### Optional Hooks
 
-Agent scripts may define `agent_pre_iteration` and `agent_post_iteration` hook functions for
-tasks like cost tracking. Ralph checks for their existence at runtime and calls them if present.
-See `specs/agent-scripts.md` for details.
+Every shipped agent script defines `agent_pre_iteration` and `agent_post_iteration` (a no-op
+when there is nothing to do), so the extension point is visible to anyone copying a script.
+Ralph still checks for their existence at runtime and calls them if present, so user-written
+agents without hooks keep working. `agent_pre_iteration` runs before `agent_invoke`.
+`agent_post_iteration` runs after ralph logs the stream's context and cost, with
+`RALPH_ITER_SUMMARY` pointing at the summary JSON. See `specs/agent-scripts.md` for details.
 
 The agent is invoked with the **project root as its working directory**. This is always `.` from the perspective of the agent, regardless of where the `ralph` script physically lives.
 
 ### Completion Detection
 
-The loop scans agent output for the exact string:
+The loop looks for the exact string:
 ```
 <promise>COMPLETE</promise>
 ```
 
-After the agent finishes, the loop extracts the agent's response text from the raw output file (`last_agent_output`) using `agent_extract_response` (defined in the agent script), then checks the extracted text for the completion signal. This avoids false positives from agents that echo the prompt back in their output (e.g., `amp` includes the prompt as a `user` type message in its JSON stream — the prompt itself contains the completion signal as an instruction to the agent). The response extraction function only selects agent response messages, so echoed prompts are excluded.
+The signal is decided by `lib/format_output.py`, which scans **only assistant-authored,
+top-level response text** and reports the result in the summary's `signal` field. Echoed
+prompts, tool results, thinking, subagent output, and final `result` lines are never
+scanned. Every ralph prompt contains the signal string as an instruction, agents echo the
+prompt (amp emits it as a `user` message, pi as a `message_end` with `role: "user"`), and
+agents routinely read prompt and spec files, so tool results contain it too. Scanning
+anything wider produces false completions. See "Signal Detection Constraint" in
+`output-pipeline.md`.
 
 When detected:
 - Current iteration completes normally
@@ -213,10 +236,16 @@ Written at end of each iteration:
 ```
 ================================================================================
 ITERATION ${ITERATION} DONE in ${DURATION}s ----
-Iteration Cost: ${ITER_COST}  Balance: ${BALANCE} (if usage tracking configured)
-Context: ${TOKENS_USED}/${MAX_TOKENS} tokens (${PCT}%) (if context tracking available)
+Context: ${TOKENS_USED}/${MAX_TOKENS} tokens (${PCT}%)   (or "Context: ${TOKENS_USED} tokens")
+Iteration Cost: $${COST}  (4 decimals)                  (when the stream reports cost)
+<agent_post_iteration output, e.g. amp: Iteration Cost: $X  Balance: $Y; pi: Model: ...>
+⚠ Context usage high — agent quality may degrade         (when PCT >= CONTEXT_WARN_PCT)
 ================================================================================
 ```
+
+The Context and Iteration Cost lines come from the processor summary and appear only when
+the stream exposes the values. The context warning is checked after the hook, so a hook
+that overrides `_ITER_CONTEXT_PCT` is honored.
 
 ### Session Summary
 
@@ -238,32 +267,38 @@ Exit Code: ${EXIT_CODE}
 
 ## Usage Tracking
 
-Agent scripts may optionally define `agent_pre_iteration` and `agent_post_iteration` hook
-functions to enable per-iteration cost and context tracking. Ralph checks for these functions
-at runtime and calls them if present. See `specs/agent-scripts.md` for the hook contract and
-examples.
+Context usage and cost come from the agent's stream, parsed by `lib/format_output.py`, and
+ralph logs whatever the summary reports (see "Iteration Footer"). Per format:
+- `stream-json`: context used and window (amp includes `max_tokens`; claude reports the
+  window and cost in its `result` line)
+- `pi-json`: context used and cost; no window (`tech-debt.md` item 5), so no percentage
+- `text`: nothing
 
-When hooks are defined, they can query the agent's account balance before and after each
-iteration, compute the cost, and log it using the `log` function provided by ralph. Hooks
-can also extract context window usage from the raw agent output in `last_agent_output` (e.g.,
-token counts and max context window size from the agent's NDJSON stream). When hooks are not
-defined, no usage information is displayed.
+Out-of-band usage stays in the agent's hooks. amp's stream carries no cost, so
+`agents/amp.sh` captures the account balance in `agent_pre_iteration` and logs the delta in
+`agent_post_iteration`. See `specs/agent-scripts.md` for the hook contract.
 
 ### Context Tracking
 
-When `agent_post_iteration` sets `_ITER_CONTEXT_PCT` (and optionally `_ITER_CONTEXT_USED`
-and `_ITER_CONTEXT_MAX`), the loop aggregates context usage across iterations and includes
-min/avg/max percentages in the session summary.
+After each iteration, ralph sets `_ITER_CONTEXT_USED`, `_ITER_CONTEXT_MAX`, and
+`_ITER_CONTEXT_PCT` from the summary (`context_used`, `context_max`, `context_pct`; empty when
+unavailable). `agent_post_iteration` may override them. When `_ITER_CONTEXT_PCT` is set, the
+loop aggregates it across iterations and includes min/avg/max percentages in the session
+summary.
 
-If context usage meets or exceeds `CONTEXT_WARN_PCT` (default: 80), the agent script should
-log a warning. High context usage correlates with degraded agent quality — the fresh-context-
+If context usage meets or exceeds `CONTEXT_WARN_PCT` (default: 80), ralph logs a warning.
+High context usage correlates with degraded agent quality — the fresh-context-
 per-iteration design mitigates this, but large tasks can still push a single iteration high.
 
 ## Error Handling
 
 ### Agent Failures
 
-If agent crashes, returns non-zero exit code, or produces no response:
+An iteration fails only when the agent CLI (or the pipeline) exits non-zero, the summary
+reports `is_error: true` (logged as "Agent reported an error: <error>"), or the agent
+produced no response. A missing signal is normal and counts as a successful iteration.
+
+On failure:
 1. Log the failure
 2. Increment retry counter for this iteration
 3. If retries < 3: retry the same iteration
@@ -271,11 +306,12 @@ If agent crashes, returns non-zero exit code, or produces no response:
 
 ### Empty Response Detection
 
-After each agent invocation, the loop extracts the agent's response text using
-`agent_extract_response`. If the agent exited successfully (code 0) but produced no response
-text, the iteration is treated as a failure and enters the retry path. This catches budget
-exhaustion, authentication expiry, and transient errors where the agent CLI exits cleanly
-but does no work. If retries are also exhausted, the loop exits with code 4.
+After each agent invocation, the loop reads `response_chars` from the processor summary. If
+the agent exited successfully (code 0) but `response_chars` is 0 or missing, the iteration is
+treated as a failure and enters the retry path. This catches budget exhaustion,
+authentication expiry, and transient errors where the agent CLI exits cleanly but does no
+work. A missing value means the processor wrote no summary (for example, it crashed), which
+is retried the same way. If retries are also exhausted, the loop exits with code 4.
 
 ### Retry Strategy
 

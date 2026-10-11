@@ -6,34 +6,15 @@
 stream (usually NDJSON) into human-readable display lines and a small JSON summary: the
 completion signal, response size, error state, context usage, and cost.
 
-It exists to replace the per-agent bash parsing in `agents/*.sh`
-(`agent_format_display`, `agent_extract_response`, and the stream-parsing half of
-`agent_post_iteration`), which parses the same stream three times and drifts apart (see
-`tech-debt.md` item 3). The processor was built from the process spec
-`process/output-pipeline-python.md`.
+It replaced the per-agent bash parsing in `agents/*.sh` (`agent_format_display`,
+`agent_extract_response`, and the grep-based usage parsing in `agent_post_iteration`), which
+parsed the same stream three times and drifted apart. The processor was built from the
+process spec `process/output-pipeline-python.md`.
 
-## Integration Status
+## Integration
 
-The processor is built and tested but **not yet called by `ralph` or any agent script**.
-The loop still uses the bash functions described in `loop-behavior.md` and
-`agent-scripts.md`. The cutover is a separate, supervised step (process spec, "What This
-Spec Does NOT Cover"). It covers:
-
-- Wiring the processor into `run_iteration` in `ralph`. The processor writes the session
-  log itself (`--log "$SESSION_LOG"` replaces `| tee -a "$SESSION_LOG"`), while
-  `tee "$RALPH_DIR/last_agent_output"` stays as the raw debug record.
-- Reading the summary for signals, context, cost, and empty-response detection based on
-  `response_chars` and `is_error`.
-- An `AGENT_OUTPUT_FORMAT` variable in each agent script, passed to `--format`, and
-  removal of `agent_format_display` / `agent_extract_response`.
-- Declaring `python3` in `dependencies` and `prompts/templates/Dockerfile.base`, and
-  shipping `lib/format_output.py` through `install.sh` / `update.sh` `MANAGED_FILES`.
-- Updating `loop-behavior.md`, `agent-scripts.md`, `project-structure.md`, `tech-debt.md`,
-  and `README.md`.
-
-Until then, the processor is not installed into parent projects.
-
-Intended pipeline after integration:
+`run_iteration` in `ralph` runs every agent invocation through the processor (see "Agent
+Invocation" in `loop-behavior.md`):
 
 ```bash
 agent_invoke "$tmp_prompt" \
@@ -41,6 +22,17 @@ agent_invoke "$tmp_prompt" \
     | python3 "$RALPH_DIR/lib/format_output.py" --format "$AGENT_OUTPUT_FORMAT" \
         --summary "$summary_file" --log "$SESSION_LOG"
 ```
+
+- `AGENT_OUTPUT_FORMAT` comes from the agent script (`agent-scripts.md`).
+- The processor writes the session log itself; `last_agent_output` stays as the raw debug
+  record and the source of fixtures.
+- ralph reads the summary for the signal, empty-response and error detection
+  (`response_chars`, `is_error`), and the `Context:` / `Iteration Cost:` footer lines, then
+  passes its path to `agent_post_iteration` as `RALPH_ITER_SUMMARY`.
+- `ralph sandbox setup` runs its agent passes through the processor with
+  `--summary /dev/null` and no `--log` (display only).
+- `python3` is a declared dependency (`dependencies`, `prompts/templates/Dockerfile.base`),
+  and `lib/format_output.py` ships through `install.sh` / `update.sh` `MANAGED_FILES`.
 
 ## Files
 
@@ -100,7 +92,7 @@ unexpected exception. Every key is always present; `null` means "not available".
 | Key | Meaning |
 |---|---|
 | `format` | The `--format` value |
-| `signal` | `"COMPLETE"`, `"REPLAN"`, or `null`. If both appear in signal-eligible text, `COMPLETE` wins (same as the bash loop, see `tests/test_signals.sh` `test_signal_both_complete_and_replan`). |
+| `signal` | `"COMPLETE"`, `"REPLAN"`, or `null`. If both appear in signal-eligible text, `COMPLETE` wins (preserves the behavior of the former bash signal check). |
 | `response_chars` | Sum of `len()` of every signal-eligible text block. `0` means the agent produced no response. A missing signal is normal and is not an empty response. |
 | `is_error` | `true` if the stream reported a terminal agent error, `false` if it reported a normal finish, `null` if the format has no such indicator or none was seen. |
 | `error` | Error message when `is_error` is `true`, else `null`. Falls back to `"unknown error"` when the stream gives no message. |
@@ -120,8 +112,8 @@ spec files, so tool results contain it too. In the real amp capture, the echoed 
 10 of 56 tool results contain `<promise>COMPLETE</promise>`. Scanning anything wider
 produces false completions (see `loop-behavior.md`, "Completion Detection").
 
-This is the bug the processor fixes for pi: `agents/pi.sh` `agent_extract_response` does
-not filter on role, so it matches pi's echoed user prompt and reports COMPLETE on every
+This fixed a pi bug: the former bash `agent_extract_response` in `agents/pi.sh` did not
+filter on role, so it matched pi's echoed user prompt and reported COMPLETE on every
 iteration.
 
 ## Display Conventions

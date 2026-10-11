@@ -31,12 +31,14 @@ ralph-loop/                         # Project root = Ralph's home
 │   │   ├── align-specs.txt
 │   │   └── retro.txt
 │   ├── sandbox.sh                  # Sandbox lifecycle, validation, detect_stack
-│   └── plan-filter.sh              # Plan header/overview extraction (invoked as script)
+│   ├── plan-filter.sh              # Plan header/overview extraction (invoked as script)
+│   └── format_output.py            # Agent output processor (invoked with python3)
 ├── agents/                         # Agent scripts (one per supported agent)
 │   ├── amp.sh
 │   ├── claude.sh
 │   ├── cline.sh
-│   └── codex.sh
+│   ├── codex.sh
+│   └── pi.sh
 ├── prompts/                        # Agent prompt templates (source of truth)
 │   ├── plan.md
 │   ├── plan-process.md
@@ -85,7 +87,8 @@ parent-project/
 │   │   │   ├── index.txt
 │   │   │   └── ...
 │   │   ├── sandbox.sh              # Sandbox lifecycle, validation, detect_stack
-│   │   └── plan-filter.sh          # Plan header/overview extraction
+│   │   ├── plan-filter.sh          # Plan header/overview extraction
+│   │   └── format_output.py        # Agent output processor
 │   ├── agents/                     # Agent scripts (one per supported agent)
 │   │   ├── amp.sh
 │   │   └── ...
@@ -207,6 +210,7 @@ uses the invocation style best suited to its content:
 | `lib/help/*.txt` | `cat` (no sourcing) | Help topic content as plain text files |
 | `lib/sandbox.sh` | `source` (eager, at startup) | Sandbox lifecycle, validation, and `detect_stack` |
 | `lib/plan-filter.sh` | Executed as script (`bash "$filter"`) | Plan header/overview extraction |
+| `lib/format_output.py` | Executed in the agent output pipeline (`python3 "$RALPH_DIR/lib/format_output.py"`) | Turns the agent's output stream into the screen display, session log lines, and a summary JSON (see `output-pipeline.md`) |
 
 All `lib/*.sh` modules are sourced eagerly at startup, after config but before the
 mode dispatch. Sourcing only parses function definitions into memory — there is no

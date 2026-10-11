@@ -13,6 +13,8 @@
 #       fail               exit 1
 
 AGENT_CLI="true"
+# Plain-text responses: every output line is displayed and scanned for signals.
+AGENT_OUTPUT_FORMAT="text"
 
 agent_invoke() {
     local prompt_file="$1" n action heading
@@ -36,6 +38,3 @@ agent_invoke() {
         *) echo "stub: noop" ;;
     esac
 }
-
-agent_extract_response() { cat "$1"; }
-agent_format_display() { cat; }
