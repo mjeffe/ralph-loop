@@ -175,8 +175,17 @@ Verify:
 <!-- Sizing: files=2, refs=1 (spec only; no existing code to study), subsystems=[python CLI/stream processor, python unittest], independent_components=1. Signals fired: 0/4. Decision: keep. The streaming and broken-pipe behavior are the riskiest parts; the tests listed above are the acceptance gate for them. -->
 
 ### Task 2: Add `format_output` group to tests/test_ralph.sh (Phase 1, step 3)
-**Status:** planned
+**Status:** complete
 **Depends on:** Task 1
+
+Notes (complete): Added `run_format_output_tests` to `tests/test_ralph.sh`. It runs the
+unittest discover command from `$RALPH_DIR` inside `$(...) || rc=$?`, records one
+`assert_eq` on the exit code, and echoes the captured unittest output on failure. Wired into
+the all-groups run and the `format_output` case; the "Available groups" line now ends with
+`format_output`. Verified: group alone -> 1 passed, exit 0; full suite -> 368 passed,
+0 failed; a temporarily broken assertion -> group reports 1 failed with the traceback, exit 1
+(reverted). Future tasks add tests to `tests/test_format_output.py` only; the bash group
+count stays at one assertion regardless of how many unittest cases exist.
 
 Hook the unittest suite into the bash test runner.
 

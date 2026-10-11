@@ -197,6 +197,15 @@ run_loop_tests() {
     test_loop_prompt_mode_substitutes_variables
 }
 
+run_format_output_tests() {
+    local output rc=0
+    output=$(cd "$RALPH_DIR" && python3 -m unittest discover -s tests -p 'test_format_output.py' 2>&1) || rc=$?
+    assert_eq "format_output unittest suite passes" "0" "$rc"
+    if [[ $rc -ne 0 ]]; then
+        echo "$output"
+    fi
+}
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -217,6 +226,7 @@ main() {
         run_plan_filter_tests
         run_sandbox_tests
         run_loop_tests
+        run_format_output_tests
     else
         # Run only requested groups
         for group in "$@"; do
@@ -228,9 +238,11 @@ main() {
                 plan_filter)    run_plan_filter_tests ;;
                 sandbox)        run_sandbox_tests ;;
                 loop)           run_loop_tests ;;
+                format_output)  run_format_output_tests ;;
                 *)
                     echo "Unknown test group: $group" >&2
-                    echo "Available groups: cli, signals, core, install_update, plan_filter, sandbox, loop" >&2
+                    echo "Available groups: cli, signals, core, install_update, plan_filter, sandbox, loop," \
+                        "format_output" >&2
                     exit 1
                     ;;
             esac
