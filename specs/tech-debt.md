@@ -74,10 +74,10 @@ Problems with the current approach:
   `grep -o '"usage":{[^}]*}'` assumes the usage object is flat and single-line.
   A nested field (e.g., `"details":{"reasoning_tokens":5}`) breaks the regex
   silently.
-- **Signal detection misses the `result` message type.** The COMPLETE signal
-  often appears in the agent's final `result` message, but `agent_extract_response`
-  only scans `assistant` type messages — depending entirely on the signal also
-  appearing in an assistant text block.
+- **Signal detection scope differs per agent.** amp/claude correctly scan only
+  assistant text (the `result` message duplicates the final assistant text, and the
+  echoed prompt and tool results contain the signal string). pi.sh does not filter
+  `message_end` by role, so it matches the echoed prompt's signal on every iteration.
 - **Per-agent implementation quality varies.** amp.sh got the full treatment
   (tool inputs, thinking blocks, cost tracking). claude.sh is thinner (no tool
   inputs, no cost). cline.sh has its own entirely different schema. codex.sh is
@@ -225,6 +225,79 @@ This is intentional (cost is cumulative; only the final turn's context size
 matters for context pressure), but the asymmetry could confuse a future maintainer.
 
 **Remediation:** Add a one-line comment in the awk block.
+
+### 7. cline and codex: No Output Parser - LOW
+
+`lib/format_output.py` has parsers only for streams we could capture for real
+(`stream-json` for amp/claude, `pi-json` for pi). `agents/cline.sh` and `agents/codex.sh`
+do not set `AGENT_OUTPUT_FORMAT`, so ralph refuses to run them with a clear error rather
+than misparse their output. A `text` passthrough is not a safe fallback: both CLIs emit
+JSON, so the raw lines would flood the screen, and tool output that contains
+`<promise>COMPLETE</promise>` would trigger a false completion.
+
+**Remediation:** Whoever has the agent available captures a real stream with the
+agent script's arguments and adds it as `tests/fixtures/format_output/<agent>.ndjson`.
+They then add a format subclass in `lib/format_output.py` following the `pi-json`
+pattern, and set `AGENT_OUTPUT_FORMAT` in the agent script. The notes below were
+researched from upstream source (2026-10) and are a starting point, not verified
+against a live CLI. The old `agents/cline.sh` parsed the VS Code extension's
+`ClineMessage` ask/say schema, which the cline 3.x CLI does not emit.
+
+#### `codex-json` (`codex exec --json`)
+
+Source: `codex-rs/exec/src/exec_events.rs` and
+`codex-rs/exec/tests/event_processor_with_json_output.rs` in https://github.com/openai/codex.
+The stream does not echo the prompt.
+
+```json
+{"type":"thread.started","thread_id":"..."}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"Inspected the failing test."}}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"pytest","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"pytest","aggregated_output":"1 passed\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"Finished. <promise>COMPLETE</promise>"}}
+{"type":"turn.completed","usage":{"input_tokens":42,"cached_input_tokens":12,"cache_write_input_tokens":0,"output_tokens":5,"reasoning_output_tokens":0}}
+{"type":"turn.failed","error":{"message":"provider unavailable"}}
+{"type":"error","message":"connection lost"}
+```
+
+Rules: `item.completed` + `agent_message` gives signal-eligible text. `reasoning` gives
+thinking. `command_execution`: `[tool] command: <command>` on `item.started`, and a tool
+result on `item.completed` (`[tool error]` when `exit_code` is non-zero). `file_change`
+on completion gives `[tool] file_change: <comma-joined paths>`. `mcp_tool_call` on
+completion gives `[tool] <server>.<tool>: <arguments summary>`. `web_search` gives
+`[tool] web_search: <query>`. An `error` item gives `[error]` but is non-fatal.
+`turn.completed` sets `is_error = false`. `turn.failed` and a top-level `error` set
+`is_error = true` with the message. `turn.completed.usage` is cumulative for the turn,
+not a context size, and the stream has no cost or window, so all usage fields stay `null`.
+
+#### `cline-json` (`cline --json`, CLI 3.x)
+
+Source: `apps/cli/src/utils/events.ts`, `apps/cli/src/runtime/run-agent.ts`,
+`sdk/packages/shared/src/agents/types.ts` and `docs/cli/cli-reference.mdx` in
+https://github.com/cline/cline. The stream does not echo the prompt. This replaces the
+`ClineMessage` ask/say schema that `agents/cline.sh` currently assumes, which is the
+VS Code extension's transcript format, not the CLI's.
+
+```json
+{"ts":"...","type":"agent_event","event":{"type":"content_start","contentType":"text","text":"Finished. ","accumulated":"Finished. "}}
+{"ts":"...","type":"agent_event","event":{"type":"content_end","contentType":"text","text":"Finished. <promise>COMPLETE</promise>"}}
+{"ts":"...","type":"agent_event","event":{"type":"content_end","contentType":"reasoning","reasoning":"I should inspect..."}}
+{"ts":"...","type":"agent_event","event":{"type":"content_start","contentType":"tool","toolName":"run_commands","toolCallId":"call_1","input":{"commands":["pytest"]}}}
+{"ts":"...","type":"agent_event","event":{"type":"content_end","contentType":"tool","toolName":"run_commands","toolCallId":"call_1","output":"1 passed\n","durationMs":812}}
+{"ts":"...","type":"agent_event","event":{"type":"usage","inputTokens":120,"outputTokens":12,"cacheReadTokens":50,"cacheWriteTokens":0,"cost":0.0012,"totalCost":0.0012}}
+{"ts":"...","type":"run_result","finishReason":"completed","iterations":1,"usage":{"inputTokens":120,"outputTokens":12,"cacheReadTokens":50,"cacheWriteTokens":0,"totalCost":0.0012},"text":"Finished. <promise>COMPLETE</promise>"}
+{"ts":"...","type":"run_aborted"}
+```
+
+Rules: only `content_end` is displayed (`content_start`/`content_update` are streaming
+chunks). `contentType` `text` gives signal-eligible text, `reasoning` gives thinking, and
+`tool` gives a tool result (`toolName`, `output`). The tool call line comes from the
+`tool` `content_start` (`toolName`, `input`). `run_result.text` is scanned for signals
+but not displayed and not counted in `response_chars`. `run_result` with `finishReason`
+`completed` sets `is_error = false`; any other `finishReason`, or `run_aborted`, sets
+`is_error = true` with the reason. `cost` = `run_result.usage.totalCost`. Context fields
+stay `null` (per-request token semantics are unverified and the window is not exposed).
 
 ## Non-Goals
 

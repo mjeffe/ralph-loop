@@ -32,4 +32,4 @@ Process specs describe ordered, phased work — migrations, rewrites, staged rol
 
 | Spec | Description |
 |------|-------------|
-| [process/output-pipeline-python.md](process/output-pipeline-python.md) | Extract agent output pipeline to Python (Phase 1 of tech-debt item 3 remediation) |
+| [process/output-pipeline-python.md](process/output-pipeline-python.md) | Build lib/format_output.py, the single-pass Python agent output processor (tech-debt item 3); integration is a separate supervised step |
