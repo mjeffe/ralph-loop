@@ -241,8 +241,11 @@ Rules:
     was not already set from `usage.max_tokens`.
 - Context comes only from the `usage` of top-level assistant messages; the last one wins.
   `context_used = input_tokens + cache_creation_input_tokens + cache_read_input_tokens +
-  output_tokens` (missing keys count as 0). `context_max = usage.max_tokens` when present
-  (amp includes it; claude does not).
+  output_tokens` (missing keys count as 0). `context_max = usage.max_tokens` when present.
+  amp sent `max_tokens` until its 2026-10-11 release, and `amp.ndjson` is a capture from
+  before that change. Current amp sends no window anywhere in the stream, so `context_max`
+  and `context_pct` are `null` for amp (`tech-debt.md` item 8). claude never sends
+  `max_tokens`; its window comes from the `result` line.
 - Without a `result` line, `is_error` stays `null`. amp's stream carries no cost, so
   `cost` stays `null` for amp; amp's balance-based cost stays in its bash hooks.
 

@@ -124,7 +124,7 @@ percentage, and `_ITER_CONTEXT_PCT` stays empty. This means pi users lose:
 - Session-level context min/avg/max in the summary
 
 This is a pi limitation, not a bug, but it is a meaningful feature gap compared to
-amp/claude.
+claude.
 
 **Remediation:** pi's model name is known from `PI_MODEL` or the stream metadata.
 A lookup table of model -> max context (or shelling out to `pi --list-models`)
@@ -205,6 +205,30 @@ but not displayed and not counted in `response_chars`. `run_result` with `finish
 `completed` sets `is_error = false`; any other `finishReason`, or `run_aborted`, sets
 `is_error = true` with the reason. `cost` = `run_result.usage.totalCost`. Context fields
 stay `null` (per-request token semantics are unverified and the window is not exposed).
+
+### 8. amp Agent: No Context Window Since 2026-10-11 - LOW
+
+amp's stream used to include `max_tokens` (the context window) in every assistant
+message's `usage` object, which `lib/format_output.py` reads as `context_max`. The amp
+release of 2026-10-11 (`0.0.1791734437-g42649e`) dropped it. In a real capture with that
+version, `usage` holds only `input_tokens`, `cache_creation_input_tokens`,
+`cache_read_input_tokens`, `output_tokens`, and `service_tier`; the `result` line has no
+`modelUsage`; and the `system` init line has no model or window. `amp threads context
+<thread>` failed with an internal CLI error when tried. amp users now get the same gap as
+pi (item 5): `Context: N tokens` without a percentage, no "context usage high" warning,
+and no session min/avg/max.
+
+The processor needs no change: it still reads `usage.max_tokens` and
+`result.modelUsage.*.contextWindow`, so a percentage returns automatically if amp restores
+either field. `tests/fixtures/format_output/amp.ndjson` predates the change and keeps
+covering the `max_tokens` path.
+
+**Remediation:** If amp does not restore the field, `agents/amp.sh` can supply the window
+from a user setting, e.g. an `AMP_CONTEXT_MAX` key shipped commented out in `config`
+(following the `<AGENT>_<SETTING>` convention in `agent-scripts.md`). `agent_post_iteration`
+would set `_ITER_CONTEXT_MAX` from it and compute `_ITER_CONTEXT_PCT` from the stream's
+`context_used` in `$RALPH_ITER_SUMMARY`. The window can vary with amp's agent mode, so a
+single configured value is an approximation.
 
 ## Non-Goals
 

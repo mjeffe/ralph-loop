@@ -269,8 +269,9 @@ Exit Code: ${EXIT_CODE}
 
 Context usage and cost come from the agent's stream, parsed by `lib/format_output.py`, and
 ralph logs whatever the summary reports (see "Iteration Footer"). Per format:
-- `stream-json`: context used and window (amp includes `max_tokens`; claude reports the
-  window and cost in its `result` line)
+- `stream-json`: context used. claude also reports the window and cost in its `result`
+  line. amp reports no window since its 2026-10-11 release, so it gets no percentage
+  (`tech-debt.md` item 8)
 - `pi-json`: context used and cost; no window (`tech-debt.md` item 5), so no percentage
 - `text`: nothing
 
