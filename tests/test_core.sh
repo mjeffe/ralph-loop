@@ -164,10 +164,22 @@ test_pi_agent_script() {
     output=$(bash -c "PI_MODEL='anthropic/claude-sonnet-4'; source '$RALPH_DIR/agents/pi.sh' && echo \$AGENT_ENV_KEYS")
     assert_eq "pi AGENT_ENV_KEYS derives from provider" "ANTHROPIC_API_KEY" "$output"
 
-    # Pre-flight: agent_invoke fails clearly when the derived key var is missing
+    # Pre-flight: without the key var, agent_invoke defers to `pi auth check` (auth.json, OAuth).
+    # fake_pi stands in for the CLI: `auth check` exits AUTH_RC, anything else prints "ran".
+    local fake='fake_pi() { [[ $1 == auth ]] && return $AUTH_RC; echo ran; }'
     local rc=0
-    bash -c "unset OPENROUTER_API_KEY; source '$RALPH_DIR/agents/pi.sh' && agent_invoke /dev/null" 2>/dev/null || rc=$?
-    assert_eq "pi agent_invoke exits 1 without OPENROUTER_API_KEY" "1" "$rc"
+    output=$(bash -c "unset OPENROUTER_API_KEY; source '$RALPH_DIR/agents/pi.sh'; $fake; AGENT_CLI=fake_pi
+        AUTH_RC=1 agent_invoke /dev/null" 2>/dev/null) || rc=$?
+    assert_eq "pi agent_invoke exits 1 with no key var and pi auth not ready" "1" "$rc"
+    assert_eq "pi agent_invoke does not run pi when auth is missing" "" "$output"
+
+    output=$(bash -c "unset OPENROUTER_API_KEY; source '$RALPH_DIR/agents/pi.sh'; $fake; AGENT_CLI=fake_pi
+        AUTH_RC=0 agent_invoke /dev/null" 2>/dev/null)
+    assert_eq "pi agent_invoke runs when pi auth check is ready (e.g. auth.json)" "ran" "$output"
+
+    output=$(bash -c "OPENROUTER_API_KEY=x; source '$RALPH_DIR/agents/pi.sh'; $fake; AGENT_CLI=fake_pi
+        AUTH_RC=1 agent_invoke /dev/null" 2>/dev/null)
+    assert_eq "pi agent_invoke runs when the key var is set" "ran" "$output"
 }
 
 test_stub_agent_scripts() {

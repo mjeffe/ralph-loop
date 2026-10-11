@@ -14,6 +14,7 @@ AGENT="amp"
 # Model for the pi agent (only used when AGENT="pi"). The default lives in
 # agents/pi.sh; uncomment to override.
 # Format: provider/id with optional :<thinking>, e.g. openrouter/anthropic/claude-3.5-haiku
-# Requires OPENROUTER_API_KEY in the environment for openrouter/* models.
+# openrouter/* models need OPENROUTER_API_KEY in the environment or an openrouter key in
+# ~/.pi/agent/auth.json (the sandbox forwards only the env var).
 # Run `pi --list-models openrouter` to see available models.
 #PI_MODEL="openrouter/anthropic/claude-3.5-haiku"

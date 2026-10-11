@@ -57,10 +57,12 @@ agent_invoke() {
     local prompt_file="$1"
 
     # Pre-flight: fail with a clear message instead of an opaque provider error
-    # if the model's API key is missing. Uses indirect expansion on the key var
-    # derived from the provider (AGENT_ENV_KEYS).
-    if [[ -z "${!AGENT_ENV_KEYS:-}" ]]; then
-        echo "Error: PI_MODEL is '$PI_MODEL' (provider '$PI_PROVIDER') but $AGENT_ENV_KEYS is not set." >&2
+    # if the provider has no credentials. The key var derived from the provider
+    # (AGENT_ENV_KEYS, via indirect expansion) is enough; otherwise ask pi, which
+    # also knows about ~/.pi/agent/auth.json and OAuth logins.
+    if [[ -z "${!AGENT_ENV_KEYS:-}" ]] && ! $AGENT_CLI auth check --provider "$PI_PROVIDER" &>/dev/null; then
+        echo "Error: PI_MODEL is '$PI_MODEL' (provider '$PI_PROVIDER') but $AGENT_ENV_KEYS is not set" \
+            "and 'pi auth check --provider $PI_PROVIDER' is not ready." >&2
         echo "Export $AGENT_ENV_KEYS or add a '$PI_PROVIDER' key to ~/.pi/agent/auth.json." >&2
         return 1
     fi

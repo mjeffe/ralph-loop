@@ -72,7 +72,7 @@ curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | 
    vim .ralph/config
    ```
    Set `AGENT` to your coding agent (`amp`, `claude`, `pi`).
-   For `pi`, set `PI_MODEL` (e.g. an OpenRouter model) and export `OPENROUTER_API_KEY`.
+   For `pi`, set `PI_MODEL` (e.g. an OpenRouter model) and export `OPENROUTER_API_KEY` (or store the key in `~/.pi/agent/auth.json`).
    `cline` and `codex` are not yet supported: their scripts ship, but ralph has no parser
    for their output streams yet and refuses to run them (see `specs/tech-debt.md` item 7).
 
