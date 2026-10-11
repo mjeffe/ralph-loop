@@ -17,3 +17,6 @@ sandbox/.env
 # Sandbox sentinel files (created by entrypoint.sh inside the container)
 .sandbox/
 
+
+# Python bytecode (created by tests/test_format_output.py runs)
+__pycache__/

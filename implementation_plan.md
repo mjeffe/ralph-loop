@@ -81,7 +81,28 @@ Validation), plus "Interface", "Display conventions", "Robustness", "Implementat
 and "Formats / text".
 
 ### Task 1: Core processor with `text` format and its unittest suite (Phase 1, steps 1-2)
-**Status:** planned
+**Status:** complete
+
+Notes (completed 2026-10-11):
+- Added `lib/format_output.py` (base `Processor`, `TextProcessor`, `FORMATS` dict, `main()`)
+  and `tests/test_format_output.py` (11 tests, all passing; full suite still 367/0).
+- Helper API for Tasks 3/4: `self.text(s)`, `self.thinking(s)`,
+  `self.tool(name, input, call_id=None)` (records `call_id -> name`),
+  `self.tool_result(content, is_error, call_id=None, name=None)` (name falls back to the
+  recorded id mapping, then `?`), `self.error(msg)`. Formats set `self.is_error`,
+  `self.error_message`, `self.context_used`, `self.context_max`, `self.cost` directly and
+  define `name` plus `handle(obj)`; register in `FORMATS`. Base `process_line` already does
+  the JSON parse / raw-line / `malformed_lines` path.
+- Scratch-checked the not-yet-exercised helpers: tool summary key priority, newline
+  replacement, compact JSON fallback, `(no output)`, `(+N more lines)`, and the 30-line
+  error detail block (`line 2`..`line 6`, `... (9 lines omitted)`, `line 16`..`line 30`).
+- Mutation-checked the tests: removing the stdout flush fails the streaming test; removing
+  the `os.dup2` fails the broken-pipe test.
+- Discovered: running the unittest suite leaves an untracked `tests/__pycache__/`. Fixed by
+  adding `__pycache__/` to `.gitignore` (not on the spec's do-not-modify list).
+- Assumption / Spec gap: error detail lines are not truncated to 200 chars (spec only
+  truncates `<first line>` and tool summaries); `malformed_lines` line numbers in the stderr
+  message count physical input lines including blank ones.
 
 Create the processor base and the `text` format, plus the unittest file covering every
 Phase 1 test.
