@@ -98,3 +98,14 @@ cat > /home/ralph/.gitconfig <<'GITCONFIG'
 GITCONFIG
 
 chown ralph:ralph /home/ralph/.bashrc /home/ralph/.gitconfig
+
+# amp settings
+mkdir -p /home/ralph/.config/amp
+cat > /home/ralph/.config/amp/settings.json <<'JSON'
+{
+    "amp.dangerouslyAllowAll": true,
+    "amp.git.commit.ampThread.enabled": false,
+    "amp.git.commit.coauthor.enabled": false
+}
+JSON
+
