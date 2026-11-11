@@ -637,9 +637,13 @@ sandbox_reset() {
             # Remove all containers and all volumes across every service
             docker compose -f "$compose_file" down -v
         else
-            # Stop only the app service, remove its codebase volume
-            docker compose -f "$compose_file" stop app
-            docker volume rm "${project_name}_sandbox-codebase" 2>/dev/null || true
+            # Remove only the app container (a stopped container still holds its volumes and
+            # Docker refuses to remove them), then its codebase volume if it exists
+            local codebase_volume="${project_name}_sandbox-codebase"
+            docker compose -f "$compose_file" rm -sf app
+            if docker volume inspect "$codebase_volume" >/dev/null 2>&1; then
+                docker volume rm "$codebase_volume"
+            fi
             docker compose -f "$compose_file" up -d --build app
         fi
         echo "Sandbox reset complete."

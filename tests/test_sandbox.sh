@@ -545,6 +545,54 @@ test_sandbox_name_defaults_to_app() {
     assert_contains "calls sandbox_container_name" "sandbox_container_name" "$body"
 }
 
+test_sandbox_reset_recreates_codebase_volume() {
+    echo "--- sandbox_reset: removes the codebase volume, fails loudly when it cannot (#36) ---"
+    # Stub docker models the rule behind #36: a volume cannot be removed while any container
+    # (running or stopped) references it. State is files in $state: app, holder, volume.
+    local state="$TMP_DIR/reset_state"
+    run_reset() (
+        source <(sed -n '/^sandbox_reset()/,/^}/p' "$RALPH_DIR/lib/sandbox.sh")
+        sandbox_ensure_name() { :; }
+        docker() {
+            case "$*" in
+                *" config --format json") echo '{"name":"proj"}' ;;
+                *" rm -sf app" | *" down -v") rm -f "$state/app" ;;
+                *" up -d --build app") [[ -f "$state/volume" ]] || echo fresh > "$state/volume"; touch "$state/app" ;;
+                "volume inspect "*) [[ -f "$state/volume" ]] ;;
+                "volume rm proj_sandbox-codebase")
+                    if [[ -f "$state/app" || -f "$state/holder" ]]; then
+                        echo "Error response from daemon: volume is in use" >&2
+                        return 1
+                    fi
+                    rm -f "$state/volume" ;;
+                *) ;;  # stop, etc.: containers keep their volumes
+            esac
+        }
+        set -euo pipefail
+        sandbox_reset <<< y
+    )
+    # Capture the exit code with set +e rather than `|| rc=$?`: bash ignores set -e inside
+    # anything on the left of ||, which would hide the failure ralph relies on (it runs set -e).
+    local output rc
+    capture_reset() { set +e; output=$(run_reset 2>&1); rc=$?; set -e; }
+
+    mkdir -p "$state" && touch "$state/app" && echo stale > "$state/volume"
+    capture_reset
+    assert_eq "reset exits 0" "0" "$rc"
+    assert_eq "codebase volume is recreated" "fresh" "$(cat "$state/volume")"
+    assert_eq "app is running again" "true" "$( [[ -f "$state/app" ]] && echo true || echo false )"
+
+    rm -f "$state/volume"
+    capture_reset
+    assert_eq "reset with no codebase volume exits 0" "0" "$rc"
+
+    touch "$state/holder" && echo stale > "$state/volume"
+    capture_reset
+    assert_ne "volume in use exits non-zero" "0" "$rc"
+    assert_contains "volume in use shows docker error" "volume is in use" "$output"
+    assert_not_contains "volume in use does not claim success" "Sandbox reset complete" "$output"
+}
+
 test_sandbox_help_has_docker_tips() {
     echo "--- sandbox help: includes Docker Tips section ---"
     local output
