@@ -64,13 +64,14 @@ When adding a new `prompts/adhoc-*.md` to the shipped set:
 - Use conventional commit prefixes such as `docs:`, `feat:`, `fix:`, `chore`, etc..
 - First line under 72 characters, followed by a blank line when body is needed.
 - No agent attribution or "Generated with" footers
-- Do not include `Closes #N` or `Fixes #N` in commit messages — issues often have
-  multiple gaps to address across several commits. Auto-close would prematurely close
-  the issue. Instead, close issues manually via `gh issue close --comment` once all
-  gaps are addressed.
-- Reference the issue number in commit messages (e.g., `fix: add bundling constraint (#1)`)
+- Never put a GitHub closing keyword before an issue reference in a commit message
+  (close/closes/closed, fix/fixes/fixed, resolve/resolves/resolved, e.g. `Fixes #12`), even in
+  prose. GitHub closes the issue as soon as the commit reaches `main`, and issues often span
+  several commits. Reference the issue as `(#N)` instead, e.g. `fix: add bundling constraint (#1)`,
   so GitHub creates cross-reference links on the issue.
-- No agent attribution or "Generated with" footers
+- Close issues manually with `gh issue close N --comment "..."` once all gaps are addressed and
+  the fixing commits are pushed. Summarize what was fixed and anything left (follow-ups, manual
+  repairs).
 
 ## GitHub CLI
 
