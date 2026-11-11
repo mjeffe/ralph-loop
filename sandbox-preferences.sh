@@ -67,9 +67,9 @@ export EDITOR=vim
 export VISUAL=vim
 BASHRC
 
-# Vim configuration
+# Vim configuration (the installer writes to $HOME, which is /root during the build)
 curl -fsSL https://raw.githubusercontent.com/mjeffe/nix-profile/master/vim-config/install.sh \
-    | bash -s min
+    | HOME=/home/ralph bash -s min
 
 # Git configuration
 cat > /home/ralph/.gitconfig <<'GITCONFIG'
