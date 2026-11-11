@@ -25,12 +25,18 @@ test_installer_piped_fetches_from_upstream() {
     git -C "$target" add -A
     git -C "$target" -c user.name=t -c user.email=t@t commit -qm init
 
-    # Stub curl serves raw GitHub URLs from this checkout; stub git answers ls-remote offline.
+    # Stub curl serves raw GitHub URLs from this checkout, failing like curl -f (exit 22, no output
+    # file) for the path in STUB_CURL_FAIL; stub git answers ls-remote offline.
     cat > "$bin/curl" <<EOF
 #!/bin/bash
 out="" url=""
 while [[ \$# -gt 0 ]]; do case "\$1" in -o) out="\$2"; shift 2 ;; -*) shift ;; *) url="\$1"; shift ;; esac; done
-cp "$RALPH_DIR/\${url#https://raw.githubusercontent.com/mjeffe/ralph-loop/main/}" "\$out"
+path="\${url#https://raw.githubusercontent.com/mjeffe/ralph-loop/main/}"
+if [[ "\$path" == "\${STUB_CURL_FAIL:-}" ]]; then
+    echo "curl: (22) The requested URL returned error: 404" >&2
+    exit 22
+fi
+cp "$RALPH_DIR/\$path" "\$out"
 EOF
     printf '#!/bin/bash\necho "abcdef0123456789  HEAD"\n' > "$bin/git"
     chmod +x "$bin/curl" "$bin/git"
@@ -41,6 +47,20 @@ EOF
     assert_eq "piped .gitignore is upstream's" "$(cat "$RALPH_DIR/.gitignore")" "$(cat "$target/.ralph/.gitignore")"
     assert_eq "piped config is upstream's" "$(cat "$RALPH_DIR/config")" "$(cat "$target/.ralph/config")"
     assert_eq "piped .version is upstream HEAD" "abcdef0" "$(cat "$target/.ralph/.version")"
+
+    # A failed download stops the install, names the file, and leaves .ralph/ for inspection.
+    rm -rf "$target/.ralph" "$target/AGENTS.md" "$target/specs"
+    local output
+    rc=0
+    output=$(cd "$target" && PATH="$bin:$PATH" STUB_CURL_FAIL=lib/sandbox.sh \
+        bash < "$RALPH_DIR/install.sh" 2>&1) || rc=$?
+    assert_ne "failed download exits non-zero" "0" "$rc"
+    assert_contains "failed download names the URL" \
+        "Failed to download https://raw.githubusercontent.com/mjeffe/ralph-loop/main/lib/sandbox.sh" "$output"
+    assert_contains "failed download gives cleanup instructions" "rm -rf .ralph" "$output"
+    assert_eq "partial .ralph/ is kept" "true" "$( [[ -f "$target/.ralph/ralph" ]] && echo true || echo false )"
+    assert_eq "no AGENTS.md after failure" "false" "$( [[ -e "$target/AGENTS.md" ]] && echo true || echo false )"
+    assert_eq "no manifest after failure" "false" "$( [[ -e "$target/.ralph/.manifest" ]] && echo true || echo false )"
 }
 
 test_updater_three_way_merge_clean() {

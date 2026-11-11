@@ -252,6 +252,8 @@ The installer should handle:
 - Existing `.ralph/` directory (refuse to overwrite, exit code 1)
 - Permission errors (exit with helpful message)
 - Missing dependencies (check and report)
+- Failed file download, including HTTP errors (stop, name the failed URL, and leave the partial
+  `.ralph/` in place for inspection with instructions to remove it and rerun the installer)
 
 All errors should exit with non-zero code and clear error message.
 

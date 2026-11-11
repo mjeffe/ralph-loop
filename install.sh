@@ -163,7 +163,18 @@ fetch_file() {
     if [[ -n "$SCRIPT_DIR" && -f "$SCRIPT_DIR/$src_path" ]]; then
         cp "$SCRIPT_DIR/$src_path" "$dest"
     else
-        curl -sSL "$RALPH_REPO/$src_path" -o "$dest"
+        curl -fsSL "$RALPH_REPO/$src_path" -o "$dest" || die "Failed to download $RALPH_REPO/$src_path
+
+The install stopped partway. Only $RALPH_DIR/ was created; nothing else in your
+project was changed. Files after the failed one were not fetched.
+
+To retry, remove the partial install and rerun the installer:
+  rm -rf $RALPH_DIR
+  curl -sSL $RALPH_REPO/install.sh | bash
+
+If it fails again, GitHub may be serving a stale copy (wait a few minutes),
+or the file is missing upstream. Please report it at
+https://github.com/mjeffe/ralph-loop/issues"
     fi
 }
 
