@@ -14,6 +14,35 @@ test_installer_creates_originals() {
     assert_eq "install.sh references .originals" "true" "$( [[ "$has_mkdir" -ge 1 ]] && echo true || echo false )"
 }
 
+test_installer_piped_fetches_from_upstream() {
+    echo "--- Installer piped into bash fetches upstream files, not the target's (#37) ---"
+    # The target repo has its own .gitignore and config; a piped install must not copy them.
+    local target="$TMP_DIR/piped_install" bin="$TMP_DIR/piped_install_bin"
+    mkdir -p "$target" "$bin"
+    git -C "$target" init -q
+    printf 'target-ignore\n' > "$target/.gitignore"
+    printf 'TARGET_CONFIG=1\n' > "$target/config"
+    git -C "$target" add -A
+    git -C "$target" -c user.name=t -c user.email=t@t commit -qm init
+
+    # Stub curl serves raw GitHub URLs from this checkout; stub git answers ls-remote offline.
+    cat > "$bin/curl" <<EOF
+#!/bin/bash
+out="" url=""
+while [[ \$# -gt 0 ]]; do case "\$1" in -o) out="\$2"; shift 2 ;; -*) shift ;; *) url="\$1"; shift ;; esac; done
+cp "$RALPH_DIR/\${url#https://raw.githubusercontent.com/mjeffe/ralph-loop/main/}" "\$out"
+EOF
+    printf '#!/bin/bash\necho "abcdef0123456789  HEAD"\n' > "$bin/git"
+    chmod +x "$bin/curl" "$bin/git"
+
+    local rc=0
+    (cd "$target" && PATH="$bin:$PATH" bash < "$RALPH_DIR/install.sh" >/dev/null) || rc=$?
+    assert_eq "piped install exits 0" "0" "$rc"
+    assert_eq "piped .gitignore is upstream's" "$(cat "$RALPH_DIR/.gitignore")" "$(cat "$target/.ralph/.gitignore")"
+    assert_eq "piped config is upstream's" "$(cat "$RALPH_DIR/config")" "$(cat "$target/.ralph/config")"
+    assert_eq "piped .version is upstream HEAD" "abcdef0" "$(cat "$target/.ralph/.version")"
+}
+
 test_updater_three_way_merge_clean() {
     echo "--- Three-way merge: clean merge ---"
     # Simulate: originals has base, user modified one section, upstream modified another

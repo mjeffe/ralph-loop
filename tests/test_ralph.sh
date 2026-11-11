@@ -102,6 +102,7 @@ run_core_tests() {
 
 run_install_update_tests() {
     test_installer_creates_originals
+    test_installer_piped_fetches_from_upstream
     test_updater_three_way_merge_clean
     test_updater_three_way_merge_conflict
     test_updater_originals_not_in_gitignore

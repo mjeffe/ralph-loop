@@ -16,6 +16,14 @@ set -euo pipefail
 RALPH_REPO="https://raw.githubusercontent.com/mjeffe/ralph-loop/main"
 RALPH_DIR=".ralph"
 
+# The ralph-loop checkout this script runs from, or empty when piped (curl ... | bash). A piped
+# script has no source file; inside functions BASH_SOURCE[0] is "main", which would resolve to
+# the current directory (the target project), so resolve it here, at top level, where it is empty.
+SCRIPT_DIR=""
+if [[ -f "${BASH_SOURCE[0]:-}" ]]; then
+    SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+fi
+
 # Files managed by the installer/updater (relative to .ralph/)
 # Keep in sync with update.sh — validated by tests/test_ralph.sh
 MANAGED_FILES=(
@@ -152,12 +160,8 @@ fetch_file() {
     local dest="$2"
 
     # If running from within the ralph-loop repo, copy directly
-    local script_dir
-    script_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-    local local_src="$script_dir/$src_path"
-
-    if [[ -f "$local_src" ]]; then
-        cp "$local_src" "$dest"
+    if [[ -n "$SCRIPT_DIR" && -f "$SCRIPT_DIR/$src_path" ]]; then
+        cp "$SCRIPT_DIR/$src_path" "$dest"
     else
         curl -sSL "$RALPH_REPO/$src_path" -o "$dest"
     fi
@@ -167,12 +171,9 @@ fetch_file() {
 # Determine the upstream commit hash for version tracking
 # ---------------------------------------------------------------------------
 get_upstream_version() {
-    local script_dir
-    script_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-
-    if [[ -d "$script_dir/.git" ]]; then
+    if [[ -n "$SCRIPT_DIR" && -d "$SCRIPT_DIR/.git" ]]; then
         # Running locally from the ralph-loop repo
-        git -C "$script_dir" rev-parse --short HEAD
+        git -C "$SCRIPT_DIR" rev-parse --short HEAD
     else
         # Running remotely via curl — query GitHub
         git ls-remote https://github.com/mjeffe/ralph-loop.git HEAD \

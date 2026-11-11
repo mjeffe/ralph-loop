@@ -13,6 +13,12 @@ curl -sSL https://raw.githubusercontent.com/mjeffe/ralph-loop/main/install.sh | 
 
 The installer script lives at the root of the ralph-loop repository so the curl URL is minimal.
 
+When piped into `bash`, the installer downloads every managed file from GitHub and records the
+latest upstream commit (`git ls-remote`) in `.ralph/.version`. It never reads files from the
+current directory, which is the target project. When run as a file from a ralph-loop checkout
+(`/path/to/ralph-loop/install.sh`), it copies files from that checkout and records the checkout's
+`HEAD`.
+
 ## Installer Behavior
 
 ### Pre-installation Checks
